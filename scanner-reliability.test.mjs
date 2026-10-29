@@ -73,6 +73,8 @@ test('Fulgrim the Perfect Son (7103170521): ISBN from matching Vinted book attri
  assert.equal(result.isbnStatus,'found');
  assert.equal(result.isbn,'9781804079720');
 });
+test('Vinted detail exposes the exact language attribute for the selected item',()=>{const url='https://www.vinted.pl/items/7103170521-test';const payload=JSON.stringify([1,JSON.stringify({item:{id:7103170521,attributes:[{name:'Język',value:'Angielski'}]}})]);const result=parseVintedDetail('<script>self.__next_f.push('+payload+')</script>',url);assert.equal(result.language,'Angielski');assert.equal(result.languageStatus,'found');});
+test('Vinted detail reads language_book from the real sibling item-section shape',()=>{const url='https://www.vinted.pl/items/9745564559-test';const payload=JSON.stringify([1,JSON.stringify({item:{id:9745564559,title:'Warcraft'},sidebar:{data:{attributes:[{code:'language_book',data:{title:'Język',value:'Polski'},type:'text'}]}}})]);const result=parseVintedDetail('<script>self.__next_f.push('+payload+')</script>',url);assert.equal(result.language,'Polski');assert.equal(result.languageStatus,'found');});
 test('Fulgrim: an ISBN on an unrelated listing cannot be inherited', () => {
  const url='https://www.vinted.pl/items/7103170521-warhammer-fulgrim-the-perfect-son-jude-reid';
  const html='<script type="application/ld+json">'+JSON.stringify({

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BookFlip Scanner</title>
+  <meta name="description" content="Lokalna wyszukiwarka ofert książek">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="BookFlip Scanner">
+      <span class="brand-mark" aria-hidden="true">B</span>
+      <span><strong>BookFlip</strong><small>lokalny skaner ofert</small></span>
+    </a>
+    <div class="topbar-actions"><button class="text-button" id="showOffers" type="button">Oferty</button><button class="text-button" id="openHistory" type="button">Historia</button><button class="ghost-button" id="openSearch" type="button">Uruchom skan</button></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Twoje źródła · jeden widok</p>
+        <h1>Znajdź książki,<br><em>porównaj ceny.</em></h1>
+        <p class="lede">Przeszukuj zapisane źródła bez przełączania kart. Wyniki pochodzą bezpośrednio z publicznych list ofert.</p>
+      </div>
+      <div class="hero-summary" aria-live="polite">
+        <span class="summary-number" id="offerCount">—</span>
+        <span>unikalnych ofert</span>
+        <small id="searchDate">Rozpocznij pierwsze wyszukiwanie</small>
+      </div>
+    </section>
+
+    <section class="toolbar" id="resultsToolbar" hidden>
+      <div class="query-list" id="activeQueries"></div>
+      <div class="toolbar-actions">
+        <label>Szukaj <input class="filter-input" id="filterResults" type="search" placeholder="Tytuł lub ISBN"></label>
+        <label>Sortowanie
+          <select id="sortResults"><option value="price-asc">Cena: rosnąco</option><option value="deals">Najlepsze okazje</option><option value="price-desc">Cena: malejąco</option><option value="title">Tytuł</option><option value="source">Źródło</option></select>
+        </label>
+        <button class="text-button" id="exportResults" type="button">Eksportuj JSON</button>
+      </div>
+    </section>
+
+    <section id="emptyState" class="empty-state">
+      <div class="book-stack" aria-hidden="true"><i></i><i></i><i></i></div>
+      <h2>Oferty pojawią się tutaj</h2>
+      <p>Dodaj hasła i wybierz źródła, które chcesz przeszukać.</p>
+      <button class="primary-button" id="emptySearch" type="button">Otwórz wyszukiwarkę</button>
+    </section>
+
+    <section id="statusPanel" class="status-panel" hidden aria-live="polite"></section>
+    <section id="scanSummary" class="scan-summary" hidden aria-live="polite"></section>
+    <section id="results" class="results" aria-label="Wyniki wyszukiwania"></section>
+    <section id="historyView" class="history-view" hidden>
+      <div class="section-heading"><div><p class="eyebrow">Historia rynku</p><h2>Zapisane książki</h2></div><button class="text-button" id="backToBooks" type="button" hidden>← Wszystkie książki</button></div>
+      <div id="historyContent"></div>
+    </section>
+  </main>
+
+  <dialog id="searchDialog" class="search-dialog">
+    <form method="dialog" id="searchForm">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">Nowy skan</p><h2>Czego szukamy?</h2></div>
+        <button class="close-button" value="cancel" aria-label="Zamknij" type="submit">×</button>
+      </div>
+      <label class="field-label" for="queries">Hasła wyszukiwania</label>
+      <textarea id="queries" rows="5" placeholder="Warcraft&#10;Herezja Horusa&#10;Forgotten Realms" required></textarea>
+      <p class="field-help">Wpisz jedno hasło w każdym wierszu. Maksymalnie 10.</p>
+      <div class="category-lock"><span class="field-label">Kategoria</span><strong>Książki · język polski</strong><small>Stały filtr książek w języku polskim</small></div>
+      <div class="source-heading"><span class="field-label">Zapisane źródła</span><button id="toggleSources" class="text-button" type="button">Zaznacz wszystkie</button></div>
+      <div class="source-grid" id="sourceGrid"><span class="loading-line">Wczytywanie źródeł…</span></div>
+      <div class="scan-progress" id="scanProgress" hidden aria-live="polite"><div class="progress-track"><i></i></div><div class="progress-copy"><span id="progressMessage">Przygotowywanie skanu…</span><strong id="progressElapsed">0 s</strong></div></div>
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel" type="submit">Anuluj</button>
+        <button class="primary-button" id="startSearch" type="button"><span>Szukaj ofert</span><i aria-hidden="true"></i></button>
+      </div>
+    </form>
+  </dialog>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

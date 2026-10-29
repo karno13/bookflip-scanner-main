@@ -1,5 +1,5 @@
 import {queryText,matchesTopic,excludesProduct} from './search-policy.mjs';
-import {bibliographicMetadata} from './isbn.mjs';
+import {bibliographicMetadata,extractOfferISBN} from './isbn.mjs';
 import {createHash} from 'node:crypto';
 import {setTimeout as wait} from 'node:timers/promises';
 import {parseVinted,parseAllegroListing,parseOlx,rscText,objectAt} from './reference-parsers.mjs';
@@ -12,7 +12,9 @@ function discoveryBookEvidence(task,title){
  if(/\b(forgotten realms|zapomniane krainy)\b/.test(text))return true;
  return false;
 }
-export function acceptsBook(task,title){if(excludesProduct(title)||!matchesTopic(task,title))return false;return task.mode!=='discovery'||discoveryBookEvidence(task,title);}
+const foreignLanguageMarker=/\b(?:english|angielski|anglojęzyczn|po angielsku|wersja angielska|wydanie angielskie|original language|deutsch|german|niemieck|français|french|francusk|español|spanish|hiszpańsk|italiano|italian|włoski|russian|rosyjsk|ukrainian|ukraińsk|magyar|hungarian|węgiersk|gyülekező|válka|kniha|knihy|bøger|kirjat|kezdetek|drakono|medžioklė|kniga|livre|libro|libri|livros)\b|[őűøčšž]|\[(?:eng|en|de|fr|es|it|ru|uk|hu)\]|\((?:eng|en|de|fr|es|it|ru|uk|hu)\)/i;
+export function isPolishBook(title,metadata){const text=String(title||'').trim(),language=String(metadata?.language??metadata?.lang??'').trim();if(!text||foreignLanguageMarker.test(text))return false;if(language&&!/^(?:pl|pol|polish|polski|język polski)$/i.test(language))return false;if(/\b(?:język polski|polska wersja|po polsku|wydanie polskie|polski|polska|polskie)\b/i.test(text)||/[ąćęłńóśźż]/i.test(text))return true;return !/\b(?:the|and|of|edition|english|paperback|hardcover|volume|vol\.?|translated|translation|language)\b/i.test(text);}
+export function acceptsBook(task,title,metadata){if(task.language==='pl'&&!isPolishBook(title,metadata))return false;if(excludesProduct(title)||!matchesTopic(task,title))return false;return task.mode!=='discovery'||!['Allegro','Allegro Lokalnie'].includes(task.source)||discoveryBookEvidence(task,title);}
 export function searchUrl(task){if(!sources[task.source]||task.host!==sources[task.source].host)throw Error('UNTRUSTED_MARKETPLACE_TASK');const query=queryText(task);if(task.source==='Vinted'){const u=new URL('https://www.vinted.pl/catalog/2312-books');u.searchParams.set('search_text',query);if(task.paginationVersion===1){if(!Number.isInteger(task.page)||task.page<1||task.page>10000)throw Error('INVALID_VINTED_PAGE');u.searchParams.set('page',String(task.page));}return u.href;}if(task.paginationVersion===1&&(!Number.isInteger(task.page)||task.page<1||task.page>10000))throw Error('INVALID_MARKETPLACE_PAGE');let u;if(task.source==='Allegro'){u=new URL('https://allegro.pl/listing');u.searchParams.set('string',task.mode==='watchlist'?query:query+' książki');}else if(task.source==='Empik'){u=new URL('https://www.empik.com/szukaj/produkt');u.searchParams.set('q',query);u.searchParams.set('qtype','basicForm');}else if(task.source==='Allegro Lokalnie')u=new URL('https://allegrolokalnie.pl/oferty/q/'+encodeURIComponent(task.mode==='watchlist'?query:query+' książki'));else if(task.source==='OLX')u=new URL('https://www.olx.pl/muzyka-edukacja/ksiazki/q-'+encodeURIComponent(query)+'/');else if(task.source==='Tezeusz.pl'){u=new URL('https://tezeusz.pl/szukaj');u.searchParams.set('szukaj',query);}else{u=new URL('https://dedalus.pl/s');u.searchParams.set('q',query);}if(task.paginationVersion===1&&task.page>1)u.searchParams.set(task.source==='Allegro'?'p':task.source==='Empik'?'start':'page',String(task.source==='Empik'?(task.page-1)*60+1:task.page));return u.href;}
 export function retryAfterSeconds(header,now=Date.now()){
  const text=String(header||'').trim(),seconds=/^\d+$/.test(text)?Number(text):(Date.parse(text)-now)/1000;
@@ -24,7 +26,7 @@ export function sourceChallenge(html){
  // while retaining explicit challenge-provider endpoints even inside scripts.
  const markup=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<!--[\s\S]*?-->/g,' ');
  return /verify (?:that )?you are human|access denied|just a moment\.\.\.|attention required|<title>[^<]*(?:captcha|verification)|potwierd[zź],? [zż]e jeste[sś] cz[lł]owiekiem/i.test(markup)
-  || /\/cdn-cgi\/challenge-platform\/|(?:geo\.)?captcha-delivery\.com\/(?:captcha|interstitial)\/|ct\.captcha-delivery\.com\/c\.js|\bvar\s+dd\s*=\s*\{[^}]*\bhost\s*:\s*['"]geo\.captcha-delivery\.com/i.test(html)
+  || /\/cdn-cgi\/challenge-platform\/(?!scripts\/jsd\/)|(?:geo\.)?captcha-delivery\.com\/(?:captcha|interstitial)\/|ct\.captcha-delivery\.com\/c\.js|\bvar\s+dd\s*=\s*\{[^}]*['"]?host['"]?\s*:\s*['"]geo\.captcha-delivery\.com/i.test(html)
   || html.length<100000&&/captcha|datadome.*challenge/i.test(markup);
 }
 async function readBody(response,limit=4000000){
@@ -54,7 +56,7 @@ export async function readSourceHtml(raw,{fetcher=fetch,source,pause=wait,now=Da
  }throw Error('SOURCE_REDIRECT_LIMIT');
 }
 export function parseMarketplace(html,task,observedAt=new Date().toISOString(),limit=20){
- searchUrl(task);const book={accept:title=>acceptsBook(task,title)};let rows;
+ searchUrl(task);const book={accept:(title,metadata)=>acceptsBook(task,title,metadata)};let rows;
  try{if(task.source==='Vinted')rows=parseVinted(html,book,observedAt);else if(task.source==='Allegro Lokalnie')rows=parseAllegroListing(html,book,observedAt);else if(['Tezeusz.pl','Dedalus.pl','Allegro','Empik'].includes(task.source))rows=parseBookstore(html,book,task.source);else{
   let recognized=false;for(const m of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{const d=JSON.parse(m[1]);if(Array.isArray(d.offers?.offers))recognized=true;}catch{}}
   if(!recognized)throw Error('UNRECOGNIZED_MARKETPLACE_DATA');rows=parseOlx(html,book,observedAt);
@@ -81,13 +83,13 @@ function parseEmpikCards(html,add){
   const currencyTag=[...segment.matchAll(/<meta\b([^>]*)>/gi)].find(match=>attribute(match[1],'itemprop')==='priceCurrency'),currency=attribute(currencyTag?.[1],'content');
   const numeric=Number(String(price).replace(',','.')),declaredNumeric=declared?Number(declared.replace(',','.')):numeric;
   if(!rawUrl||!price||currency!=='PLN'||!Number.isFinite(numeric)||!Number.isFinite(declaredNumeric)||Math.abs(numeric-declaredNumeric)>0.001)continue;
-  add(title,rawUrl,price,currency);
+  add(title,rawUrl,price,currency,{isbn:attribute(attrs,'data-product-ean')||attribute(attrs,'data-ean')});
  }
  return true;
 }
 function parseBookstore(html,book,source){
  const host=sources[source].host,rows=[],seen=new Set();
- const add=(title,rawUrl,price,currency='PLN')=>{let url;try{url=new URL(rawUrl,'https://'+host);}catch{return;}if(source==='Allegro'&&!/^\/oferta\/[^/]+-\d+$/.test(url.pathname))return;if(source==='Empik'&&!/,p\d+,ksiazka-p$/.test(url.pathname))return;if(url.protocol!=='https:'||url.hostname!==host||url.port||url.username||url.password||/^\/(?:szukaj|s|do-koszyka|do-schowka|koszyk|logowanie|info|tanie-ksiazki(?=\/?$))(?:\/|$)/i.test(url.pathname)||!title||!book.accept(title)||currency!=='PLN')return;const amount=Number(String(price).replace(/\s/g,'').replace(',','.'));if(!Number.isFinite(amount)||amount<=0||amount>100000)return;url.search='';url.hash='';if(seen.has(url.href))return;seen.add(url.href);rows.push({title,url:url.href,price:amount,available:true});};
+ const add=(title,rawUrl,price,currency='PLN',metadata={})=>{let url;try{url=new URL(rawUrl,'https://'+host);}catch{return;}if(source==='Allegro'&&!/^\/oferta\/[^/]+-\d+$/.test(url.pathname))return;if(source==='Empik'&&!/,p\d+,ksiazka-p$/.test(url.pathname))return;if(url.protocol!=='https:'||url.hostname!==host||url.port||url.username||url.password||/^\/(?:szukaj|s|do-koszyka|do-schowka|koszyk|logowanie|info|tanie-ksiazki(?=\/?$))(?:\/|$)/i.test(url.pathname)||!title||!book.accept(title)||currency!=='PLN')return;const amount=Number(String(price).replace(/\s/g,'').replace(',','.'));if(!Number.isFinite(amount)||amount<=0||amount>100000)return;url.search='';url.hash='';if(seen.has(url.href))return;seen.add(url.href);const isbn=extractOfferISBN(metadata).isbn;rows.push({title,url:url.href,price:amount,available:true,...(isbn?{isbn}:{})});};
  // Tezeusz cards contain variant counts and old prices; read only the
  // current-price element within the same product anchor.
  if(source==='Tezeusz.pl'&&/tezeusz-product-card/.test(html)){
@@ -112,7 +114,7 @@ function parseBookstore(html,book,source){
   const json=source==='Dedalus.pl'?m[1].replace(/"(?:[^"\\]|\\[\s\S])*"/g,value=>value.replace(/[\u0000-\u001f]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'))):m[1];
   visit(JSON.parse(json));
  }catch{}
- for(const p of products){const offer=Array.isArray(p.offers)?p.offers[0]:p.offers;if(!offer||offer['@type']==='AggregateOffer')continue;const price=offer.price??offer.lowPrice,currency=offer.priceCurrency||'PLN';if(offer.lowPrice!=null&&offer.price==null)continue;add(p.name||p.title,offer.url||p.url||p['@id'],price,currency);}
+ for(const p of products){const offer=Array.isArray(p.offers)?p.offers[0]:p.offers;if(!offer||offer['@type']==='AggregateOffer')continue;const price=offer.price??offer.lowPrice,currency=offer.priceCurrency||'PLN';if(offer.lowPrice!=null&&offer.price==null)continue;add(p.name||p.title,offer.url||p.url||p['@id'],price,currency,p);}
  if(['Allegro','Empik'].includes(source)){if(!products.length)throw Error('UNRECOGNIZED_MARKETPLACE_DATA');return rows;}
  if(rows.length||products.length)return rows;
  const anchors=[...html.matchAll(/<a\b([^>]*\bhref=["']([^"']+)["'][^>]*)>([\s\S]*?)<\/a>/gi)].filter(m=>{try{const u=new URL(decodeHtml(m[2]),'https://'+host);return u.hostname===host&&/^https?:$/.test(u.protocol)&&!/^\/(?:szukaj|s|do-koszyka|do-schowka|koszyk|logowanie|info|tanie-ksiazki(?=\/?$))(?:\/|$)/i.test(u.pathname);}catch{return false;}});
@@ -136,7 +138,7 @@ export function marketplacePageInfo(html,task,offers){
  const digest=createHash('sha256').update(JSON.stringify(offers.map(o=>o.url))).digest('hex');
  let ended=false;
  for(const m of html.matchAll(/<(?:a|link|button)\b([^>]*)>([^<]*)/gi)){
-  const attrs=m[1],label=m[2];if(!/\brel=["'][^"']*\bnext\b|\baria-label=["'][^"']*(?:next|nast[eę]pn)/i.test(attrs)&&!/^\s*(?:next|nast[eę]pn)/i.test(label))continue;
+  const attrs=m[1],label=m[2];if(!/\brel=["'][^"']*\bnext\b|\baria-label=["'][^"']*(?:next|nast[eę]pn)/i.test(attrs)&&!/^\s*(?:next|nast[eę]pn)/i.test(label)&&!(task.source==='Empik'&&attribute(attrs,'class').split(/\s+/).includes('ta-next-page')))continue;
   if(/aria-disabled=["']true|\bdisabled(?:[\s=>]|$)/i.test(attrs)){ended=true;continue;}
   const href=attrs.match(/\bhref=["']([^"']+)["']/i)?.[1];if(!href)continue;
   try{const u=new URL(href.replace(/&amp;/g,'&'),current),parameter=task.source==='Allegro'?'p':task.source==='Empik'?'start':'page',rawNext=Number(u.searchParams.get(parameter)),next=task.source==='Empik'?((rawNext-1)/60+1):rawNext;u.searchParams.delete(parameter);const base=new URL(current);base.searchParams.delete(parameter);

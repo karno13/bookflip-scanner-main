@@ -27,7 +27,7 @@ export function parseLocalArgs(argv){
 export async function runLocalScan(config,{scanner=scanMarketplace,write=line=>console.log(line)}={}){
  let failed=0;
  for(const source of config.sources){
-  const task={source,host:sourceHosts[source],mode:'discovery',title:config.query,category:config.query,searchQuery:config.query,page:config.page,paginationVersion:1};
+  const task={source,host:sourceHosts[source],mode:'discovery',title:config.query,category:config.query,language:'pl',searchQuery:config.query,page:config.page,paginationVersion:1};
   try{
    const result=await scanner(task);
    write(JSON.stringify({source,result:'read',query:config.query,page:config.page,offers:result.offers.length,pagination:result.pagination,examples:result.offers.slice(0,config.examples).map(({title,price,url})=>({title,price,url}))},null,2));

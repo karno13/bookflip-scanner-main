@@ -36,6 +36,20 @@ Pętla skanera i workera ma budżet 4 minut. Limity jobów wynoszą odpowiednio 
 
 ## Test lokalny źródeł
 
+### Aplikacja lokalna
+
+Najprościej uruchomić aplikację dwuklikiem na pliku `Uruchom BookFlip Scanner.cmd`. Możesz też wpisać w terminalu `node local-app.mjs`. Aplikacja otworzy się pod adresem `http://127.0.0.1:4317`. W oknie wyszukiwania można wpisać do 10 haseł, wybrać zapisane źródła, sortować oferty i wyeksportować wynik do JSON. Filtr jest stały: książki w języku polskim. Dla Vinted aplikacja sprawdza pole języka w metadanych każdej konkretnej oferty i pokazuje wyłącznie `Polski`; oferta bez rozpoznanego języka jest pomijana. Wybrane źródła i hasła są zapisywane lokalnie w przeglądarce. Aplikacja nie korzysta z kolejki ani bazy BookFlip.
+
+Podczas skanu interfejs pokazuje aktywne źródło, hasło, numer strony i licznik ofert. Zdarzenia diagnostyczne są dopisywane do `scan-results/local-app.log`; log zawiera tylko czas, źródło, hasło, stronę, liczby i kody błędów.
+
+Znalezione oferty są zapisywane w `scan-results/local-offer-history.json`. Jest to lokalny magazyn danych aplikacji, podzielony logicznie na minimalny katalog `books`, rekordy `offers` i punkty `priceHistory`. Zapis odbywa się atomowo. Dane z wcześniejszego formatu wersji 1 są migrowane podczas pierwszego odczytu; brak ISBN nie blokuje zapisu oferty. Oferta jest deduplikowana po stabilnym ID źródła, a gdy źródło go nie ujawnia — po znormalizowanym URL. Brak oferty w następnym skanie nie oznacza jej automatycznie jako sprzedanej.
+
+Nowy punkt historii powstaje przy pierwszym wykryciu i każdej zmianie ceny. Ponowne wykrycie tej samej ceny aktualizuje tylko datę ostatniej obserwacji. ISBN jest pobierany z jednoznacznych metadanych źródła i zapisywany wyłącznie po sprawdzeniu sumy kontrolnej. Dla znanych ofert Vinted zapisane metadane języka i ISBN są używane ponownie, bez kolejnego odczytu strony szczegółowej.
+
+Widok „Historia” pokazuje książki powiązane dokładnie po ISBN, bieżące statystyki, historyczne minimum, listę ofert oraz wykres obserwowanych cen. Oferty bez ISBN pozostają niepowiązane. Ocena ceny wymaga co najmniej dwóch innych ofert tego samego ISBN i nie uwzględnia ocenianej oferty w medianie. Progi znajdują się w `price-analysis.mjs`. Historia opisuje ogłoszenia, nie potwierdzone transakcje.
+
+Detektor blokad rozróżnia pasywny skrypt Cloudflare `scripts/jsd/main.js` od strony weryfikacyjnej. Sama obecność tego skryptu nie blokuje parsera. Poprzednie raporty `SOURCE_CAPTCHA` dla Empiku, Vinted i Tezeusza mogły być fałszywymi alarmami. Faktyczne komunikaty weryfikacji, aktywne challenge i blokady DataDome nadal zatrzymują odczyt. Aplikacja lokalna przechodzi po kolejnych stronach, jeśli źródło potwierdzi link `next`, z limitem 50 stron na zapytanie. Narzędzie `local-scan.mjs` pozostaje diagnostyczne i odczytuje jedną wskazaną stronę.
+
 `local-scan.mjs` uruchamia ten sam transport i parser marketplace co kolejka, ale nie korzysta z OIDC, sekretu BookFlip ani endpointu zapisu. Domyślnie odczytuje jedną stronę Empiku dla zapytania Warcraft:
 
 ```powershell
