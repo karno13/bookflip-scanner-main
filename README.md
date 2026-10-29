@@ -34,6 +34,19 @@ Opcjonalny autoryzowany feed JSON zastępuje czytnik HTML danego portalu. DNS i 
 
 Pętla skanera i workera ma budżet 4 minut. Limity jobów wynoszą odpowiednio 10 i 6 minut. Dwa joby co 5 minut oraz kontynuacje zwiększają zużycie Actions; sprawdzaj rzeczywiste użycie i limity konta.
 
+## Test lokalny źródeł
+
+`local-scan.mjs` uruchamia ten sam transport i parser marketplace co kolejka, ale nie korzysta z OIDC, sekretu BookFlip ani endpointu zapisu. Domyślnie odczytuje jedną stronę Empiku dla zapytania Warcraft:
+
+```powershell
+node local-scan.mjs
+node local-scan.mjs --source Empik --query "Horus Rising"
+node local-scan.mjs --source Allegro --query Warcraft
+node local-scan.mjs --source all --query Warcraft --examples 3
+```
+
+Kod wyjścia `0` oznacza poprawny odczyt wszystkich wybranych źródeł, `2` niedostępność co najmniej jednego źródła, a `1` nieprawidłowe argumenty. Wynik zawiera tylko liczniki, paginację, przykładowe oferty i bezpieczną diagnostykę. Test nie zapisuje niczego do kolejki ani bazy.
+
 Etapy zakończone są zapisywane atomowo. Po błędach przejściowych obowiązuje backoff i maksymalnie 3 próby. Odmowa dostępu zatrzymuje etap. Błąd nie usuwa istniejących ofert. W logach są wyłącznie statusy i liczniki.
 
 ## Separate matching worker
