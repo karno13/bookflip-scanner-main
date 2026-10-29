@@ -7,7 +7,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {scanMarketplace} from './marketplaces.mjs';
 import {localSourceHosts} from './local-scan.mjs';
 import {readVintedLanguage} from './vinted-detail.mjs';
-import {loadOfferHistory,saveOfferHistory,applyScanToHistory,sourceOfferId} from './offer-history.mjs';
+import {loadOfferHistory,saveOfferHistory,applyScanToHistory,sourceOfferId,createCatalogBook,linkOfferToBook} from './offer-history.mjs';
 import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
@@ -62,6 +62,8 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='GET'&&url.pathname==='/api/sources')return send(response,200,JSON.stringify({sources:Object.keys(localSourceHosts)}));
  if(request.method==='GET'&&url.pathname==='/api/history'){const history=await loadOfferHistory();return send(response,200,JSON.stringify(historySnapshot(history)));}
  if(request.method==='GET'&&url.pathname==='/api/book'){const history=await loadOfferHistory(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
+ if(request.method==='POST'&&url.pathname==='/api/catalog'){const history=await loadOfferHistory(),created=createCatalogBook(history,await readJson(request));await saveOfferHistory(created.history);return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:historySnapshot(created.history)}));}
+ if(request.method==='POST'&&url.pathname==='/api/catalog/link'){const input=await readJson(request),history=linkOfferToBook(await loadOfferHistory(),String(input.offerId||''),String(input.bookId||''));await saveOfferHistory(history);return send(response,200,JSON.stringify(historySnapshot(history)));}
  if(request.method==='POST'&&url.pathname==='/api/search'&&url.searchParams.get('stream')==='1'){
   streamHeaders(response);const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
   try{const result=await searchAndStore(await readJson(request),emit);response.write(JSON.stringify({type:'result',result})+'\n');response.end();}catch(error){response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();}return;

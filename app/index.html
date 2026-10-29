@@ -13,7 +13,7 @@
       <span class="brand-mark" aria-hidden="true">B</span>
       <span><strong>BookFlip</strong><small>lokalny skaner ofert</small></span>
     </a>
-    <div class="topbar-actions"><button class="text-button" id="showOffers" type="button">Oferty</button><button class="text-button" id="openHistory" type="button">Historia</button><button class="ghost-button" id="openSearch" type="button">Uruchom skan</button></div>
+    <div class="topbar-actions"><button class="text-button" id="showOffers" type="button">Oferty</button><button class="text-button" id="openCatalog" type="button">Katalog</button><button class="text-button" id="openHistory" type="button">Historia</button><button class="ghost-button" id="openSearch" type="button">Uruchom skan</button></div>
   </header>
 
   <main>
@@ -54,6 +54,16 @@
     <section id="historyView" class="history-view" hidden>
       <div class="section-heading"><div><p class="eyebrow">Historia rynku</p><h2>Zapisane książki</h2></div><button class="text-button" id="backToBooks" type="button" hidden>← Wszystkie książki</button></div>
       <div id="historyContent"></div>
+    </section>
+    <section id="catalogView" class="history-view" hidden>
+      <div class="section-heading"><div><p class="eyebrow">Masterfile</p><h2>Katalog książek</h2></div></div>
+      <form id="catalogForm" class="catalog-form">
+        <label>Tytuł książki<input id="catalogTitle" maxlength="500" required placeholder="np. Dzień smoka"></label>
+        <label>ISBN — opcjonalnie<input id="catalogIsbn" inputmode="numeric" placeholder="np. 9788388916014"></label>
+        <button class="primary-button" type="submit">Dodaj do katalogu</button>
+      </form>
+      <p class="field-help">ISBN nie jest wymagany. Oferty możesz przypisywać ręcznie poniżej.</p>
+      <div id="catalogContent"></div>
     </section>
   </main>
 

@@ -50,6 +50,8 @@ Nowy punkt historii powstaje przy pierwszym wykryciu i każdej zmianie ceny. Pon
 
 Widok „Historia” pokazuje książki powiązane dokładnie po ISBN, bieżące statystyki, historyczne minimum, listę ofert oraz wykres obserwowanych cen. Oferty bez ISBN pozostają niepowiązane. Ocena ceny wymaga co najmniej dwóch innych ofert tego samego ISBN i nie uwzględnia ocenianej oferty w medianie. Progi znajdują się w `price-analysis.mjs`. Historia opisuje ogłoszenia, nie potwierdzone transakcje.
 
+Zakładka „Katalog” jest prostym masterfile książek. Można dodać tytuł z opcjonalnym ISBN i ręcznie przypisać do niego dowolną zapisaną ofertę. Ręczne przypisanie ma pierwszeństwo przed późniejszym automatycznym odczytem ISBN i pozostaje zachowane przy kolejnych skanach. Statystyki oraz historia pozycji katalogowej agregują wszystkie przypisane do niej oferty bez łączenia rekordów po podobieństwie tytułu.
+
 Detektor blokad rozróżnia pasywny skrypt Cloudflare `scripts/jsd/main.js` od strony weryfikacyjnej. Sama obecność tego skryptu nie blokuje parsera. Poprzednie raporty `SOURCE_CAPTCHA` dla Empiku, Vinted i Tezeusza mogły być fałszywymi alarmami. Faktyczne komunikaty weryfikacji, aktywne challenge i blokady DataDome nadal zatrzymują odczyt. Aplikacja lokalna przechodzi po kolejnych stronach, jeśli źródło potwierdzi link `next`, z limitem 50 stron na zapytanie. Narzędzie `local-scan.mjs` pozostaje diagnostyczne i odczytuje jedną wskazaną stronę.
 
 `local-scan.mjs` uruchamia ten sam transport i parser marketplace co kolejka, ale nie korzysta z OIDC, sekretu BookFlip ani endpointu zapisu. Domyślnie odczytuje jedną stronę Empiku dla zapytania Warcraft:
