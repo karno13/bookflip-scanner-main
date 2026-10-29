@@ -1,0 +1,27 @@
+name: Source connectivity
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/source-connectivity.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  connectivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Read one page from each new source
+        run: |
+          node --input-type=module <<'JS'
+          import {scanMarketplace} from './marketplaces.mjs';
+          for(const [source,host] of [['Allegro','allegro.pl'],['Empik','www.empik.com']]){
+            try{
+              const result=await scanMarketplace({source,host,mode:'watchlist',title:'Warcraft',category:'Warcraft',page:1,paginationVersion:1});
+              console.log(JSON.stringify({source,result:'read',offers:result.offers.length,pagination:result.pagination,examples:result.offers.slice(0,2).map(o=>({title:o.title,price:o.price,url:o.url}))}));
+            }catch(e){console.log(JSON.stringify({source,result:'unavailable',error:e.message,status:e.status||null}));}
+          }
+          JS

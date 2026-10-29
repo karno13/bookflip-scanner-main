@@ -1,0 +1,45 @@
+name: BookFlip buyback connectivity test
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/buyback-test.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Test one ISBN quote without placing an order
+        shell: python
+        run: |
+          import subprocess, re, json, tempfile, os
+          with tempfile.TemporaryDirectory() as folder:
+            cookie=os.path.join(folder,'cookies')
+            base=['curl','--silent','--show-error','--max-time','25','--cookie',cookie,'--cookie-jar',cookie]
+            home=subprocess.check_output(base+['https://skupksiazek.pl/','--write-out','\n%{http_code}']).decode()
+            html,code=home.rsplit('\n',1)
+            print('Home HTTP:',code)
+            if code!='200':
+              print('RESULT: unavailable; no retries or alternate routes')
+              raise SystemExit(1)
+            token=re.search(r'name="csrf-token"\s+content="([^"]+)"',html)
+            if not token:
+              print('RESULT: form unavailable')
+              raise SystemExit(1)
+            response=subprocess.check_output(base+['https://skupksiazek.pl/cart/0','-H','Accept: application/json','-H','Content-Type: application/json','-H','X-Requested-With: XMLHttpRequest','-H','X-CSRF-TOKEN: '+token.group(1),'--data',json.dumps({'isbn':'9788365315397'}),'--write-out','\n%{http_code}']).decode()
+            body,status=response.rsplit('\n',1)
+            print('Quote HTTP:',status)
+            try:
+              data=json.loads(body)
+            except ValueError:
+              print('RESULT: non-JSON response; stopping')
+              raise SystemExit(1)
+            if status=='200':
+              items=data.get('cart',{}).get('items',[])
+              item=next((x for x in items if x.get('isbn')=='9788365315397'),None)
+              print('RESULT:',json.dumps({k:item.get(k) for k in ['isbn','title','price','book_condition']} if item else {'error':'ISBN not in response'},ensure_ascii=False))
+            else:
+              print('RESULT:',json.dumps({'message':data.get('message','Unavailable')},ensure_ascii=False))
+              raise SystemExit(1)

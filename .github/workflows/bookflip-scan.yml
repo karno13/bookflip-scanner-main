@@ -1,0 +1,72 @@
+name: BookFlip Scanner
+on:
+  schedule:
+    - cron: '17 * * * *'
+    - cron: '47 * * * *'
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      continuation:
+        type: string
+        default: '0'
+  push:
+    branches: [main]
+    paths: ['run.mjs', 'enrich.mjs', 'search-policy.mjs', 'continuation.mjs', 'feed.mjs', 'marketplaces.mjs', 'reference-parsers.mjs', 'rss.mjs', 'vinted-detail.mjs', 'isbn.mjs', '.github/workflows/bookflip-scan.yml']
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+jobs:
+  scan:
+    if: github.repository == 'PJASDEM/bookflip-scanner' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: bookflip-scanner
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run bounded BookFlip scan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOOKFLIP_CONTINUATION: ${{ inputs.continuation || '0' }}
+          BOOKFLIP_RESUME_ONLY: ${{ github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *' }}
+          BOOKFLIP_RECOVERY: ${{ github.event_name == 'schedule' && github.event.schedule == '47 * * * *' }}
+          BOOKFLIP_SITES_ACCESS: ${{ secrets.BOOKFLIP_SITES_ACCESS }}
+        run: node run.mjs
+
+  matching:
+    if: github.repository == 'PJASDEM/bookflip-scanner' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    concurrency:
+      group: bookflip-matching
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Drain matching queue
+        env:
+          BOOKFLIP_SITES_ACCESS: ${{ secrets.BOOKFLIP_SITES_ACCESS }}
+        run: node process.mjs
+
+
+
+  enrich:
+    if: github.repository == 'PJASDEM/bookflip-scanner' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    concurrency:
+      group: bookflip-enrichment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Enrich already saved offers
+        env:
+          BOOKFLIP_SITES_ACCESS: ${{ secrets.BOOKFLIP_SITES_ACCESS }}
+        run: node enrich.mjs
