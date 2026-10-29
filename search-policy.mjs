@@ -24,7 +24,7 @@ export function excludesProduct(title){
  const n=normalizeSearch(title);
  if(/\b(ebook|e book|epub|mobi|audiobook|audio book|stl|gra pc|gra ps5|gra ps4|gra komputerowa)\b/.test(n))return true;
  const book=/\b(ksiazka|ksiazki|ksiazek|book|books|powiesc|novel|tom|tomy|omnibus|codex|kodeks|podrecznik)\b/.test(n);
- return !book&&/\b(figurka|figurki|figurek|miniatures?|unpainted|sprue|dvd|cd|karty|naklejki|zakladka|bookmark)\b/.test(n);
+ return !book&&/\b(figurka|figurki|figurek|statuetka|miniatures?|miniatura|model|modele|unpainted|sprue|wypraski|ramki|bits|dvd|cd|karty|karta|deck|booster|foil|mtg|magic the gathering|naklejki|zakladka|bookmark|cosplay|bolter|pistol|dice|kosci|kostki|armia|army|pojazd|piechota|terminators?|custodian|jetbike|farba|paint|colour|teren|tereny|sceneria|plansza|puzzle|gra|game|pc|ps2|ps3|ps4|ps5|xbox|gold|czasu gry|konto|funko|casio|zegarek|watch|gpu|geforce|rtx|neverwinter nights|demon stone|adventures in the forgotten realms)\b/.test(n);
 }
 export function expandSearchTopics(topics){
  const seen=new Set(),out=[];

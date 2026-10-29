@@ -47,6 +47,14 @@ node local-scan.mjs --source all --query Warcraft --examples 3
 
 Kod wyjścia `0` oznacza poprawny odczyt wszystkich wybranych źródeł, `2` niedostępność co najmniej jednego źródła, a `1` nieprawidłowe argumenty. Wynik zawiera tylko liczniki, paginację, przykładowe oferty i bezpieczną diagnostykę. Test nie zapisuje niczego do kolejki ani bazy.
 
+Pełna lokalna próba wszystkich adapterów i rodzin wyszukiwania zapisuje częściowe wyniki po każdym żądaniu w ignorowanym przez Git katalogu `scan-results/`:
+
+```powershell
+node local-batch-scan.mjs
+```
+
+Jeden błąd lub CAPTCHA nie przerywa pozostałych źródeł. Raport zawiera pełne wyniki każdej pary źródło–hasło, bezpieczną diagnostykę oraz skonsolidowaną tablicę `offers`, deduplikowaną po adresie oferty i opisaną polami `source` i `matchedQueries`.
+
 Etapy zakończone są zapisywane atomowo. Po błędach przejściowych obowiązuje backoff i maksymalnie 3 próby. Odmowa dostępu zatrzymuje etap. Błąd nie usuwa istniejących ofert. W logach są wyłącznie statusy i liczniki.
 
 ## Separate matching worker

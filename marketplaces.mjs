@@ -5,7 +5,14 @@ import {setTimeout as wait} from 'node:timers/promises';
 import {parseVinted,parseAllegroListing,parseOlx,rscText,objectAt} from './reference-parsers.mjs';
 const sources={Allegro:{host:'allegro.pl',path:'/oferta/'},Empik:{host:'www.empik.com',path:null},Vinted:{host:'www.vinted.pl',path:'/items/'},'Allegro Lokalnie':{host:'allegrolokalnie.pl',path:'/oferta/'},OLX:{host:'www.olx.pl',path:'/d/oferta/'},'Tezeusz.pl':{host:'tezeusz.pl',path:null},'Dedalus.pl':{host:'dedalus.pl',path:null}};
 const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l').replace(/[^a-z0-9]+/g,' ').trim();
-export function acceptsBook(task,title){if(excludesProduct(title))return false;return matchesTopic(task,title);}
+function discoveryBookEvidence(task,title){
+ const text=norm(title);
+ if(/\b(ksiazka|ksiazki|ksiazek|book|books|powiesc|novel|tom|tomy|omnibus|codex|kodeks|podrecznik|antologia|opowiadania|artbook|komiks|comic|saga|cykl)\b/.test(text))return true;
+ if(/\b(herezja horusa|horus heresy)\b/.test(text))return true;
+ if(/\b(forgotten realms|zapomniane krainy)\b/.test(text))return true;
+ return false;
+}
+export function acceptsBook(task,title){if(excludesProduct(title)||!matchesTopic(task,title))return false;return task.mode!=='discovery'||discoveryBookEvidence(task,title);}
 export function searchUrl(task){if(!sources[task.source]||task.host!==sources[task.source].host)throw Error('UNTRUSTED_MARKETPLACE_TASK');const query=queryText(task);if(task.source==='Vinted'){const u=new URL('https://www.vinted.pl/catalog/2312-books');u.searchParams.set('search_text',query);if(task.paginationVersion===1){if(!Number.isInteger(task.page)||task.page<1||task.page>10000)throw Error('INVALID_VINTED_PAGE');u.searchParams.set('page',String(task.page));}return u.href;}if(task.paginationVersion===1&&(!Number.isInteger(task.page)||task.page<1||task.page>10000))throw Error('INVALID_MARKETPLACE_PAGE');let u;if(task.source==='Allegro'){u=new URL('https://allegro.pl/listing');u.searchParams.set('string',task.mode==='watchlist'?query:query+' książki');}else if(task.source==='Empik'){u=new URL('https://www.empik.com/szukaj/produkt');u.searchParams.set('q',query);u.searchParams.set('qtype','basicForm');}else if(task.source==='Allegro Lokalnie')u=new URL('https://allegrolokalnie.pl/oferty/q/'+encodeURIComponent(task.mode==='watchlist'?query:query+' książki'));else if(task.source==='OLX')u=new URL('https://www.olx.pl/muzyka-edukacja/ksiazki/q-'+encodeURIComponent(query)+'/');else if(task.source==='Tezeusz.pl'){u=new URL('https://tezeusz.pl/szukaj');u.searchParams.set('szukaj',query);}else{u=new URL('https://dedalus.pl/s');u.searchParams.set('q',query);}if(task.paginationVersion===1&&task.page>1)u.searchParams.set(task.source==='Allegro'?'p':task.source==='Empik'?'start':'page',String(task.source==='Empik'?(task.page-1)*60+1:task.page));return u.href;}
 export function retryAfterSeconds(header,now=Date.now()){
  const text=String(header||'').trim(),seconds=/^\d+$/.test(text)?Number(text):(Date.parse(text)-now)/1000;

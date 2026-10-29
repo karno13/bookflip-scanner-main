@@ -1,7 +1,8 @@
 import {pathToFileURL} from 'node:url';
 import {scanMarketplace} from './marketplaces.mjs';
 
-const sourceHosts={Allegro:'allegro.pl',Empik:'www.empik.com'};
+export const localSourceHosts={Allegro:'allegro.pl',Empik:'www.empik.com',Vinted:'www.vinted.pl','Allegro Lokalnie':'allegrolokalnie.pl',OLX:'www.olx.pl','Tezeusz.pl':'tezeusz.pl','Dedalus.pl':'dedalus.pl'};
+const sourceHosts=localSourceHosts;
 const sourceNames=new Map(Object.keys(sourceHosts).map(name=>[name.toLowerCase(),name]));
 
 export function parseLocalArgs(argv){
@@ -26,7 +27,7 @@ export function parseLocalArgs(argv){
 export async function runLocalScan(config,{scanner=scanMarketplace,write=line=>console.log(line)}={}){
  let failed=0;
  for(const source of config.sources){
-  const task={source,host:sourceHosts[source],mode:'watchlist',title:config.query,category:config.query,searchQuery:config.query,page:config.page,paginationVersion:1};
+  const task={source,host:sourceHosts[source],mode:'discovery',title:config.query,category:config.query,searchQuery:config.query,page:config.page,paginationVersion:1};
   try{
    const result=await scanner(task);
    write(JSON.stringify({source,result:'read',query:config.query,page:config.page,offers:result.offers.length,pagination:result.pagination,examples:result.offers.slice(0,config.examples).map(({title,price,url})=>({title,price,url}))},null,2));
@@ -37,7 +38,7 @@ export async function runLocalScan(config,{scanner=scanMarketplace,write=line=>c
 
 async function main(){
  const config=parseLocalArgs(process.argv.slice(2));
- if(config.help){console.log('Użycie: node local-scan.mjs [--source Empik|Allegro|all] [--query tekst] [--page numer] [--examples 0-20]');return;}
+ if(config.help){console.log('Użycie: node local-scan.mjs [--source nazwa|all] [--query tekst] [--page numer] [--examples 0-20]');console.log('Źródła: '+Object.keys(sourceHosts).join(', '));return;}
  const result=await runLocalScan(config);if(result.failed)process.exitCode=2;
 }
 
