@@ -42,6 +42,8 @@ Najprościej uruchomić aplikację dwuklikiem na pliku `Uruchom BookFlip Scanner
 
 Podczas skanu interfejs pokazuje aktywne źródło, hasło, numer strony i licznik ofert. Zdarzenia diagnostyczne są dopisywane do `scan-results/local-app.log`; log zawiera tylko czas, źródło, hasło, stronę, liczby i kody błędów.
 
+Błąd na późniejszej stronie lub podczas sprawdzania szczegółów Vinted nie odrzuca wcześniej zebranych ofert. Taki etap ma status częściowy, a poprawnie odczytane rekordy są zapisywane w historii. Błędy przejściowe, między innymi HTTP 429, 408, 425, 5xx, timeout i zerwane połączenie, są ponawiane maksymalnie trzy razy z ograniczonym opóźnieniem. Rozpoznana CAPTCHA lub jawna blokada dostępu nie jest ponawiana.
+
 Znalezione oferty są zapisywane w `scan-results/local-offer-history.json`. Jest to lokalny magazyn danych aplikacji, podzielony logicznie na minimalny katalog `books`, rekordy `offers` i punkty `priceHistory`. Zapis odbywa się atomowo. Dane z wcześniejszego formatu wersji 1 są migrowane podczas pierwszego odczytu; brak ISBN nie blokuje zapisu oferty. Oferta jest deduplikowana po stabilnym ID źródła, a gdy źródło go nie ujawnia — po znormalizowanym URL. Brak oferty w następnym skanie nie oznacza jej automatycznie jako sprzedanej.
 
 Nowy punkt historii powstaje przy pierwszym wykryciu i każdej zmianie ceny. Ponowne wykrycie tej samej ceny aktualizuje tylko datę ostatniej obserwacji. ISBN jest pobierany z jednoznacznych metadanych źródła i zapisywany wyłącznie po sprawdzeniu sumy kontrolnej. Dla znanych ofert Vinted zapisane metadane języka i ISBN są używane ponownie, bez kolejnego odczytu strony szczegółowej.
