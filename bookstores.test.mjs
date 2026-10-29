@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sourceChallenge,scanMarketplace,parseMarketplace} from './marketplaces.mjs';
+import {sourceChallenge,scanMarketplace,parseMarketplace,searchUrl} from './marketplaces.mjs';
 const task=source=>({source,host:source==='Tezeusz.pl'?'tezeusz.pl':'dedalus.pl',mode:'watchlist',title:'Warhammer'});
 test('form recaptcha scripts do not block readable results; real challenges still block',async()=>{
  const html='<title>Produkty</title><script>$(".g-recaptcha"); var src="https://www.google.com/recaptcha/api.js";</script><p>Niestety, nie znaleźliśmy produktów, których szukasz.</p>';
@@ -31,3 +31,23 @@ for(const [source,host,url] of [['Allegro','allegro.pl','https://allegro.pl/ofer
  assert.throws(()=>parseMarketplace('<h1>Search</h1>',task),/UNRECOGNIZED/);
  });
 }
+
+const empikTask={source:'Empik',host:'www.empik.com',mode:'watchlist',title:'Warcraft',page:1,paginationVersion:1};
+const empikCard=({id='p1730634714',title='World of Warcraft. Więzy krwi',price='46.99',declared=price,path=`/world-of-warcraft-wiezy-krwi,p${id.slice(1)},ksiazka-p`,currency='PLN'}={})=>`<div class="search-list-item js-reco-product ta-product-tile" data-product-id="${id}" data-product-name="${title}" data-product-price="${declared}" itemprop="itemListElement"><a href="${path}" class="seoTitle" itemprop="url" data-product-id="${id}"><strong itemprop="name">${title}</strong></a><div itemprop="offers"><div class="price" itemprop="price" content="${price}">${price} zł</div><meta itemprop="priceCurrency" content="${currency}"><span class="old-price">999,99 zł</span></div></div>`;
+
+test('Empik parses live search cards and keeps title, product URL and current PLN price in one card',()=>{
+ const html='<div class="search-content js-search-content" itemtype="https://schema.org/ItemList">'+empikCard()+empikCard({id:'p111',title:'World of Warcraft książka',price:'10',declared:'11',path:'/world-of-warcraft,p111,ksiazka-p'})+empikCard({id:'p222',title:'World of Warcraft książka',path:'/world-of-warcraft,p999,ksiazka-p'})+'</div>';
+ const rows=parseMarketplace(html,empikTask);
+ assert.equal(rows.length,1);assert.equal(rows[0].title,'World of Warcraft. Więzy krwi');assert.equal(rows[0].price,4699);assert.equal(rows[0].url,'https://www.empik.com/world-of-warcraft-wiezy-krwi,p1730634714,ksiazka-p');
+});
+
+test('Empik recognizes a real empty result container but rejects an unknown 200 page',()=>{
+ assert.deepEqual(parseMarketplace('<div class="search-content js-search-content" itemtype="https://schema.org/ItemList"></div>',empikTask),[]);
+ assert.throws(()=>parseMarketplace('<main>layout changed</main>',empikTask),/UNRECOGNIZED_MARKETPLACE_DATA/);
+});
+
+test('Empik uses sixty-result pagination and accepts its lowercase canonical query',async()=>{
+ const html='<div class="search-content js-search-content" itemtype="https://schema.org/ItemList">'+empikCard()+'</div><a href="/szukaj/produkt?start=61&q=warcraft&qtype=basicForm " class="arrow next ta-next-page">następna</a>';
+ const result=await scanMarketplace(empikTask,{pause:async()=>{},fetcher:async()=>new Response(html,{headers:{'content-type':'text/html'}})});
+ assert.equal(result.pagination.state,'more');assert.equal(result.pagination.nextPage,2);assert.equal(new URL(searchUrl({...empikTask,page:2})).searchParams.get('start'),'61');
+});

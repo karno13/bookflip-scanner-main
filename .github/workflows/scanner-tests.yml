@@ -1,5 +1,9 @@
 name: Scanner tests
 on:
+  push:
+    paths:
+      - '*.mjs'
+      - '.github/workflows/*.yml'
   pull_request:
     paths:
       - '*.mjs'
@@ -19,4 +23,3 @@ jobs:
         with:
           node-version: '22'
       - run: node --test
-
