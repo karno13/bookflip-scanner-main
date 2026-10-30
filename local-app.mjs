@@ -8,6 +8,7 @@ import {scanMarketplace} from './marketplaces.mjs';
 import {localSourceHosts} from './local-scan.mjs';
 import {readVintedLanguage} from './vinted-detail.mjs';
 import {loadOfferHistory,saveOfferHistory,applyScanToHistory,sourceOfferId,createCatalogBook,linkOfferToBook} from './offer-history.mjs';
+import {offerExternalId} from './offer-identity.mjs';
 import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
@@ -53,7 +54,7 @@ function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){resp
 function historySnapshot(history){return{updatedAt:history.updatedAt,lastScan:history.lastScan,books:Object.values(history.books).map(book=>bookStatistics(history,book.id)).filter(Boolean).sort((a,b)=>String(b.book.lastSeenAt).localeCompare(String(a.book.lastSeenAt))),offers:analyzedOffers(history).sort((a,b)=>String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)))};}
 async function searchAndStore(input,onProgress=()=>{}){
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'})),applied=applyScanToHistory(history,result.offers,result.searchedAt,detailCache,{errors});
- await saveOfferHistory(applied.history);const ids=result.offers.map(offer=>sourceOfferId(offer.source,offer.url)),offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
+ await saveOfferHistory(applied.history);const ids=result.offers.map(offer=>{const preferred=sourceOfferId(offer.source,offer.url,offerExternalId(offer)),legacy=sourceOfferId(offer.source,offer.url);return applied.history.offers[preferred]?preferred:legacy;}),offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
  return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan};
 }
 

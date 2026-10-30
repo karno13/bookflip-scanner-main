@@ -1,26 +1,17 @@
 import {readFile,writeFile,mkdir,rename,rm} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {cleanISBN,isbnValid} from './isbn.mjs';
+import {extractOfferISBN} from './isbn.mjs';
+import {normalizeISBN} from './isbn-normalization.mjs';
+import {normalizeOfferUrl,offerExternalId,sourceOfferId} from './offer-identity.mjs';
+
+export {normalizeOfferUrl,sourceOfferId} from './offer-identity.mjs';
 
 export const defaultHistoryPath=join(process.cwd(),'scan-results','local-offer-history.json');
 
 export function emptyOfferHistory(){return{version:2,updatedAt:null,books:{},offers:{},priceHistory:[],details:{},lastScan:null};}
 
-export function normalizeOfferUrl(raw){
- const url=new URL(raw);url.hash='';url.search='';url.hostname=url.hostname.toLowerCase();url.pathname=url.pathname.replace(/\/{2,}/g,'/').replace(/\/$/,'')||'/';return url.href;
-}
-
-export function sourceOfferId(source,rawUrl){
- const url=normalizeOfferUrl(rawUrl),path=new URL(url).pathname;let external=null;
- if(source==='Vinted')external=path.match(/^\/items\/(\d+)/i)?.[1];
- else if(source==='Empik')external=path.match(/,p(\d+),ksiazka-p$/i)?.[1];
- else if(source==='Allegro')external=path.match(/-(\d+)$/)?.[1];
- else if(source==='OLX')external=path.match(/-ID([\w]+)\.html$/i)?.[1];
- return `${source}:${external||url}`;
-}
-
-export function normalizedIsbn(value){const isbn=cleanISBN(value);return isbn&&isbnValid(isbn)?isbn:null;}
+export function normalizedIsbn(value){return normalizeISBN(value);}
 function bookIdFor(isbn){return isbn?`isbn:${isbn}`:null;}
 function validPrice(value){return Number.isSafeInteger(value)&&value>0&&value<=100000000;}
 
@@ -51,8 +42,8 @@ export function applyScanToHistory(history,offers,searchedAt,detailCache=new Map
  for(const [url,detail] of detailCache)if(detail?.language||detail?.isbn)next.details[url]={language:detail.language||null,isbn:normalizedIsbn(detail.isbn),checkedAt:searchedAt};
  for(const candidate of offers){
   if(!candidate?.source||!candidate?.url||!validPrice(candidate.price))continue;
-  let url,id;try{url=normalizeOfferUrl(candidate.url);id=sourceOfferId(candidate.source,url);}catch{continue;}
-  const old=next.offers[id],detail=next.details[candidate.url]||next.details[url],isbn=normalizedIsbn(candidate.isbn)||old?.isbn||normalizedIsbn(detail?.isbn),detectedBookId=bookIdFor(isbn),bookId=old?.linkMode==='manual'?old.bookId:detectedBookId,title=String(candidate.title||old?.originalTitle||'').trim().slice(0,500);
+  let url,id,old;try{url=normalizeOfferUrl(candidate.url);const preferred=sourceOfferId(candidate.source,url,offerExternalId(candidate)),legacy=sourceOfferId(candidate.source,url);id=next.offers[preferred]?preferred:next.offers[legacy]?legacy:preferred;old=next.offers[id];}catch{continue;}
+  const detail=next.details[candidate.url]||next.details[url],evidence=extractOfferISBN(candidate),detailIsbn=evidence.status==='missing'?normalizedIsbn(detail?.isbn):null,isbn=evidence.autoAssignable?evidence.isbn:old?.isbn||detailIsbn,detectedBookId=bookIdFor(isbn),bookId=old?.linkMode==='manual'?old.bookId:evidence.autoAssignable?detectedBookId:old?.bookId||detectedBookId,title=String(candidate.title||old?.originalTitle||'').trim().slice(0,500);
   if(!old)newOffers++;
   if(!old||old.currentPrice!==candidate.price){next.priceHistory.push({offerId:id,price:candidate.price,observedAt:searchedAt});if(old)priceChanges++;}
   next.offers[id]={id,bookId,linkMode:old?.linkMode==='manual'?'manual':bookId?'detected':null,originalTitle:title,currentPrice:candidate.price,source:candidate.source,url,firstSeenAt:old?.firstSeenAt||searchedAt,lastSeenAt:searchedAt,availability:candidate.availability||'unconfirmed',matchedQueries:[...new Set([...(old?.matchedQueries||[]),...(candidate.matchedQueries||[])])],isbn:isbn||null,language:candidate.language||old?.language||detail?.language||null,seenCount:(old?.seenCount||0)+1};
