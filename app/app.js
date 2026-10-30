@@ -3,6 +3,7 @@ const $$ = selector => [...document.querySelectorAll(selector)];
 
 const state = {
   activeView: 'scanner', sources: [], history: null, catalog: null,
+  catalogWorks: [], reviewJobs: [], sqliteOffers: [], reviewDetail: null, catalogMode: 'manual', catalogPreview: null,
   scan: {running: false, startedAt: null, timer: null, total: 0, completed: 0, rows: new Map(), result: null, fingerprint: null, lastStart: 0},
   selectedReviewId: null, selectedCatalogId: null, offerPage: 1, pageSize: 25,
 };
@@ -19,8 +20,8 @@ async function json(url, options) { const response = await fetch(url, options); 
 function selectedSources() { return $$('#sourceGrid input:checked').map(input => input.value); }
 function readQueries() { return [...new Set($('#queries').value.split(/\n|,/).map(value => value.trim()).filter(Boolean))].slice(0, 10); }
 function bookFor(id) { return (state.history?.books || []).find(row => row.book.id === id)?.book || null; }
-function allOffers() { return state.history?.offers || []; }
-function reviewOffers() { return allOffers().filter(offer => offer.linkMode !== 'manual'); }
+function allOffers() { return state.sqliteOffers.length ? state.sqliteOffers : (state.history?.offers || []); }
+function reviewOffers() { return state.reviewJobs; }
 
 function showView(name) {
   if (!['scanner', 'review', 'catalog', 'offers', 'settings'].includes(name)) name = 'scanner';
@@ -55,12 +56,28 @@ async function loadHistory() {
   renderReview(); renderCatalog(); renderOffers();
 }
 
+async function loadCatalogData() {
+  try {
+    const [works, jobs, offers] = await Promise.all([
+      json('/api/catalog/works?limit=250'),
+      json('/api/identification-jobs?limit=250'),
+      json('/api/offers?limit=250'),
+    ]);
+    state.catalogWorks = works.items || []; state.reviewJobs = jobs.items || []; state.sqliteOffers = offers.items || [];
+    $('#offersNavCount').textContent = `${offers.total || 0} zapisanych`;
+    $('#reviewNavCount').textContent = `${jobs.total || 0} pozycji`;
+    renderReview(); renderCatalog(); renderOffers();
+  } catch {
+    state.catalogWorks = []; state.reviewJobs = []; state.sqliteOffers = [];
+  }
+}
+
 async function loadCatalogStatus() {
   try {
     state.catalog = await json('/api/catalog/status'); const counts = state.catalog.counts || {};
     $('#databaseStatus').textContent = `SQLite: ${counts.works || 0} dziel / ${counts.editions || 0} wydan`;
     $('#catalogWorks').textContent = counts.works || 0; $('#catalogEditions').textContent = counts.editions || 0;
-    $('#catalogIncomplete').textContent = counts.identification_jobs || 0;
+    $('#catalogIncomplete').textContent = counts.identification_pending ?? counts.identification_jobs ?? 0;
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled ? 'Baza lokalna jest dostepna.' : 'Integracja katalogu jest wylaczona.';
     $('#settingsDatabaseStats').innerHTML = Object.entries(counts).slice(0, 8).map(([key, value]) => `<span><b>${escapeHtml(key.replaceAll('_', ' '))}</b><small>${value}</small></span>`).join('');
     $('#connectionDot').classList.add('online'); $('#connectionLabel').textContent = 'Aplikacja online';
@@ -128,7 +145,7 @@ async function startSearch() {
     $('#statUpdated').textContent = Math.max(0, (summary.offers || 0) - (summary.newOffers || 0)); $('#statPriceChanges').textContent = summary.priceChanges || last.priceChanges || 0;
     $('#statErrors').textContent = (state.scan.result.results || []).filter(row => row.status !== 'ok').length;
     $('#scanStateBadge').textContent = 'Zakonczony'; $('#scanStateBadge').className = 'state-badge neutral'; $('#goToOffers').disabled = false;
-    await Promise.all([loadHistory(), loadCatalogStatus()]); renderSourceRows(); toast(`Skan zakonczony: ${summary.offers || 0} ofert.`);
+    await Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]); renderSourceRows(); toast(`Skan zakonczony: ${summary.offers || 0} ofert.`);
   } catch (error) {
     $('#progressMessage').textContent = 'Skan przerwany'; $('#progressDetail').textContent = error.message; $('#scanStateBadge').textContent = 'Blad'; $('#scanStateBadge').className = 'state-badge warning'; toast(`Nie udalo sie wykonac skanu: ${error.message}`);
   } finally {
@@ -138,78 +155,92 @@ async function startSearch() {
 
 function filteredReviewOffers() {
   const query = $('#reviewSearch').value.trim().toLocaleLowerCase('pl'), source = $('#reviewSource').value, isbn = $('#reviewIsbn').value;
-  const rows = reviewOffers().filter(offer => (!query || `${offer.originalTitle} ${offer.source} ${offer.isbn || ''}`.toLocaleLowerCase('pl').includes(query)) && (!source || offer.source === source) && (!isbn || (isbn === 'present') === Boolean(offer.isbn)));
-  return rows.sort((a, b) => $('#reviewSort').value === 'price' ? a.currentPrice - b.currentPrice : String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
+  const rows = reviewOffers().filter(job => { const offer = job.offer; return (!query || `${offer.title} ${offer.source} ${offer.observedIsbn || ''}`.toLocaleLowerCase('pl').includes(query)) && (!source || offer.source === source) && (!isbn || (isbn === 'present') === Boolean(offer.observedIsbn)); });
+  return rows.sort((a, b) => $('#reviewSort').value === 'price' ? a.offer.currentPrice - b.offer.currentPrice : String(b.offer.lastSeenAt).localeCompare(String(a.offer.lastSeenAt)));
 }
 
 function renderReview() {
   if (!state.history) return; const rows = filteredReviewOffers();
   $('#reviewCount').textContent = `${rows.length} oczekujacych`; $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
   if (state.selectedReviewId && !rows.some(row => row.id === state.selectedReviewId)) state.selectedReviewId = null;
-  $('#reviewList').innerHTML = rows.length ? rows.map(offer => `<button class="review-item ${offer.id === state.selectedReviewId ? 'active' : ''}" type="button" data-review-id="${escapeHtml(offer.id)}"><input type="checkbox" tabindex="-1" aria-hidden="true"><span><strong>${escapeHtml(offer.originalTitle)}</strong><small>${escapeHtml(offer.source)} - ${offer.isbn ? `ISBN ${escapeHtml(offer.isbn)}` : 'brak ISBN'}</small><small>${offer.bookId ? 'Automatyczne przypisanie wymaga potwierdzenia' : 'Brak przypisanego wydania'}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`).join('') : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
-  $$('[data-review-id]').forEach(button => button.addEventListener('click', () => { state.selectedReviewId = button.dataset.reviewId; renderReview(); })); renderReviewDetail();
+  $('#reviewList').innerHTML = rows.length ? rows.map(job => { const offer = job.offer; return `<button class="review-item ${job.id === state.selectedReviewId ? 'active' : ''}" type="button" data-review-id="${escapeHtml(job.id)}"><input type="checkbox" tabindex="-1" aria-hidden="true"><span><strong>${escapeHtml(offer.title)}</strong><small>${escapeHtml(offer.source)} - ${offer.observedIsbn ? `ISBN ${escapeHtml(offer.observedIsbn)}` : 'brak ISBN'}</small><small>${escapeHtml(job.status)}${job.lastError ? ` - ${escapeHtml(job.lastError)}` : ''}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`; }).join('') : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
+  $$('[data-review-id]').forEach(button => button.addEventListener('click', async () => { state.selectedReviewId = button.dataset.reviewId; state.reviewDetail = null; renderReview(); const job = state.reviewJobs.find(row => row.id === state.selectedReviewId); if (job) { try { state.reviewDetail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`); renderReviewDetail(); } catch (error) { toast(error.message); } } })); renderReviewDetail();
 }
 
 function renderReviewDetail() {
-  const offer = reviewOffers().find(row => row.id === state.selectedReviewId); if (!offer) return $('#reviewDetail').innerHTML = '<div class="empty-detail"><h3>Wybierz oferte</h3><p>Po lewej pojawia sie lista ofert wymagajacych decyzji.</p></div>';
-  const selectedBook = bookFor(offer.bookId);
-  $('#reviewDetail').innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">Do weryfikacji</span><h3>${escapeHtml(offer.originalTitle)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty</h4><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.isbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>Brak w API historii</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div></section><section class="detail-section"><h4>Decyzja</h4><p class="inline-note">Pelne dowody BN/OL i konflikty sa zapisane w SQLite, ale obecny backend nie udostepnia ich jeszcze do odczytu przez frontend.</p><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytul lub ISBN" value="${escapeHtml(selectedBook?.title || '')}" data-book-id="${escapeHtml(selectedBook?.id || '')}"><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button">Zatwierdz przypisanie</button><button class="button secondary" type="button" disabled>Oznacz jako nie-ksiazke</button><button class="button secondary" type="button" disabled>Odrzuc propozycje</button></div></section>`;
-  $('#approveReview').disabled = !$('#reviewBookSearch').dataset.bookId;
-  $('#reviewBookSearch').addEventListener('input', event => { event.target.dataset.bookId = ''; $('#approveReview').disabled = true; renderReviewBookChoices(event.target.value); });
+  const job = reviewOffers().find(row => row.id === state.selectedReviewId); if (!job) return $('#reviewDetail').innerHTML = '<div class="empty-detail"><h3>Wybierz oferte</h3><p>Po lewej pojawia sie lista ofert wymagajacych decyzji.</p></div>';
+  const offer = state.reviewDetail || job.offer, evidence = state.reviewDetail?.evidence || [], result = job.result || {};
+  $('#reviewDetail').innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">${escapeHtml(job.status)}</span><h3>${escapeHtml(offer.title)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty i dowody</h4><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>${escapeHtml(evidence.map(row => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="inline-note">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Wybierz właściwe wydanie albo oznacz ofertę jako nie-książkę.')}</p></section><section class="detail-section"><h4>Decyzja</h4><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytul, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdz przypisanie</button><button class="button secondary" id="markNotBook" type="button">Oznacz jako nie-ksiazke</button><button class="button secondary" id="requeueReview" type="button">Ponow identyfikacje</button></div></section>`;
+  $('#approveReview').disabled = !$('#reviewBookSearch').dataset.editionId;
+  $('#reviewBookSearch').addEventListener('input', event => { event.target.dataset.editionId = ''; $('#approveReview').disabled = true; renderReviewBookChoices(event.target.value); });
   $('#reviewBookSearch').addEventListener('focus', event => renderReviewBookChoices(event.target.value));
-  renderReviewBookChoices(selectedBook?.title || '');
+  renderReviewBookChoices('');
   $('#approveReview').addEventListener('click', approveReview);
+  $('#markNotBook').addEventListener('click', () => decideReview('not_book'));
+  $('#requeueReview').addEventListener('click', () => decideReview('requeued'));
 }
 
 function renderReviewBookChoices(query = '') {
   const list = $('#reviewBookOptions'), input = $('#reviewBookSearch'); if (!list || !input) return;
   const needle = query.trim().toLocaleLowerCase('pl');
-  const books = (state.history?.books || []).filter(row => !needle || `${row.book.title} ${row.book.isbn || ''}`.toLocaleLowerCase('pl').includes(needle)).slice(0, 30);
-  list.innerHTML = books.length ? books.map(row => `<button type="button" role="option" data-review-book-id="${escapeHtml(row.book.id)}" data-review-book-title="${escapeHtml(row.book.title)}"><strong>${escapeHtml(row.book.title)}</strong><small>${row.book.isbn ? `ISBN ${escapeHtml(row.book.isbn)}` : 'Bez ISBN'} - ${row.uniqueOffers} ofert</small></button>`).join('') : '<p>Brak rekordow pasujacych do wpisanej frazy.</p>';
-  $$('[data-review-book-id]').forEach(button => button.addEventListener('click', () => { input.value = button.dataset.reviewBookTitle; input.dataset.bookId = button.dataset.reviewBookId; input.setAttribute('aria-expanded', 'false'); list.innerHTML = ''; $('#approveReview').disabled = false; input.focus(); }));
+  const editions = state.catalogWorks.flatMap(work => work.editions.map(edition => ({ work, edition }))).filter(({work, edition}) => !needle || `${work.title} ${work.authors.join(' ')} ${edition.identifiers.map(row => row.value).join(' ')}`.toLocaleLowerCase('pl').includes(needle)).slice(0, 30);
+  list.innerHTML = editions.length ? editions.map(({work, edition}) => `<button type="button" role="option" data-review-edition-id="${escapeHtml(edition.id)}" data-review-book-title="${escapeHtml(work.title)}"><strong>${escapeHtml(work.title)}</strong><small>${escapeHtml(edition.identifiers.find(row => row.scheme.startsWith('isbn'))?.value || 'Bez ISBN')} - ${escapeHtml(edition.publisher || 'wydawca nieznany')}</small></button>`).join('') : '<p>Brak rekordow pasujacych do wpisanej frazy.</p>';
+  $$('[data-review-edition-id]').forEach(button => button.addEventListener('click', () => { input.value = button.dataset.reviewBookTitle; input.dataset.editionId = button.dataset.reviewEditionId; input.setAttribute('aria-expanded', 'false'); list.innerHTML = ''; $('#approveReview').disabled = false; input.focus(); }));
 }
 
 async function approveReview() {
-  const offerId = state.selectedReviewId, bookId = $('#reviewBookSearch').dataset.bookId; if (!offerId || !bookId) return;
-  await json('/api/catalog/link', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({offerId, bookId})});
-  const remaining = filteredReviewOffers().filter(row => row.id !== offerId); state.selectedReviewId = remaining[0]?.id || null; await loadHistory(); toast('Reczne przypisanie zostalo zapisane.');
+  const editionId = $('#reviewBookSearch').dataset.editionId; if (!editionId) return;
+  await decideReview('approved', editionId);
+}
+
+async function decideReview(action, editionId = null) {
+  const jobId = state.selectedReviewId; if (!jobId) return;
+  await json(`/api/identification-jobs/${encodeURIComponent(jobId)}/decision`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action, editionId})});
+  state.selectedReviewId = null; state.reviewDetail = null; await loadCatalogData(); toast('Decyzja została zapisana w historii SQLite.');
 }
 
 function catalogRows() {
   const query = $('#catalogSearch').value.trim().toLocaleLowerCase('pl'), sort = $('#catalogSort').value;
-  const rows = (state.history?.books || []).filter(row => !query || `${row.book.title} ${row.book.isbn || ''}`.toLocaleLowerCase('pl').includes(query));
-  return rows.sort((a, b) => sort === 'offers' ? b.uniqueOffers - a.uniqueOffers : sort === 'recent' ? String(b.book.lastSeenAt).localeCompare(String(a.book.lastSeenAt)) : a.book.title.localeCompare(b.book.title, 'pl'));
+  const rows = state.catalogWorks.filter(row => !query || `${row.title} ${row.authors.join(' ')} ${row.editions.flatMap(edition => edition.identifiers.map(item => item.value)).join(' ')}`.toLocaleLowerCase('pl').includes(query));
+  return rows.sort((a, b) => sort === 'offers' ? b.offerCount - a.offerCount : a.title.localeCompare(b.title, 'pl'));
 }
 
 function renderCatalog() {
   if (!state.history) return; const rows = catalogRows();
-  $('#catalogList').innerHTML = rows.length ? rows.map(row => `<button class="catalog-row ${row.book.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.book.id)}"><span><strong>${escapeHtml(row.book.title)}</strong><small>${row.book.isbn ? `ISBN ${escapeHtml(row.book.isbn)}` : 'Bez ISBN'}</small></span><span>1</span><span>${row.uniqueOffers}</span><span><span class="status-pill ${row.book.origin === 'manual' ? 'success' : 'warning'}">${row.book.origin === 'manual' ? 'Reczny' : 'Niezweryfikowany'}</span></span></button>`).join('') : '<div class="empty-detail"><h3>Katalog jest pusty</h3><p>Dodaj pierwszy rekord recznie.</p></div>';
+  $('#catalogList').innerHTML = rows.length ? rows.map(row => `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small></span><span>${row.editionCount}</span><span>${row.offerCount}</span><span><span class="status-pill ${['manual','verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span></span></button>`).join('') : '<div class="empty-detail"><h3>Katalog jest pusty</h3><p>Zaimportuj dane historyczne albo dodaj rekord.</p></div>';
   $$('[data-catalog-id]').forEach(button => button.addEventListener('click', () => openCatalogDetail(button.dataset.catalogId)));
 }
 
 async function openCatalogDetail(id) {
   state.selectedCatalogId = id; renderCatalog(); const detail = $('#catalogDetail'); detail.innerHTML = '<div class="empty-detail"><p>Wczytywanie rekordu...</p></div>';
-  try { const row = await json(`/api/book?id=${encodeURIComponent(id)}`); detail.innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill ${row.book.origin === 'manual' ? 'success' : 'warning'}">${row.book.origin === 'manual' ? 'Reczny' : 'Niezweryfikowany'}</span><h3>${escapeHtml(row.book.title)}</h3><p>ISBN: ${escapeHtml(row.book.isbn || 'brak')}</p></div><strong>${row.currentOffers} ofert</strong></div></section><section class="detail-section"><h4>Podsumowanie cen</h4><div class="detail-grid"><span><b>Najtansza</b><small>${money(row.lowestCurrent)}</small></span><span><b>Mediana</b><small>${money(row.medianCurrent)}</small></span><span><b>Minimum historyczne</b><small>${money(row.historicalMinimum)}</small></span><span><b>Unikalne oferty</b><small>${row.uniqueOffers}</small></span></div></section><section class="detail-section"><h4>Powiazane oferty</h4><div class="price-list">${row.offers.map(offer => `<a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(offer.originalTitle)}<small>${escapeHtml(offer.source)}</small></span><b>${money(offer.currentPrice)}</b></a>`).join('') || '<p>Brak ofert.</p>'}</div></section><section class="detail-section"><p class="inline-note">Lista wydan, identyfikatory BN/OL i pochodzenie metadanych wymagaja odczytowego endpointu katalogu SQLite.</p></section>`; }
+  try { const row = await json(`/api/catalog/works/${encodeURIComponent(id)}`); detail.innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill ${['manual','verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span><h3>${escapeHtml(row.title)}</h3><p>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</p></div><strong>${row.editions.length} wydań</strong></div></section><section class="detail-section"><h4>Wydania</h4><div class="price-list">${row.editions.map(edition => `<button type="button" class="link-button" data-edition-detail="${escapeHtml(edition.id)}"><span><strong>${escapeHtml(edition.title)}</strong><small>${escapeHtml([edition.publisher, edition.publicationYear, edition.language].filter(Boolean).join(' / ') || 'Brak szczegółów')}</small></span><b>${escapeHtml(edition.identifiers.find(item => item.scheme.startsWith('isbn'))?.value || 'bez ISBN')}</b></button>`).join('') || '<p>Brak wydań.</p>'}</div></section><section class="detail-section"><h4>Pochodzenie</h4><p class="inline-note">${row.externalRecords.length ? row.externalRecords.map(record => `${record.provider}: ${record.externalId}`).join(', ') : 'Brak zewnętrznych rekordów bibliograficznych.'}</p></section>`; $$('[data-edition-detail]').forEach(button => button.addEventListener('click', () => openEditionDetail(button.dataset.editionDetail))); }
   catch (error) { detail.innerHTML = `<div class="empty-detail"><h3>Nie udalo sie wczytac rekordu</h3><p>${escapeHtml(error.message)}</p></div>`; }
+}
+
+async function openEditionDetail(id) {
+  const detail = $('#catalogDetail'); detail.innerHTML = '<div class="empty-detail"><p>Wczytywanie wydania...</p></div>';
+  try { const row = await json(`/api/catalog/editions/${encodeURIComponent(id)}`); detail.innerHTML = `<section class="detail-section"><button class="link-button" id="backToWork" type="button">← Wróć do dzieła</button><h3>${escapeHtml(row.title)}</h3><div class="detail-grid"><span><b>ISBN</b><small>${escapeHtml(row.identifiers.filter(item => item.scheme.startsWith('isbn')).map(item => item.value).join(', ') || 'brak')}</small></span><span><b>Wydawca</b><small>${escapeHtml(row.publisher || '-')}</small></span><span><b>Rok</b><small>${escapeHtml(row.publicationYear || '-')}</small></span><span><b>Język / oprawa</b><small>${escapeHtml([row.language,row.binding].filter(Boolean).join(' / ') || '-')}</small></span></div></section><section class="detail-section"><h4>Powiązane oferty</h4><div class="price-list">${row.offers.map(item => `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(item.title)}<small>${escapeHtml(item.source)}</small></span><b>${money(item.currentPrice)}</b></a>`).join('') || '<p>Brak ofert.</p>'}</div></section>`; $('#backToWork').addEventListener('click', () => openCatalogDetail(row.workId)); } catch (error) { detail.innerHTML = `<div class="empty-detail"><p>${escapeHtml(error.message)}</p></div>`; }
 }
 
 function filteredOffers() {
   const query = $('#offerSearch').value.trim().toLocaleLowerCase('pl'), source = $('#offerSource').value, status = $('#offerStatus').value, sort = $('#offerSort').value;
-  const rows = allOffers().filter(offer => (!query || `${offer.originalTitle} ${offer.source} ${offer.isbn || ''}`.toLocaleLowerCase('pl').includes(query)) && (!source || offer.source === source) && (!status || (status === 'matched') === Boolean(offer.bookId)));
-  return rows.sort((a, b) => sort === 'price-asc' ? a.currentPrice - b.currentPrice : sort === 'price-desc' ? b.currentPrice - a.currentPrice : sort === 'title' ? a.originalTitle.localeCompare(b.originalTitle, 'pl') : String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
+  const rows = allOffers().filter(offer => (!query || `${offer.title || offer.originalTitle} ${offer.source} ${offer.observedIsbn || offer.isbn || ''}`.toLocaleLowerCase('pl').includes(query)) && (!source || offer.source === source) && (!status || (status === 'matched') === Boolean(offer.match || offer.bookId)));
+  return rows.sort((a, b) => sort === 'price-asc' ? a.currentPrice - b.currentPrice : sort === 'price-desc' ? b.currentPrice - a.currentPrice : sort === 'title' ? (a.title || a.originalTitle).localeCompare(b.title || b.originalTitle, 'pl') : String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
 }
 
 function renderOffers() {
   if (!state.history) return; const rows = filteredOffers(), pages = Math.max(1, Math.ceil(rows.length / state.pageSize)); state.offerPage = Math.min(state.offerPage, pages); const start = (state.offerPage - 1) * state.pageSize, pageRows = rows.slice(start, start + state.pageSize);
-  $('#offerTotal').textContent = `${rows.length} ofert`; $('#offersTableBody').innerHTML = pageRows.length ? pageRows.map(offer => { const book = bookFor(offer.bookId); return `<tr><td><button class="link-button offer-title" type="button" data-offer-id="${escapeHtml(offer.id)}">${escapeHtml(offer.originalTitle)}</button><span class="offer-subtitle">${escapeHtml(offer.matchedQueries?.join(', ') || '')}</span></td><td>${escapeHtml(offer.source)}</td><td>${money(offer.currentPrice)}</td><td>${escapeHtml(offer.isbn || '-')}</td><td>${escapeHtml(book?.title || '-')}</td><td><span class="status-pill ${offer.linkMode === 'manual' ? 'success' : offer.bookId ? 'warning' : 'neutral'}">${offer.linkMode === 'manual' ? 'Reczne' : offer.bookId ? 'Automatyczne' : 'Nieprzypisana'}</span></td><td>${escapeHtml(date(offer.lastSeenAt))}</td></tr>`; }).join('') : '<tr><td colspan="7" class="empty-cell">Brak ofert zgodnych z filtrami.</td></tr>';
+  $('#offerTotal').textContent = `${rows.length} ofert`; $('#offersTableBody').innerHTML = pageRows.length ? pageRows.map(offer => { const matched = offer.match || (offer.bookId ? {workTitle: bookFor(offer.bookId)?.title, method: offer.linkMode} : null); return `<tr><td><button class="link-button offer-title" type="button" data-offer-id="${escapeHtml(offer.id)}">${escapeHtml(offer.title || offer.originalTitle)}</button><span class="offer-subtitle">${escapeHtml(offer.matchedQueries?.join(', ') || '')}</span></td><td>${escapeHtml(offer.source)}</td><td>${money(offer.currentPrice)}</td><td>${escapeHtml(offer.observedIsbn || offer.isbn || '-')}</td><td>${escapeHtml(matched?.workTitle || matched?.editionTitle || '-')}</td><td><span class="status-pill ${matched?.method === 'manual' ? 'success' : matched ? 'warning' : 'neutral'}">${matched?.method === 'manual' ? 'Ręczne' : matched ? 'Automatyczne' : escapeHtml(offer.identification?.status || 'Nieprzypisana')}</span></td><td>${escapeHtml(date(offer.lastSeenAt))}</td></tr>`; }).join('') : '<tr><td colspan="7" class="empty-cell">Brak ofert zgodnych z filtrami.</td></tr>';
   $('#offerPageLabel').textContent = `Strona ${state.offerPage} z ${pages}`; $('#offerPrev').disabled = state.offerPage <= 1; $('#offerNext').disabled = state.offerPage >= pages;
   $$('[data-offer-id]').forEach(button => button.addEventListener('click', () => openOfferDrawer(button.dataset.offerId)));
 }
 
-function openOfferDrawer(id) {
-  const offer = allOffers().find(row => row.id === id); if (!offer) return; const book = bookFor(offer.bookId); $('#offerDrawer').hidden = false;
-  $('#offerDrawerContent').innerHTML = `<span class="status-pill ${offer.bookId ? 'warning' : 'neutral'}">${offer.bookId ? 'Przypisana' : 'Do weryfikacji'}</span><h2>${escapeHtml(offer.originalTitle)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.isbn || 'brak')}</small></span><span><b>Ostatnio</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(book?.title || 'nieprzypisane')}</small></span></div><div class="detail-actions"><a class="button primary" href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz ogloszenie</a>${offer.linkMode !== 'manual' ? '<button class="button secondary" type="button" id="drawerReview">Przejdz do weryfikacji</button>' : ''}</div><p class="inline-note">Pelna historia cen pojedynczej oferty wymaga osobnego endpointu. Dane historyczne pozostaja zachowane w magazynie.</p>`;
-  $('#drawerReview')?.addEventListener('click', () => { state.selectedReviewId = id; $('#offerDrawer').hidden = true; showView('review'); });
+async function openOfferDrawer(id) {
+  $('#offerDrawer').hidden = false; $('#offerDrawerContent').innerHTML = '<p>Wczytywanie szczegółów...</p>';
+  try { const offer = await json(`/api/offers/${encodeURIComponent(id)}`), active = offer.matches.find(item => item.status === 'active');
+    $('#offerDrawerContent').innerHTML = `<span class="status-pill ${active ? 'success' : 'neutral'}">${active ? 'Przypisana' : escapeHtml(offer.identificationJob?.status || 'Bez przypisania')}</span><h2>${escapeHtml(offer.title)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'brak')}</small></span><span><b>Ostatnio</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(active?.editionTitle || 'nieprzypisane')}</small></span></div><section class="detail-section"><h4>Historia cen</h4><div class="price-list">${offer.priceHistory.map(item => `<span><small>${escapeHtml(date(item.observedAt))}</small><b>${money(item.price)}</b></span>`).join('') || '<p>Brak obserwacji.</p>'}</div></section><div class="detail-actions"><a class="button primary" href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz ogloszenie</a>${offer.identificationJob && offer.identificationJob.status !== 'completed' ? '<button class="button secondary" type="button" id="drawerReview">Przejdz do weryfikacji</button>' : ''}</div>`;
+    $('#drawerReview')?.addEventListener('click', () => { state.selectedReviewId = offer.identificationJob.id; state.reviewDetail = offer; $('#offerDrawer').hidden = true; showView('review'); });
+  } catch (error) { $('#offerDrawerContent').innerHTML = `<p>${escapeHtml(error.message)}</p>`; }
 }
 
 function renderSettings() { if (!state.catalog) loadCatalogStatus(); }
@@ -221,17 +252,34 @@ async function runDiagnostics() {
 }
 
 function setCatalogMode(mode) {
+  state.catalogMode = mode; state.catalogPreview = null;
   $$('[data-catalog-mode]').forEach(button => button.classList.toggle('active', button.dataset.catalogMode === mode)); $('#catalogIsbnMode').hidden = mode !== 'isbn'; $('#catalogManualMode').hidden = mode !== 'manual';
-  $('#catalogSubmit').disabled = mode === 'isbn'; $('#catalogFormMessage').hidden = mode !== 'isbn'; $('#catalogFormMessage').textContent = mode === 'isbn' ? 'Podglad metadanych BN/OL nie ma jeszcze endpointu frontendowego. Ten tryb pozostaje bezpiecznie nieaktywny.' : '';
+  $('#catalogSubmit').disabled = false; $('#catalogSubmit').textContent = mode === 'isbn' ? 'Sprawdź ISBN' : 'Zapisz rekord'; $('#catalogFormMessage').hidden = true; $('#catalogFormMessage').textContent = '';
 }
 
 async function submitCatalog(event) {
-  event.preventDefault(); const title = $('#catalogTitle').value.trim(), isbn = $('#catalogManualIsbn').value.trim(); if (!title) return toast('Podaj tytul dziela.');
+  event.preventDefault();
+  if (state.catalogMode === 'isbn') {
+    const isbn = $('#catalogIsbn').value.trim(); if (!isbn) return toast('Podaj ISBN.');
+    $('#catalogSubmit').disabled = true; $('#catalogFormMessage').hidden = false; $('#catalogFormMessage').textContent = 'Sprawdzanie katalogu lokalnego oraz metadanych BN/OL...';
+    try {
+      if (!state.catalogPreview) {
+        state.catalogPreview = await json('/api/catalog/lookup-preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({isbn})});
+        const records = [state.catalogPreview.bn, state.catalogPreview.openLibrary].flatMap(result => result?.records || []);
+        $('#catalogFormMessage').textContent = records.length ? `${state.catalogPreview.comparison.status}: ${records.map(record => `${record.source} — ${record.title || 'bez tytułu'}`).join(' | ')}. Kliknij ponownie, aby zatwierdzić utworzenie rekordu.` : 'Nie znaleziono jednoznacznego rekordu. Nic nie zapisano.';
+        $('#catalogSubmit').textContent = records.length ? 'Zatwierdź rekord' : 'Sprawdź ponownie'; $('#catalogSubmit').disabled = !records.length; return;
+      }
+      const result = await json('/api/catalog/lookup-confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({isbn})});
+      $('#catalogDialog').close(); event.target.reset(); state.catalogPreview = null; await Promise.all([loadCatalogData(), loadCatalogStatus()]); toast(`Katalog: ${result.decision}.`);
+    } catch (error) { $('#catalogFormMessage').textContent = `Nie zapisano rekordu: ${error.message}`; toast(error.message); } finally { $('#catalogSubmit').disabled = false; }
+    return;
+  }
+  const title = $('#catalogTitle').value.trim(), isbn = $('#catalogManualIsbn').value.trim(); if (!title) return toast('Podaj tytul dziela.');
   const data = await json('/api/catalog', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title, isbn})}); state.history = data.catalog; $('#catalogDialog').close(); event.target.reset(); await loadHistory(); renderCatalog(); toast('Reczny rekord katalogowy zostal zapisany.');
 }
 
 $$('.nav-item').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
-$('#refreshView').addEventListener('click', () => Promise.all([loadHistory(), loadCatalogStatus()]).then(() => toast('Dane odswiezone.')));
+$('#refreshView').addEventListener('click', () => Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]).then(() => toast('Dane odswiezone.')));
 $('#toggleSources').addEventListener('click', () => { const boxes = $$('#sourceGrid input'); const all = boxes.length && boxes.every(box => box.checked); boxes.forEach(box => { box.checked = !all; }); });
 $('#startSearch').addEventListener('click', startSearch); $('#goToOffers').addEventListener('click', () => showView('offers'));
 for (const selector of ['#reviewSearch', '#reviewSource', '#reviewIsbn', '#reviewSort']) $(selector).addEventListener(selector === '#reviewSearch' ? 'input' : 'change', renderReview);
@@ -242,4 +290,4 @@ $('#openCatalogForm').addEventListener('click', () => { $('#catalogDialog').show
 $$('[data-catalog-mode]').forEach(button => button.addEventListener('click', () => setCatalogMode(button.dataset.catalogMode))); $('#catalogForm').addEventListener('submit', submitCatalog); $('#runDiagnostics').addEventListener('click', runDiagnostics);
 
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
-Promise.all([loadSources(), loadHistory(), loadCatalogStatus()]).catch(error => { $('#connectionLabel').textContent = 'Blad polaczenia'; toast(`Nie udalo sie wczytac aplikacji: ${error.message}`); });
+Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData()]).catch(error => { $('#connectionLabel').textContent = 'Blad polaczenia'; toast(`Nie udalo sie wczytac aplikacji: ${error.message}`); });

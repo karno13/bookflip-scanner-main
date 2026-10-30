@@ -91,7 +91,7 @@
     <form id="catalogForm">
       <div class="modal-heading"><div><p class="topbar-kicker">Nowy rekord</p><h2>Dodaj książkę</h2></div><button class="drawer-close" type="button" id="closeCatalogForm">Zamknij</button></div>
       <div class="mode-tabs"><button type="button" class="mode-tab active" data-catalog-mode="isbn">Przez ISBN</button><button type="button" class="mode-tab" data-catalog-mode="manual">Ręcznie</button></div>
-      <div id="catalogIsbnMode"><label class="field"><span>ISBN-10 lub ISBN-13</span><input id="catalogIsbn" inputmode="numeric" placeholder="978..." maxlength="20"><small>Zapis korzysta z istniejacego lokalnego API. Podglad BN/OL wymaga osobnego endpointu.</small></label></div>
+      <div id="catalogIsbnMode"><label class="field"><span>ISBN-10 lub ISBN-13</span><input id="catalogIsbn" inputmode="numeric" placeholder="978..." maxlength="20"><small>Najpierw zobaczysz wynik lokalny oraz metadane BN/OL. Rekord powstanie dopiero po drugim, świadomym zatwierdzeniu.</small></label></div>
       <div id="catalogManualMode" hidden><label class="field"><span>Tytuł dzieła</span><input id="catalogTitle" maxlength="500" placeholder="Pełny tytuł"></label><label class="field"><span>ISBN (opcjonalnie)</span><input id="catalogManualIsbn" inputmode="numeric" maxlength="20" placeholder="978..."></label></div>
       <p class="inline-alert" id="catalogFormMessage" hidden></p>
       <div class="modal-actions"><button type="button" class="button secondary" id="cancelCatalogForm">Anuluj</button><button type="submit" class="button primary" id="catalogSubmit">Zapisz rekord</button></div>

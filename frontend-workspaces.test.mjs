@@ -20,10 +20,11 @@ test('scanner state is module-owned and navigation does not recreate it', () => 
   assert.match(script, /readSearchStream/);
 });
 
-test('frontend uses only existing local API contracts', () => {
-  for (const endpoint of ['/api/sources', '/api/history', '/api/catalog/status', '/api/catalog/link', '/api/catalog', '/api/search?stream=1']) assert.ok(script.includes(endpoint));
-  assert.match(script, /Oznacz jako nie-ksiazke<\/button>/);
-  assert.match(script, /catalogSubmit'\)\.disabled = mode === 'isbn'/);
+test('frontend uses local JSON compatibility and SQLite catalog APIs', () => {
+  for (const endpoint of ['/api/sources', '/api/history', '/api/catalog/status', '/api/catalog/works', '/api/identification-jobs', '/api/offers', '/api/catalog/lookup-preview', '/api/catalog/lookup-confirm', '/api/catalog', '/api/search?stream=1']) assert.ok(script.includes(endpoint));
+  assert.match(script, /id="markNotBook"/);
+  assert.match(script, /decideReview\('not_book'\)/);
+  assert.match(script, /state\.catalogPreview/);
 });
 
 test('layout has fixed desktop navigation and responsive workspaces', () => {
@@ -36,7 +37,7 @@ test('layout has fixed desktop navigation and responsive workspaces', () => {
 test('review catalog picker filters by typed title or ISBN before selection', () => {
   assert.match(script, /id=\"reviewBookSearch\"/);
   assert.match(script, /renderReviewBookChoices\(event\.target\.value\)/);
-  assert.match(script, /row\.book\.title[\s\S]*row\.book\.isbn/);
-  assert.match(script, /dataset\.reviewBookId/);
+  assert.match(script, /work\.title[\s\S]*edition\.identifiers/);
+  assert.match(script, /dataset\.reviewEditionId/);
   assert.match(styles, /\.book-options/);
 });

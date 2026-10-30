@@ -64,6 +64,15 @@ export function createProductionCatalog({
     repository,
     resolver,
     worker,
+    lookupIsbn(isbn) {
+      return lookupISBN(isbn, { bnAdapter, openLibraryAdapter, cache });
+    },
+    resolveIsbn(isbn, { dryRun = false } = {}) {
+      return resolver.resolve({ evidence: {
+        status: 'valid', values: [isbn], isbn, candidateIsbn: isbn,
+        classification: 'structured', autoAssignable: true, reviewRequired: false, observations: [],
+      }, dryRun });
+    },
     ingestOffers(offers, observedAt = now()) {
       const report = { offers: 0, evidence: 0, jobs: 0, skipped: 0 };
       const at = observedAt instanceof Date ? observedAt.toISOString() : String(observedAt);
@@ -123,7 +132,8 @@ export function createProductionCatalog({
     status() {
       const counts = repository.counts();
       const cache = Number(repository.database.prepare('SELECT count(*) AS count FROM metadata_lookup_cache').get().count);
-      return { enabled: true, counts: { ...counts, metadata_lookup_cache: cache } };
+      const pending = Number(repository.database.prepare("SELECT count(*) AS count FROM identification_jobs WHERE status<>'completed'").get().count);
+      return { enabled: true, counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache } };
     },
     close() { repository.close(); },
   };
