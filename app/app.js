@@ -152,15 +152,25 @@ function renderReview() {
 
 function renderReviewDetail() {
   const offer = reviewOffers().find(row => row.id === state.selectedReviewId); if (!offer) return $('#reviewDetail').innerHTML = '<div class="empty-detail"><h3>Wybierz oferte</h3><p>Po lewej pojawia sie lista ofert wymagajacych decyzji.</p></div>';
-  const options = (state.history.books || []).map(row => `<option value="${escapeHtml(row.book.id)}" ${offer.bookId === row.book.id ? 'selected' : ''}>${escapeHtml(row.book.title)}${row.book.isbn ? ` - ${escapeHtml(row.book.isbn)}` : ''}</option>`).join('');
-  $('#reviewDetail').innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">Do weryfikacji</span><h3>${escapeHtml(offer.originalTitle)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty</h4><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.isbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>Brak w API historii</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div></section><section class="detail-section"><h4>Decyzja</h4><p class="inline-note">Pelne dowody BN/OL i konflikty sa zapisane w SQLite, ale obecny backend nie udostepnia ich jeszcze do odczytu przez frontend.</p><select class="detail-select" id="reviewBookSelect"><option value="">Wybierz rekord katalogowy</option>${options}</select><div class="detail-actions"><button class="button primary" id="approveReview" type="button">Zatwierdz przypisanie</button><button class="button secondary" type="button" disabled>Oznacz jako nie-ksiazke</button><button class="button secondary" type="button" disabled>Odrzuc propozycje</button></div></section>`;
-  $('#approveReview').disabled = !$('#reviewBookSelect').value;
-  $('#reviewBookSelect').addEventListener('change', event => { $('#approveReview').disabled = !event.target.value; });
+  const selectedBook = bookFor(offer.bookId);
+  $('#reviewDetail').innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">Do weryfikacji</span><h3>${escapeHtml(offer.originalTitle)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty</h4><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.isbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>Brak w API historii</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div></section><section class="detail-section"><h4>Decyzja</h4><p class="inline-note">Pelne dowody BN/OL i konflikty sa zapisane w SQLite, ale obecny backend nie udostepnia ich jeszcze do odczytu przez frontend.</p><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytul lub ISBN" value="${escapeHtml(selectedBook?.title || '')}" data-book-id="${escapeHtml(selectedBook?.id || '')}"><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button">Zatwierdz przypisanie</button><button class="button secondary" type="button" disabled>Oznacz jako nie-ksiazke</button><button class="button secondary" type="button" disabled>Odrzuc propozycje</button></div></section>`;
+  $('#approveReview').disabled = !$('#reviewBookSearch').dataset.bookId;
+  $('#reviewBookSearch').addEventListener('input', event => { event.target.dataset.bookId = ''; $('#approveReview').disabled = true; renderReviewBookChoices(event.target.value); });
+  $('#reviewBookSearch').addEventListener('focus', event => renderReviewBookChoices(event.target.value));
+  renderReviewBookChoices(selectedBook?.title || '');
   $('#approveReview').addEventListener('click', approveReview);
 }
 
+function renderReviewBookChoices(query = '') {
+  const list = $('#reviewBookOptions'), input = $('#reviewBookSearch'); if (!list || !input) return;
+  const needle = query.trim().toLocaleLowerCase('pl');
+  const books = (state.history?.books || []).filter(row => !needle || `${row.book.title} ${row.book.isbn || ''}`.toLocaleLowerCase('pl').includes(needle)).slice(0, 30);
+  list.innerHTML = books.length ? books.map(row => `<button type="button" role="option" data-review-book-id="${escapeHtml(row.book.id)}" data-review-book-title="${escapeHtml(row.book.title)}"><strong>${escapeHtml(row.book.title)}</strong><small>${row.book.isbn ? `ISBN ${escapeHtml(row.book.isbn)}` : 'Bez ISBN'} - ${row.uniqueOffers} ofert</small></button>`).join('') : '<p>Brak rekordow pasujacych do wpisanej frazy.</p>';
+  $$('[data-review-book-id]').forEach(button => button.addEventListener('click', () => { input.value = button.dataset.reviewBookTitle; input.dataset.bookId = button.dataset.reviewBookId; input.setAttribute('aria-expanded', 'false'); list.innerHTML = ''; $('#approveReview').disabled = false; input.focus(); }));
+}
+
 async function approveReview() {
-  const offerId = state.selectedReviewId, bookId = $('#reviewBookSelect').value; if (!offerId || !bookId) return;
+  const offerId = state.selectedReviewId, bookId = $('#reviewBookSearch').dataset.bookId; if (!offerId || !bookId) return;
   await json('/api/catalog/link', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({offerId, bookId})});
   const remaining = filteredReviewOffers().filter(row => row.id !== offerId); state.selectedReviewId = remaining[0]?.id || null; await loadHistory(); toast('Reczne przypisanie zostalo zapisane.');
 }

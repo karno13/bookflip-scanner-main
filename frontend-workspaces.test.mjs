@@ -32,3 +32,11 @@ test('layout has fixed desktop navigation and responsive workspaces', () => {
   assert.match(styles, /@media\(max-width:1100px\)/);
   assert.match(styles, /@media\(max-width:760px\)/);
 });
+
+test('review catalog picker filters by typed title or ISBN before selection', () => {
+  assert.match(script, /id=\"reviewBookSearch\"/);
+  assert.match(script, /renderReviewBookChoices\(event\.target\.value\)/);
+  assert.match(script, /row\.book\.title[\s\S]*row\.book\.isbn/);
+  assert.match(script, /dataset\.reviewBookId/);
+  assert.match(styles, /\.book-options/);
+});
