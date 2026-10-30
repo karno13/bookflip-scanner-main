@@ -8,6 +8,7 @@ import {scanMarketplace} from './marketplaces.mjs';
 import {localSourceHosts} from './local-scan.mjs';
 import {readVintedLanguage} from './vinted-detail.mjs';
 import {loadOfferHistory,saveOfferHistory,applyScanToHistory,sourceOfferId,createCatalogBook,linkOfferToBook} from './offer-history.mjs';
+import {createProductionCatalog,productionCatalogEnabled} from './catalog-production.mjs';
 import {offerExternalId} from './offer-identity.mjs';
 import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
 
@@ -49,13 +50,18 @@ async function filterVintedPolishOffers(offers,languageReader,onProgress=()=>{},
 async function readJson(request){let size=0,text='';for await(const chunk of request){size+=chunk.length;if(size>32768)throw Object.assign(Error('REQUEST_TOO_LARGE'),{statusCode:413});text+=chunk;}try{return JSON.parse(text||'{}');}catch{throw Object.assign(Error('INVALID_JSON'),{statusCode:400});}}
 function send(response,status,body,type='application/json; charset=utf-8'){response.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});response.end(body);}
 const logPath=join(process.cwd(),'scan-results','local-app.log');
+let productionCatalog=null;
+function getProductionCatalog(){if(!productionCatalogEnabled())return null;if(!productionCatalog)productionCatalog=createProductionCatalog();return productionCatalog;}
+
 function recordProgress(event){const safe={at:new Date().toISOString(),...event};void appendFile(logPath,JSON.stringify(safe)+'\n').catch(()=>{});return safe;}
 function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){response.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});}
 function historySnapshot(history){return{updatedAt:history.updatedAt,lastScan:history.lastScan,books:Object.values(history.books).map(book=>bookStatistics(history,book.id)).filter(Boolean).sort((a,b)=>String(b.book.lastSeenAt).localeCompare(String(a.book.lastSeenAt))),offers:analyzedOffers(history).sort((a,b)=>String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)))};}
 async function searchAndStore(input,onProgress=()=>{}){
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'})),applied=applyScanToHistory(history,result.offers,result.searchedAt,detailCache,{errors});
  await saveOfferHistory(applied.history);const ids=result.offers.map(offer=>{const preferred=sourceOfferId(offer.source,offer.url,offerExternalId(offer)),legacy=sourceOfferId(offer.source,offer.url);return applied.history.offers[preferred]?preferred:legacy;}),offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
- return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan};
+ let catalog=null;const catalogStore=getProductionCatalog();
+ if(catalogStore){try{const ingest=catalogStore.ingestOffers(result.offers,result.searchedAt);let resolution=null;if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')resolution=await catalogStore.processQueued();catalog={ingest,resolution};}catch(error){catalog={error:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'};}}
+ return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan,...(catalog?{catalog}:{})};
 }
 
 export function createLocalAppServer(){return createServer(async(request,response)=>{try{
@@ -64,6 +70,7 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='GET'&&url.pathname==='/api/history'){const history=await loadOfferHistory();return send(response,200,JSON.stringify(historySnapshot(history)));}
  if(request.method==='GET'&&url.pathname==='/api/book'){const history=await loadOfferHistory(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
  if(request.method==='POST'&&url.pathname==='/api/catalog'){const history=await loadOfferHistory(),created=createCatalogBook(history,await readJson(request));await saveOfferHistory(created.history);return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:historySnapshot(created.history)}));}
+ if(request.method==='GET'&&url.pathname==='/api/catalog/status'){const catalog=getProductionCatalog();return send(response,200,JSON.stringify(catalog?catalog.status():{enabled:false}));}
  if(request.method==='POST'&&url.pathname==='/api/catalog/link'){const input=await readJson(request),history=linkOfferToBook(await loadOfferHistory(),String(input.offerId||''),String(input.bookId||''));await saveOfferHistory(history);return send(response,200,JSON.stringify(historySnapshot(history)));}
  if(request.method==='POST'&&url.pathname==='/api/search'&&url.searchParams.get('stream')==='1'){
   streamHeaders(response);const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
