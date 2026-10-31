@@ -13,6 +13,7 @@ import {decideIdentificationJob,getCatalogEdition,getCatalogOffer,getCatalogWork
 import {offerExternalId} from './offer-identity.mjs';
 import {importJsonV2Data} from './import-json-v2-to-sqlite.mjs';
 import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
+import {persistScannedOffers} from './scan-persistence.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
 const contentTypes={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
@@ -95,9 +96,21 @@ function scheduleCatalogResolution(catalogStore){
 
 async function searchAndStore(input,onProgress=()=>{}){
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
- const applied=await withHistoryWriteLock(async()=>{const fresh=await loadOfferHistory(),next=applyScanToHistory(fresh,result.offers,result.searchedAt,detailCache,{errors});await saveOfferHistory(next.history);return next;});const ids=result.offers.map(offer=>{const preferred=sourceOfferId(offer.source,offer.url,offerExternalId(offer)),legacy=sourceOfferId(offer.source,offer.url);return applied.history.offers[preferred]?preferred:legacy;}),offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
- let catalog=null;const catalogStore=getProductionCatalog();
- if(catalogStore){try{const observations=result.offers.map((offer,index)=>({...offer,seenCount:applied.history.offers[ids[index]]?.seenCount,firstSeenAt:applied.history.offers[ids[index]]?.firstSeenAt,lastSeenAt:applied.history.offers[ids[index]]?.lastSeenAt}));const ingest=catalogStore.ingestOffers(observations,result.searchedAt);if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalogStore);catalog={ingest,resolution:{status:'queued'}};}catch(error){catalog={error:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'};}}
+ const catalogStore=getProductionCatalog();
+ const sqliteFirst=String(process.env.BOOKFLIP_SQLITE_FIRST??'0')==='1';
+ const {applied,ids,ingest}=await withHistoryWriteLock(async()=>{
+  const fresh=await loadOfferHistory();
+  return persistScannedOffers({
+   history:fresh,offers:result.offers,searchedAt:result.searchedAt,
+   detailCache,errors,catalogStore,sqliteFirst
+  });
+ });
+ const offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
+ let catalog=null;
+ if(catalogStore){
+  if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalogStore);
+  catalog={ingest,resolution:{status:'queued'}};
+ }
  return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan,...(catalog?{catalog}:{})};
 }
 
