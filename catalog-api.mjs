@@ -114,7 +114,7 @@ export function listIdentificationJobs(repository, options = {}) {
   if (source) { conditions.push('o.source=?'); params.push(source); }
   const isbn=String(options.isbn||'');
   if(isbn==='present')conditions.push("o.observed_isbn IS NOT NULL AND o.observed_isbn<>''");
-  if(isbn==='missing')conditions.push("o.observed_isbn IS NULL OR o.observed_isbn=''");
+  if(isbn==='missing')conditions.push("(o.observed_isbn IS NULL OR o.observed_isbn='')");
   if (query) { conditions.push("(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!' OR lower(o.source) LIKE ? ESCAPE '!')"); params.push(likeLiteral(query), likeLiteral(query), likeLiteral(query)); }
   const where = `WHERE ${conditions.join(' AND ')}`;
   const total = Number(database.prepare(`SELECT count(*) AS count FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where}`).get(...params).count);
