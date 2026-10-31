@@ -185,10 +185,10 @@ test('price evidence shares one numeric validator with edition summary', () => {
 
 test('catalog search sends debounced SQLite queries beyond loaded pages',()=>{
  for(const name of ['works','jobs','offers'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+name+"'\\)"));
- assert.match(script,/params\.set\('query',query\)/);
+ assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
  assert.match(script,/catalogAbortControllers\.get\(kind\)\?\.abort\(\)/);
  assert.match(script,/new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
- assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query\}/);
+ assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query,filters\}/);
 });
 
 test('review and catalog DOM rendering is bounded despite loading many SQLite pages',()=>{
@@ -199,4 +199,11 @@ test('review and catalog DOM rendering is bounded despite loading many SQLite pa
  assert.match(script,/visibleCatalogRows\('works',rows\)\.map\(row/);
  assert.match(script,/visibleCatalogRows\('jobs',rows\)\.map\(job/);
  assert.match(script,/data-show-loaded-kind/);
+});
+
+test('filter and sort controls query the full SQLite catalogue instead of only loaded rows',()=>{
+ assert.match(script,/function catalogFilters\(kind\)/);
+ assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
+ for(const kind of ['offers','jobs','works'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+kind+"'\\)"));
+ assert.match(script,/page\.filters\|\|\{query:page\.query\|\|''\}/);
 });

@@ -100,6 +100,12 @@ const catalogAbortControllers = new Map();
 const catalogSearchTimers = new Map();
 const catalogSearchInputs = {works:'#catalogSearch',jobs:'#reviewSearch',offers:'#offerSearch'};
 function catalogQuery(kind){return $(catalogSearchInputs[kind])?.value?.trim()||'';}
+function catalogFilters(kind){
+  const query=catalogQuery(kind);
+  if(kind==='works')return{query,sort:$('#catalogSort').value};
+  if(kind==='jobs')return{query,source:$('#reviewSource').value,isbn:$('#reviewIsbn').value,sort:$('#reviewSort').value};
+  return{query,source:$('#offerSource').value,status:$('#offerStatus').value,sort:$('#offerSort').value};
+}
 
 // Fetch one page at a time. A large catalog must not block the UI by
 // attempting to download every row on startup.
@@ -116,9 +122,10 @@ async function loadCatalogPage(kind,{reset=false}={}){
   updateCatalogLoadControls();
   try {
     const offset=reset?0:page.offset;
-    const query=reset?catalogQuery(kind):(page.query||'');
+    const filters=reset?catalogFilters(kind):(page.filters||{query:page.query||''});
+    const query=filters.query;
     const params=new URLSearchParams({limit:String(catalogPageSize),offset:String(offset)});
-    if(query)params.set('query',query);
+    for(const [key,value] of Object.entries(filters))if(value)params.set(key,value);
     const response=await fetch(`${source.endpoint}?${params}`,{signal:controller.signal});
     const data=await response.json();
     if(!response.ok)throw Error(data.error||`HTTP_${response.status}`);
@@ -131,7 +138,7 @@ async function loadCatalogPage(kind,{reset=false}={}){
       if(kind==='works'||kind==='jobs')state.visibleRows[kind]=100;
     }
     else state[source.stateKey]=[...state[source.stateKey],...data.items];
-    state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query};
+    state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query,filters};
     updateCatalogLoadControls();
     return true;
   }finally{
@@ -557,11 +564,11 @@ $('#refreshView').addEventListener('click', async () => {
 });
 $('#toggleSources').addEventListener('click', () => { const boxes = $$('#sourceGrid input'); const all = boxes.length && boxes.every(box => box.checked); boxes.forEach(box => { box.checked = !all; }); });
 $('#startSearch').addEventListener('click', startSearch); $('#goToOffers').addEventListener('click', () => showView('offers'));
-for (const selector of ['#reviewSource', '#reviewIsbn', '#reviewSort']) $(selector).addEventListener('change', renderReview);
+for (const selector of ['#reviewSource', '#reviewIsbn', '#reviewSort']) $(selector).addEventListener('change',()=>scheduleGlobalCatalogSearch('jobs'));
 $('#reviewSearch').addEventListener('input',()=>scheduleGlobalCatalogSearch('jobs'));
-$('#catalogSort').addEventListener('change',renderCatalog);
+$('#catalogSort').addEventListener('change',()=>scheduleGlobalCatalogSearch('works'));
 $('#catalogSearch').addEventListener('input',()=>scheduleGlobalCatalogSearch('works'));
-for (const selector of ['#offerSource', '#offerStatus', '#offerSort']) $(selector).addEventListener('change',()=>{state.offerPage=1;renderOffers();});
+for (const selector of ['#offerSource', '#offerStatus', '#offerSort']) $(selector).addEventListener('change',()=>scheduleGlobalCatalogSearch('offers'));
 $('#offerSearch').addEventListener('input',()=>scheduleGlobalCatalogSearch('offers'));
 $('#offerPrev').addEventListener('click', () => { state.offerPage -= 1; renderOffers(); }); $('#offerNext').addEventListener('click', () => { state.offerPage += 1; renderOffers(); }); $('#closeOfferDrawer').addEventListener('click', () => { $('#offerDrawer').hidden = true; });
 $('#openCatalogForm').addEventListener('click', () => { $('#catalogDialog').showModal(); setCatalogMode('manual'); }); $('#closeCatalogForm').addEventListener('click', () => $('#catalogDialog').close()); $('#cancelCatalogForm').addEventListener('click', () => $('#catalogDialog').close());

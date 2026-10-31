@@ -34,7 +34,7 @@ export function listCatalogWorks(repository, options = {}) {
   const works = database.prepare(`SELECT w.*,
     (SELECT count(*) FROM editions e WHERE e.work_id=w.id) AS edition_count,
     (SELECT count(*) FROM offer_matches m JOIN editions e ON e.id=m.edition_id WHERE e.work_id=w.id AND m.status='active') AS offer_count
-    FROM works w ${where} ORDER BY lower(w.title),w.id LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    FROM works w ${where} ORDER BY ${options.sort==='offers'?'offer_count DESC,lower(w.title),w.id':'lower(w.title),w.id'} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   const editionRows = works.length ? database.prepare(`SELECT * FROM editions WHERE work_id IN (${works.map(() => '?').join(',')}) ORDER BY publication_year,title`).all(...works.map((row) => row.id)) : [];
   const identifiers = identifierMap(database, editionRows.map((row) => row.id)), byWork = new Map();
   for (const row of editionRows) {
@@ -82,8 +82,15 @@ export function listCatalogOffers(repository, options = {}) {
     LEFT JOIN editions e ON e.id=m.edition_id LEFT JOIN works w ON w.id=e.work_id
     LEFT JOIN identification_jobs j ON j.offer_id=o.id AND j.job_type='identify_edition'`;
   const total = Number(database.prepare(`SELECT count(DISTINCT o.id) AS count ${from} ${where}`).get(...params).count);
+  const offerSort = {
+    newest: 'o.last_seen_at DESC,o.id',
+    title: 'lower(o.original_title),o.id',
+    'price-asc': 'o.current_price IS NULL,o.current_price ASC,o.id',
+    'price-desc': 'o.current_price IS NULL,o.current_price DESC,o.id',
+  };
+  const orderBy=offerSort[String(options.sort||'newest')]||offerSort.newest;
   const rows = database.prepare(`SELECT o.*,m.id AS match_id,m.method,e.id AS edition_id,e.title AS edition_title,w.title AS work_title,j.id AS job_id,j.status AS job_status
-    ${from} ${where} ORDER BY o.last_seen_at DESC,o.id LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    ${from} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   return { total, limit, offset, items: rows.map((row) => ({ ...offer(row), match: row.match_id ? { id: row.match_id, method: row.method, editionId: row.edition_id, editionTitle: row.edition_title, workTitle: row.work_title } : null, identification: row.job_id ? { jobId: row.job_id, status: row.job_status } : null })) };
 }
 
@@ -105,11 +112,15 @@ export function listIdentificationJobs(repository, options = {}) {
   const { database } = repository, { limit, offset, query } = page(options), conditions = [], params = [], status = String(options.status ?? ''), source = String(options.source ?? '');
   conditions.push(status ? 'j.status=?' : "j.status IN ('queued','running','retry_wait','review_required','failed')"); if (status) params.push(status);
   if (source) { conditions.push('o.source=?'); params.push(source); }
+  const isbn=String(options.isbn||'');
+  if(isbn==='present')conditions.push("o.observed_isbn IS NOT NULL AND o.observed_isbn<>''");
+  if(isbn==='missing')conditions.push("(o.observed_isbn IS NULL OR o.observed_isbn='')");
   if (query) { conditions.push("(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!' OR lower(o.source) LIKE ? ESCAPE '!')"); params.push(likeLiteral(query), likeLiteral(query), likeLiteral(query)); }
   const where = `WHERE ${conditions.join(' AND ')}`;
   const total = Number(database.prepare(`SELECT count(*) AS count FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where}`).get(...params).count);
+  const orderBy=options.sort==='price'?'o.current_price ASC,j.id':'CASE j.status WHEN \'review_required\' THEN 0 WHEN \'failed\' THEN 1 ELSE 2 END,j.updated_at DESC,j.id';
   const rows = database.prepare(`SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at
-    FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where} ORDER BY CASE j.status WHEN 'review_required' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,j.updated_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   return { total, limit, offset, items: rows.map((row) => ({ id: row.id, offerId: row.offer_id, status: row.status, attemptCount: row.attempt_count,
     lastError: row.last_error, result: json(row.result_json), updatedAt: row.updated_at,
     offer: { id: row.offer_id, source: row.source, title: row.original_title, currentPrice: row.current_price, currency: row.currency, url: row.normalized_url, observedIsbn: row.observed_isbn, lastSeenAt: row.last_seen_at } })) };
