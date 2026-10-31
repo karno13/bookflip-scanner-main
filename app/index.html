@@ -48,6 +48,10 @@
             <div class="panel-heading"><div><h3>Status źródeł</h3><p>Postęp i wynik każdego zadania skanowania.</p></div><button class="button secondary compact" type="button" id="goToOffers" disabled>Przejdź do ofert</button></div>
             <div class="table-wrap"><table><thead><tr><th>Zrodlo</th><th>Status</th><th>Oferty</th><th>Nowe</th><th>Zakonczono</th><th>Komunikat</th></tr></thead><tbody id="sourceStatusBody"><tr><td colspan="6" class="empty-cell">Uruchom skan, aby zobaczyc statusy zrodel.</td></tr></tbody></table></div>
           </div>
+          <section class="panel scanner-discover" aria-labelledby="scannerDiscoverTitle">
+            <div class="panel-heading"><div><p class="section-eyebrow">OSTATNIO ZAPISANE</p><h3 id="scannerDiscoverTitle">Oferty w Twojej bazie</h3><p id="scannerDiscoverSummary">Odczyt z lokalnego magazynu ofert; nie są to wyniki bieżącego skanu.</p></div><button class="button secondary compact" type="button" id="scannerBrowseOffers">Wszystkie oferty</button></div>
+            <div class="scanner-offer-list" id="scannerOfferList"><div class="empty-detail">Wczytywanie ofert...</div></div>
+          </section>
         </section>
         <section class="view" id="view-review" data-title="Do weryfikacji" hidden>
           <div class="view-heading"><div><p class="section-eyebrow">CENTRUM IDENTYFIKACJI</p><h2>Weryfikacja książek</h2><p>Oferty bez pewnego przypisania do katalogu.</p></div><span class="state-badge warning" id="reviewCount">0 oczekujących</span></div>
