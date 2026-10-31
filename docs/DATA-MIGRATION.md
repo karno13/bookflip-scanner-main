@@ -39,6 +39,14 @@ node scripts/check-history-parity.mjs "C:\\BookFlip\\scan-results\\local-offer-h
 
 Polecenie odczytuje plik JSON oraz bazę SQLite w trybie **read-only**. Nie importuje danych ani nie zmienia przypisań. Porównuje oferty po źródle i znormalizowanym URL, a następnie wykrywa brakujące rekordy, różnice aktualnych cen, liczników wykryć i niejednoznaczne tożsamości. Raport obejmuje ograniczone próbki identyfikatorów.
 
-Kod wyjścia: `0` — brak blokujących rozbieżności, `1` — rozbieżności, `2` — brak plików albo błąd odczytu. Status `safeToCutOver=true` jest tylko **wstępną kontrolą**: nie potwierdza zgodności całej historii cen, ISBN, decyzji bibliograficznych ani odporności na awarię. Dodatkowe oferty występujące wyłącznie w SQLite mogą być poprawnymi nowszymi zapisami, więc raportuje się je osobno; różnice liczników wykryć również nie są automatycznie naprawiane.
+Kod wyjścia: `0` — brak blokujących rozbieżności, `1` — rozbieżności, `2` — brak plików albo błąd odczytu. Status `safeToCutOver=true` jest tylko **wstępną kontrolą**: nie potwierdza zgodności historii ISBN, wszystkich decyzji bibliograficznych ani odporności na awarię. Dodatkowe oferty występujące wyłącznie w SQLite mogą być poprawnymi nowszymi zapisami, więc raportuje się je osobno; różnice liczników wykryć również nie są automatycznie naprawiane.
 
 **Nie wykonuj migracji na podstawie samego statusu tego raportu.** Przed właściwym przełączeniem nadal wymagana jest kopia obu magazynów, porównanie historii cen i przypisań oraz test na danych testowych.
+
+## Rozszerzona kontrola punktów cenowych i ręcznych powiązań (PR #28)
+
+Raport `bookflip-history-parity-v2` dodatkowo porównuje **każdy zapisany w JSON punkt ceny** (kwotę oraz znacznik czasu) z punktami oferty w SQLite. Brak któregokolwiek historycznego punktu blokuje `safeToCutOver`; dodatkowe punkty istniejące tylko w SQLite są raportowane osobno, ponieważ mogą pochodzić z nowszych skanów.
+
+Ręczne przypisanie `linkMode='manual'` z JSON wymaga aktywnego powiązania oferty w SQLite do wydania z tym samym `legacy_id` książki. Brak przypisania lub inne wydanie blokują przełączenie. Raport nie modyfikuje zapisanych powiązań ani cen.
+
+To nadal **bramka diagnostyczna**, a nie automatyczna migracja: status nie potwierdza kompletności pozostałych dowodów ISBN, historii decyzji recenzenta ani zgodności wszystkich danych bibliograficznych. Przed docelowym przełączeniem należy wykonać kopię plików i zweryfikować próbkę rzeczywistych danych lokalnych.
