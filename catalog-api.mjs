@@ -34,7 +34,7 @@ export function listCatalogWorks(repository, options = {}) {
   const works = database.prepare(`SELECT w.*,
     (SELECT count(*) FROM editions e WHERE e.work_id=w.id) AS edition_count,
     (SELECT count(*) FROM offer_matches m JOIN editions e ON e.id=m.edition_id WHERE e.work_id=w.id AND m.status='active') AS offer_count
-    FROM works w ${where} ORDER BY lower(w.title),w.id LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    FROM works w ${where} ORDER BY ${options.sort==='offers'?'offer_count DESC,lower(w.title),w.id':'lower(w.title),w.id'} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   const editionRows = works.length ? database.prepare(`SELECT * FROM editions WHERE work_id IN (${works.map(() => '?').join(',')}) ORDER BY publication_year,title`).all(...works.map((row) => row.id)) : [];
   const identifiers = identifierMap(database, editionRows.map((row) => row.id)), byWork = new Map();
   for (const row of editionRows) {
