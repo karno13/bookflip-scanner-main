@@ -190,3 +190,13 @@ test('catalog search sends debounced SQLite queries beyond loaded pages',()=>{
  assert.match(script,/new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
  assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query\}/);
 });
+
+test('review and catalog DOM rendering is bounded despite loading many SQLite pages',()=>{
+ assert.match(script,/visibleRows: \{works:100,jobs:100\}/);
+ assert.match(script,/function visibleCatalogRows\(kind,rows\)/);
+ assert.match(script,/rows\.slice\(0,visible\)/);
+ assert.match(script,/state\.visibleRows\[kind\]\+=100/);
+ assert.match(script,/visibleCatalogRows\('works',rows\)\.map\(row/);
+ assert.match(script,/visibleCatalogRows\('jobs',rows\)\.map\(job/);
+ assert.match(script,/data-show-loaded-kind/);
+});
