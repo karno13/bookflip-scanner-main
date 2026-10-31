@@ -105,7 +105,7 @@ export function listIdentificationJobs(repository, options = {}) {
   const { database } = repository, { limit, offset, query } = page(options), conditions = [], params = [], status = String(options.status ?? ''), source = String(options.source ?? '');
   conditions.push(status ? 'j.status=?' : "j.status IN ('queued','running','retry_wait','review_required','failed')"); if (status) params.push(status);
   if (source) { conditions.push('o.source=?'); params.push(source); }
-  if (query) { conditions.push('(lower(o.original_title) LIKE ? OR lower(o.observed_isbn) LIKE ?)'); params.push(`%${query}%`, `%${query}%`); }
+  if (query) { conditions.push("(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!')"); params.push(likeLiteral(query), likeLiteral(query)); }
   const where = `WHERE ${conditions.join(' AND ')}`;
   const total = Number(database.prepare(`SELECT count(*) AS count FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where}`).get(...params).count);
   const rows = database.prepare(`SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at
