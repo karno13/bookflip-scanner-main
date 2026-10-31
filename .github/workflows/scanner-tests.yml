@@ -30,5 +30,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
+      - name: Parse-check all JavaScript before tests
+        run: npm run check:syntax
       - name: Offline tests (no marketplace scanning or external API calls)
         run: node --test
