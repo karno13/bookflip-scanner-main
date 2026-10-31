@@ -51,7 +51,7 @@ async function filterVintedPolishOffers(offers,languageReader,onProgress=()=>{},
 
 async function readJson(request){let size=0,text='';for await(const chunk of request){size+=chunk.length;if(size>32768)throw Object.assign(Error('REQUEST_TOO_LARGE'),{statusCode:413});text+=chunk;}try{return JSON.parse(text||'{}');}catch{throw Object.assign(Error('INVALID_JSON'),{statusCode:400});}}
 function send(response,status,body,type='application/json; charset=utf-8'){response.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://covers.openlibrary.org; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});response.end(body);}
-const logPath=join(process.cwd(),'scan-results','local-app.log');
+const logPath=fileURLToPath(new URL('./scan-results/local-app.log',import.meta.url));
 let productionCatalog=null;
 function getProductionCatalog(){if(!productionCatalogEnabled())return null;if(!productionCatalog)productionCatalog=createProductionCatalog();return productionCatalog;}
 function syncHistoryToCatalog(history){const catalog=getProductionCatalog();return catalog?importJsonV2Data(history,catalog.repository):null;}

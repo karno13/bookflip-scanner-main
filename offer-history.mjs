@@ -1,5 +1,6 @@
 import {readFile,writeFile,mkdir,rename,rm} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {extractOfferISBN} from './isbn.mjs';
 import {normalizeISBN} from './isbn-normalization.mjs';
@@ -7,7 +8,7 @@ import {normalizeOfferUrl,offerExternalId,sourceOfferId} from './offer-identity.
 
 export {normalizeOfferUrl,sourceOfferId} from './offer-identity.mjs';
 
-export const defaultHistoryPath=join(process.cwd(),'scan-results','local-offer-history.json');
+export const defaultHistoryPath=fileURLToPath(new URL('./scan-results/local-offer-history.json',import.meta.url));
 
 export function emptyOfferHistory(){return{version:2,updatedAt:null,books:{},offers:{},priceHistory:[],details:{},lastScan:null};}
 

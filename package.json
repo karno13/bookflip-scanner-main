@@ -1,0 +1,12 @@
+{
+  "name": "bookflip-scanner-local",
+  "version": "3.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local BookFlip scanner and bibliographic SQLite catalog",
+  "engines": {"node": ">=24"},
+  "scripts": {
+    "start": "node local-app.mjs",
+    "test": "node --test"
+  }
+}

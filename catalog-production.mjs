@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import {fileURLToPath} from 'node:url';
 
 import { CatalogResolver } from './catalog-resolver.mjs';
 import { IdentificationWorker } from './identification-worker.mjs';
@@ -24,7 +25,7 @@ export function productionCatalogEnabled(environment = process.env) {
 }
 
 export function createProductionCatalog({
-  databasePath = process.env.BOOKFLIP_CATALOG_DB ?? 'scan-results/bookflip-catalog.sqlite',
+  databasePath = process.env.BOOKFLIP_CATALOG_DB ?? fileURLToPath(new URL('./scan-results/bookflip-catalog.sqlite',import.meta.url)),
   fetcher = globalThis.fetch,
   contact = process.env.BOOKFLIP_OPEN_LIBRARY_CONTACT ?? 'bookflip-local@localhost',
   now = () => new Date(),
