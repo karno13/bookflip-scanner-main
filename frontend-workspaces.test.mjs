@@ -149,3 +149,15 @@ test('resale simulator requires user costs and a manually assumed resale price',
   assert.match(script, /Przed podatkiem, bez gwarancji sprzedaży/);
   assert.match(styles, /\.scenario-fields/);
 });
+
+
+test('covers use ISBN checksum and show neutral spine until real image loads', () => {
+  assert.match(script, /function validCoverIsbn\(value\)/);
+  assert.match(script, /function coverPreviewMarkup\(identifiers=\[\]\)/);
+  assert.match(script, /covers\.openlibrary\.org\/b\/isbn/);
+  assert.match(script, /default=false/);
+  assert.match(script, /referrerpolicy="no-referrer"/);
+  assert.match(script, /naturalWidth>1/);
+  assert.match(styles, /\.cover-preview\.has-cover/);
+  assert.match(styles, /\.edition-identity/);
+});
