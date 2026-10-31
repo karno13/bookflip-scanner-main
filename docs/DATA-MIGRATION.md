@@ -84,3 +84,9 @@ Nowe operacje w trybie SQLite-first zapisują zmianę bibliograficzną i snapsho
 W razie konfliktu numeru ISBN z już istniejącym wydaniem SQLite nowy zapis zostanie odrzucony kodem `SQLITE_ISBN_ALREADY_EXISTS`, zamiast tworzyć drugie wydanie. Przypisanie wymaga, aby oferta i wydanie były już obecne w SQLite; brak tożsamości skutkuje błędem, a nie milczącym utworzeniem danych.
 
 Ta funkcja **nie usuwa** starych zapisów JSON i **nie przenosi** automatycznie wszystkich historycznych decyzji użytkownika; nadal potrzebny jest test migracji na kopii danych użytkownika oraz przejście pozostałych zapisów aplikacji na pojedynczą bazę.
+
+## Podsumowanie skanu przechowywane w SQLite
+
+Migracja `006_scan_runs.sql` wprowadza tabelę `scan_runs`. Podczas skanowania status (liczba znalezionych ofert, nowych ofert, zmian cen i błędy źródeł) jest zapisywany w **tej samej transakcji SQLite** co oferty. Odczyt `/api/history` w trybie `BOOKFLIP_SQLITE_HISTORY_READ=1` odtwarza teraz pole `lastScan`.
+
+Dane starszych skanów zapisane tylko w historycznym pliku JSON nie są automatycznie przenoszone do nowej tabeli. Przed porzuceniem JSON nadal należy sprawdzić starsze raporty i szczegóły skanowania na kopii istniejących danych.
