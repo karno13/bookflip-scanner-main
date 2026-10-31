@@ -112,11 +112,15 @@ export function listIdentificationJobs(repository, options = {}) {
   const { database } = repository, { limit, offset, query } = page(options), conditions = [], params = [], status = String(options.status ?? ''), source = String(options.source ?? '');
   conditions.push(status ? 'j.status=?' : "j.status IN ('queued','running','retry_wait','review_required','failed')"); if (status) params.push(status);
   if (source) { conditions.push('o.source=?'); params.push(source); }
+  const isbn=String(options.isbn||'');
+  if(isbn==='present')conditions.push("o.observed_isbn IS NOT NULL AND o.observed_isbn<>''");
+  if(isbn==='missing')conditions.push("o.observed_isbn IS NULL OR o.observed_isbn=''");
   if (query) { conditions.push("(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!' OR lower(o.source) LIKE ? ESCAPE '!')"); params.push(likeLiteral(query), likeLiteral(query), likeLiteral(query)); }
   const where = `WHERE ${conditions.join(' AND ')}`;
   const total = Number(database.prepare(`SELECT count(*) AS count FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where}`).get(...params).count);
+  const orderBy=options.sort==='price'?'o.current_price ASC,j.id':'CASE j.status WHEN \'review_required\' THEN 0 WHEN \'failed\' THEN 1 ELSE 2 END,j.updated_at DESC,j.id';
   const rows = database.prepare(`SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at
-    FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where} ORDER BY CASE j.status WHEN 'review_required' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,j.updated_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   return { total, limit, offset, items: rows.map((row) => ({ id: row.id, offerId: row.offer_id, status: row.status, attemptCount: row.attempt_count,
     lastError: row.last_error, result: json(row.result_json), updatedAt: row.updated_at,
     offer: { id: row.offer_id, source: row.source, title: row.original_title, currentPrice: row.current_price, currency: row.currency, url: row.normalized_url, observedIsbn: row.observed_isbn, lastSeenAt: row.last_seen_at } })) };
