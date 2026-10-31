@@ -11,7 +11,7 @@ function titleFor(row,id,conflicts){const title=String(row?.title||row?.original
 function externalOfferId(row){const prefix=`${row.source}:`,suffix=String(row.id||'').startsWith(prefix)?String(row.id).slice(prefix.length):'';return suffix&&!/^https?:\/\//i.test(suffix)?suffix:null;}
 function validV2(value){return value?.version===2&&value.books&&typeof value.books==='object'&&value.offers&&typeof value.offers==='object'&&Array.isArray(value.priceHistory);}
 
-export function importJsonV2Data(history,repository,{now=()=>new Date()}={}){
+export function importJsonV2Data(history,repository,{now=()=>new Date(),preserveExistingOffers=false}={}){
  if(!validV2(history))throw Error('INVALID_JSON_V2_HISTORY');
  const before=repository.counts(),conflicts=[],bookEditions=new Map(),importedOffers=new Map(),at=history.updatedAt||now().toISOString();
  const source={books:Object.keys(history.books).length,offers:Object.keys(history.offers).length,priceHistory:history.priceHistory.length};
@@ -28,7 +28,8 @@ export function importJsonV2Data(history,repository,{now=()=>new Date()}={}){
 
   for(const [legacyId,offer] of Object.entries(history.offers)){
    let url;try{url=normalizeOfferUrl(offer.url);}catch{conflicts.push({kind:'invalid_offer_url',legacyId});continue;}
-   const stored=repository.upsertOffer({id:legacyId,legacyId,source:offer.source,externalOfferId:externalOfferId({...offer,id:legacyId}),normalizedUrl:url,originalTitle:String(offer.originalTitle||'').slice(0,500),currentPrice:offer.currentPrice,currency:'PLN',availability:offer.availability||'unconfirmed',language:offer.language||null,observedIsbn:normalizeISBN(offer.isbn),matchedQueries:offer.matchedQueries||[],firstSeenAt:offer.firstSeenAt,lastSeenAt:offer.lastSeenAt,seenCount:offer.seenCount||0,at});importedOffers.set(legacyId,stored.id);
+   const existing=preserveExistingOffers?repository.database.prepare('SELECT * FROM offers WHERE id=? OR (source=? AND normalized_url=?) LIMIT 1').get(legacyId,offer.source,url):null;
+   const stored=existing||repository.upsertOffer({id:legacyId,legacyId,source:offer.source,externalOfferId:externalOfferId({...offer,id:legacyId}),normalizedUrl:url,originalTitle:String(offer.originalTitle||'').slice(0,500),currentPrice:offer.currentPrice,currency:'PLN',availability:offer.availability||'unconfirmed',language:offer.language||null,observedIsbn:normalizeISBN(offer.isbn),matchedQueries:offer.matchedQueries||[],firstSeenAt:offer.firstSeenAt,lastSeenAt:offer.lastSeenAt,seenCount:offer.seenCount||0,at});importedOffers.set(legacyId,stored.id);
    const isbn=normalizeISBN(offer.isbn);if(isbn){repository.putMetadataEvidence({id:stableId('evidence',`offer-isbn:${legacyId}:${isbn}`),offerId:stored.id,fieldName:'isbn',value:isbn,classification:'legacy',sourceType:'json_v2',verificationStatus:'historical_unverified',observedAt:offer.lastSeenAt||at,at});sourceEvidence++;}
   }
 
@@ -41,7 +42,8 @@ export function importJsonV2Data(history,repository,{now=()=>new Date()}={}){
    const storedOfferId=importedOffers.get(legacyId);if(!storedOfferId)continue;
    const editionId=bookEditions.get(offer.bookId);
    if(offer.bookId&&!editionId){conflicts.push({kind:'missing_book_for_offer',offerId:legacyId,bookId:offer.bookId});}
-   if(editionId){
+   const authoritativeMatch=preserveExistingOffers?repository.database.prepare("SELECT id FROM offer_matches WHERE offer_id=? AND status='active' AND created_by!='json_v2_import' LIMIT 1").get(storedOfferId):null;
+   if(editionId&&!authoritativeMatch){
     const manual=offer.linkMode==='manual',status=manual?'active':'review_required',method=manual?'legacy_manual':'legacy_isbn';
     repository.assignOfferToEdition(storedOfferId,editionId,{id:stableId('legacy_match',`${legacyId}:${offer.bookId}:${method}`),method,status,confidence:manual?1:null,reason:manual?'Ręczne przypisanie zachowane z JSON v2.':'Historyczne przypisanie po ISBN; niezweryfikowane przez BN ani Open Library.',createdBy:'json_v2_import',at:offer.lastSeenAt||at});sourceMatches++;
    }

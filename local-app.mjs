@@ -54,7 +54,22 @@ function send(response,status,body,type='application/json; charset=utf-8'){respo
 const logPath=fileURLToPath(new URL('./scan-results/local-app.log',import.meta.url));
 let productionCatalog=null;
 function getProductionCatalog(){if(!productionCatalogEnabled())return null;if(!productionCatalog)productionCatalog=createProductionCatalog();return productionCatalog;}
-function syncHistoryToCatalog(history){const catalog=getProductionCatalog();return catalog?importJsonV2Data(history,catalog.repository):null;}
+// Incremental compatibility bridge: manual JSON operations must not replay the
+// entire historical snapshot into a live SQLite catalog.
+export function legacySyncSlice(history,{bookId,offerId}={}){
+ const books=Object.create(null),offers=Object.create(null);
+ if(bookId&&history.books?.[bookId])books[bookId]=history.books[bookId];
+ if(offerId&&history.offers?.[offerId]){
+  offers[offerId]=history.offers[offerId];
+  const linkedBookId=offers[offerId].bookId;
+  if(linkedBookId&&history.books?.[linkedBookId])books[linkedBookId]=history.books[linkedBookId];
+ }
+ return{version:2,books,offers,priceHistory:[],updatedAt:history.updatedAt};
+}
+function syncHistoryToCatalog(history,selection){
+ const catalog=getProductionCatalog();
+ return catalog?importJsonV2Data(legacySyncSlice(history,selection),catalog.repository,{preserveExistingOffers:true}):null;
+}
 
 function recordProgress(event){const safe={at:new Date().toISOString(),...event};void appendFile(logPath,JSON.stringify(safe)+'\n').catch(()=>{});return safe;}
 function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){response.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://covers.openlibrary.org; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});}
@@ -112,7 +127,7 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='GET'&&url.pathname==='/api/sources')return send(response,200,JSON.stringify({sources:Object.keys(localSourceHosts)}));
  if(request.method==='GET'&&url.pathname==='/api/history'){const history=await loadOfferHistory();return send(response,200,JSON.stringify(historySnapshot(history)));}
  if(request.method==='GET'&&url.pathname==='/api/book'){const history=await loadOfferHistory(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
- if(request.method==='POST'&&url.pathname==='/api/catalog'){const input=await readJson(request);const created=await withHistoryWriteLock(async()=>{const history=await loadOfferHistory(),next=createCatalogBook(history,input);await saveOfferHistory(next.history);return{...next,catalogSync:syncHistoryToCatalog(next.history),snapshot:historySnapshot(next.history)};});return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:created.snapshot,catalogSync:created.catalogSync}));}
+ if(request.method==='POST'&&url.pathname==='/api/catalog'){const input=await readJson(request);const created=await withHistoryWriteLock(async()=>{const history=await loadOfferHistory(),next=createCatalogBook(history,input);await saveOfferHistory(next.history);return{...next,catalogSync:syncHistoryToCatalog(next.history,{bookId:next.book.id}),snapshot:historySnapshot(next.history)};});return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:created.snapshot,catalogSync:created.catalogSync}));}
  if(request.method==='GET'&&url.pathname==='/api/catalog/status'){const catalog=getProductionCatalog();return send(response,200,JSON.stringify(catalog?catalog.status():{enabled:false}));}
  if(request.method==='GET'&&url.pathname==='/api/catalog/works'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(listCatalogWorks(catalog.repository,Object.fromEntries(url.searchParams))));}
  if(request.method==='GET'&&url.pathname.startsWith('/api/catalog/works/')){const catalog=getProductionCatalog(),id=decodeURIComponent(url.pathname.slice('/api/catalog/works/'.length));if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));const data=getCatalogWork(catalog.repository,id);return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'WORK_NOT_FOUND'}));}
@@ -123,7 +138,7 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='POST'&&/^\/api\/identification-jobs\/[^/]+\/decision$/.test(url.pathname)){const catalog=getProductionCatalog(),id=decodeURIComponent(url.pathname.split('/')[3]);if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(decideIdentificationJob(catalog.repository,id,await readJson(request))));}
  if(request.method==='POST'&&url.pathname==='/api/catalog/lookup-preview'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(await catalog.lookupIsbn((await readJson(request)).isbn)));}
  if(request.method==='POST'&&url.pathname==='/api/catalog/lookup-confirm'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));const result=await catalog.resolveIsbn((await readJson(request)).isbn);return send(response,['created_edition','created_work_and_edition','matched_existing'].includes(result.decision)?200:409,JSON.stringify(result));}
- if(request.method==='POST'&&url.pathname==='/api/catalog/link'){const input=await readJson(request);const snapshot=await withHistoryWriteLock(async()=>{const history=linkOfferToBook(await loadOfferHistory(),String(input.offerId||''),String(input.bookId||''));await saveOfferHistory(history);syncHistoryToCatalog(history);return historySnapshot(history);});return send(response,200,JSON.stringify(snapshot));}
+ if(request.method==='POST'&&url.pathname==='/api/catalog/link'){const input=await readJson(request);const snapshot=await withHistoryWriteLock(async()=>{const history=linkOfferToBook(await loadOfferHistory(),String(input.offerId||''),String(input.bookId||''));await saveOfferHistory(history);syncHistoryToCatalog(history,{bookId:String(input.bookId||''),offerId:String(input.offerId||'')});return historySnapshot(history);});return send(response,200,JSON.stringify(snapshot));}
  if(request.method==='POST'&&url.pathname==='/api/search'&&url.searchParams.get('stream')==='1'){
   streamHeaders(response);const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
   try{const result=await searchAndStore(await readJson(request),emit);response.write(JSON.stringify({type:'result',result})+'\n');response.end();}catch(error){response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();}return;
