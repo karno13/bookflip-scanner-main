@@ -29,7 +29,7 @@ export async function persistScannedOffers({
   const mirrorId=randomUUID();
   ingest=catalogStore.ingestOffers(observations,searchedAt,{jsonMirror:{id:mirrorId,snapshot:applied.history}});
   await saveHistory(applied.history);
-  catalogStore.repository.database.prepare("UPDATE scan_json_mirror_outbox SET status='completed',completed_at=? WHERE id=?").run(new Date().toISOString(),mirrorId);
+  if(catalogStore.completeJsonMirror)catalogStore.completeJsonMirror(mirrorId);
  }else{
   await saveHistory(applied.history);
   if(catalogStore){
