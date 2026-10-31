@@ -56,7 +56,7 @@ test('catalog loads beyond the first SQLite page without silent JSON substitutio
 
 test('book-centric UI exposes comparison and mobile offers without external images', () => {
   assert.match(script, /comparison-candidate/);
-  assert.match(script, /suggested\.edition\.title/);
+  assert.match(script, /reviewCandidateMarkup\(offer, suggested\)/);
   assert.match(script, /offersMobileList/);
   assert.match(script, /data-mobile-offer-id/);
   assert.match(html, /id="offersMobileList"/);
@@ -72,4 +72,14 @@ test('scanner previews persisted offers separately from scan-session metrics', (
   assert.match(script, /data-scanner-offer-id/);
   assert.match(script, /openOfferDrawer\(button\.dataset\.scannerOfferId\)/);
   assert.match(styles, /\.scanner-offer-row/);
+});
+
+test('review compares observed ISBN against candidate edition and warns on conflicts', () => {
+  assert.match(script, /function normalizedIsbn\(value\)/);
+  assert.match(script, /function reviewCandidateMarkup\(offer, suggested\)/);
+  assert.match(script, /RÓŻNE ISBN — sprawdź wydanie/);
+  assert.match(script, /Konflikt ISBN — wybierz wydanie ręcznie/);
+  assert.match(script, /input\.dataset\.editionId = ''/);
+  assert.match(styles, /\.verification-conflict/);
+  assert.match(styles, /\.verification-match/);
 });
