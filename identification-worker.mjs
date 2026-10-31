@@ -73,9 +73,11 @@ export class IdentificationWorker {
       return { job: this.repository.database.prepare('SELECT * FROM identification_jobs WHERE id=?').get(job.id), result, reused: false };
     } catch (error) {
       if (error.message === 'JOB_LEASE_LOST') throw error;
+      const retryable=error.retryable===true || [408,425,429].includes(Number(error.status)) || (Number(error.status)>=500 && Number(error.status)<=599) || ['AbortError','TimeoutError'].includes(error.name) || /^(ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND)$/.test(String(error.code||error.cause?.code||''));
+      const now=this.now();
       this.repository.database.prepare(`UPDATE identification_jobs
-        SET status='failed',lease_token=NULL,lease_expires_at=NULL,last_error=?,updated_at=?
-        WHERE id=? AND status='running' AND lease_token=?`).run(String(error.message ?? error), this.now().toISOString(), job.id, job.lease_token);
+        SET status=?,run_after=?,lease_token=NULL,lease_expires_at=NULL,last_error=?,updated_at=?
+        WHERE id=? AND status='running' AND lease_token=?`).run(retryable?'retry_wait':'failed',retryable?new Date(now.getTime()+this.retryDelayMs).toISOString():null,String(error.message ?? error),now.toISOString(), job.id, job.lease_token);
       throw error;
     }
   }
@@ -87,13 +89,17 @@ export class IdentificationWorker {
 
   async processBatch(limit = 10) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) throw new Error('INVALID_BATCH_LIMIT');
-    const items = [];
-    while (items.length < limit) {
-      const item = await this.processNext();
-      if (!item) break;
-      items.push(item);
+    const items = [], errors = [];
+    while (items.length + errors.length < limit) {
+      try {
+        const item = await this.processNext();
+        if (!item) break;
+        items.push(item);
+      } catch (error) {
+        errors.push(String(error.message ?? error));
+      }
     }
-    return { processed: items.length, items };
+    return { processed: items.length, failed: errors.length, errors, items };
   }
 
   async processJobId(jobId) {
