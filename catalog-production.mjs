@@ -95,7 +95,7 @@ export function createProductionCatalog({
             matchedQueries: offer.matchedQueries ?? [],
             firstSeenAt: offer.firstSeenAt ?? at,
             lastSeenAt: offer.lastSeenAt ?? at,
-            seenCount: offer.seenCount ?? 0,
+            seenCount: Number.isSafeInteger(offer.seenCount) && offer.seenCount > 0 ? offer.seenCount : undefined,
             at: observedAt,
           });
           if (price != null) repository.appendPriceObservation(stored.id, price, observedAt);
@@ -118,10 +118,8 @@ export function createProductionCatalog({
             });
             if (saved.created) report.evidence += 1;
           }
-          if (evidence.status !== 'missing') {
-            const job = repository.putIdentificationJob({ offerId: stored.id, status: 'queued', at: observedAt });
-            if (job.created) report.jobs += 1;
-          }
+          const job = repository.putIdentificationJob({ offerId: stored.id, status: 'queued', at: observedAt });
+          if (job.created) report.jobs += 1;
         }
       });
       return report;

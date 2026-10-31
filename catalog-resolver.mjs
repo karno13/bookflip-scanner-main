@@ -158,7 +158,7 @@ export class CatalogResolver {
 
     if (isbnEvidence.status === 'missing') return manualProtected
       ? decision('matched_existing', ['manual_assignment_preserved'], proof, { editionId: manual.edition_id, offerMatchId: manual.id })
-      : decision('not_found', ['no_isbn_evidence'], proof);
+      : decision('review_required', ['no_isbn_evidence'], proof);
     if (isbnEvidence.status === 'invalid') return decision('review_required', ['invalid_isbn'], proof, manualProtected ? { editionId: manual.edition_id, offerMatchId: manual.id } : {});
     if (isbnEvidence.status === 'conflict') return decision('review_required', ['multiple_conflicting_isbn'], proof, manualProtected ? { editionId: manual.edition_id, offerMatchId: manual.id } : {});
     if (!isbnEvidence.autoAssignable || REVIEW_ONLY.has(isbnEvidence.classification)) return decision('review_required', [`isbn_evidence_${isbnEvidence.classification ?? isbnEvidence.status}_requires_review`], proof, manualProtected ? { editionId: manual.edition_id, offerMatchId: manual.id } : {});
