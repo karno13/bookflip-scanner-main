@@ -6,13 +6,16 @@ export const POSITIVE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 export const NOT_FOUND_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
 
 function deterministicId(prefix, ...values) {
-  const hash = createHash('sha256').update(values.map((value) => stableJson(value)).join('|')).digest('hex');
+  const hash = createHash('sha256')
+    .update(values.map((value) => stableJson(value)).join('|'))
+    .digest('hex');
   return `${prefix}_${hash.slice(0, 40)}`;
 }
 
 export class SqliteMetadataCache {
   constructor(repository, { now = () => new Date() } = {}) {
-    if (!repository?.database) throw new TypeError('SqliteMetadataCache requires a SQLite repository');
+    if (!repository?.database)
+      throw new TypeError('SqliteMetadataCache requires a SQLite repository');
     this.repository = repository;
     this.database = repository.database;
     this.now = now;
@@ -21,10 +24,16 @@ export class SqliteMetadataCache {
   get(source, isbn) {
     const lookupKey = canonicalLookupKey(isbn);
     if (!lookupKey) return null;
-    const row = this.database.prepare('SELECT * FROM metadata_lookup_cache WHERE source=? AND lookup_key=?').get(source, lookupKey);
+    const row = this.database
+      .prepare('SELECT * FROM metadata_lookup_cache WHERE source=? AND lookup_key=?')
+      .get(source, lookupKey);
     if (!row || Date.parse(row.expires_at) <= this.now().getTime()) return null;
     try {
-      return { result: JSON.parse(row.response_json), fetchedAt: row.fetched_at, expiresAt: row.expires_at };
+      return {
+        result: JSON.parse(row.response_json),
+        fetchedAt: row.fetched_at,
+        expiresAt: row.expires_at,
+      };
     } catch {
       return null;
     }
@@ -37,28 +46,39 @@ export class SqliteMetadataCache {
     const fetchedAt = this.now();
     const ttl = result.status === 'found' ? POSITIVE_CACHE_TTL_MS : NOT_FOUND_CACHE_TTL_MS;
     const responseJson = stableJson(result);
-    this.database.prepare(`INSERT INTO metadata_lookup_cache(source,lookup_key,status,response_json,payload_hash,fetched_at,expires_at)
+    this.database
+      .prepare(
+        `INSERT INTO metadata_lookup_cache(source,lookup_key,status,response_json,payload_hash,fetched_at,expires_at)
       VALUES(?,?,?,?,?,?,?)
       ON CONFLICT(source,lookup_key) DO UPDATE SET status=excluded.status,response_json=excluded.response_json,
-        payload_hash=excluded.payload_hash,fetched_at=excluded.fetched_at,expires_at=excluded.expires_at`).run(
-      source,
-      lookupKey,
-      result.status,
-      responseJson,
-      payloadHash(result),
-      fetchedAt.toISOString(),
-      new Date(fetchedAt.getTime() + ttl).toISOString(),
-    );
+        payload_hash=excluded.payload_hash,fetched_at=excluded.fetched_at,expires_at=excluded.expires_at`,
+      )
+      .run(
+        source,
+        lookupKey,
+        result.status,
+        responseJson,
+        payloadHash(result),
+        fetchedAt.toISOString(),
+        new Date(fetchedAt.getTime() + ttl).toISOString(),
+      );
     return true;
   }
 }
 
 function normalizedComparable(value) {
-  return String(value ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, ' ').trim().toLowerCase();
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function fieldValues(records, field) {
-  const values = records.flatMap((record) => Array.isArray(record[field]) ? record[field] : [record[field]]).filter((value) => value != null && value !== '');
+  const values = records
+    .flatMap((record) => (Array.isArray(record[field]) ? record[field] : [record[field]]))
+    .filter((value) => value != null && value !== '');
   return [...new Map(values.map((value) => [normalizedComparable(value), value])).values()];
 }
 
@@ -66,16 +86,26 @@ export function compareMetadataResults(bnResult, openLibraryResult) {
   const bnRecords = bnResult.status === 'found' ? bnResult.records : [];
   const olRecords = openLibraryResult.status === 'found' ? openLibraryResult.records : [];
   const conflicts = [];
-  if (bnRecords.length > 1) conflicts.push({ type: 'multiple_bn_records', count: bnRecords.length });
+  if (bnRecords.length > 1)
+    conflicts.push({ type: 'multiple_bn_records', count: bnRecords.length });
 
   if (bnRecords.length && olRecords.length) {
-    for (const field of ['title', 'authors', 'publisher', 'publicationYear', 'language', 'binding', 'materialType']) {
+    for (const field of [
+      'title',
+      'authors',
+      'publisher',
+      'publicationYear',
+      'language',
+      'binding',
+      'materialType',
+    ]) {
       const bnValues = fieldValues(bnRecords, field);
       const olValues = fieldValues(olRecords, field);
       if (bnValues.length && olValues.length) {
         const left = new Set(bnValues.map(normalizedComparable));
         const overlaps = olValues.some((value) => left.has(normalizedComparable(value)));
-        if (!overlaps) conflicts.push({ type: 'field_conflict', field, bn: bnValues, openLibrary: olValues });
+        if (!overlaps)
+          conflicts.push({ type: 'field_conflict', field, bn: bnValues, openLibrary: olValues });
       }
     }
   }
@@ -84,12 +114,22 @@ export function compareMetadataResults(bnResult, openLibraryResult) {
   if (conflicts.length) status = 'conflict';
   else if (bnRecords.length && olRecords.length) status = 'consistent';
   else if (bnRecords.length || olRecords.length) status = 'single_source';
-  else if ([bnResult.status, openLibraryResult.status].some((value) => ['temporary_error', 'invalid_response'].includes(value))) status = 'incomplete';
+  else if (
+    [bnResult.status, openLibraryResult.status].some((value) =>
+      ['temporary_error', 'invalid_response'].includes(value),
+    )
+  )
+    status = 'incomplete';
   return { status, conflicts };
 }
 
 function externalRecordInput(record, target = {}) {
-  const databaseId = deterministicId('external', record.source, record.externalRecordId, record.payloadHash);
+  const databaseId = deterministicId(
+    'external',
+    record.source,
+    record.externalRecordId,
+    record.payloadHash,
+  );
   return {
     id: databaseId,
     provider: record.source,
@@ -104,9 +144,24 @@ function externalRecordInput(record, target = {}) {
   };
 }
 
-const EVIDENCE_FIELDS = ['isbn10', 'isbn13', 'title', 'authors', 'publisher', 'publicationYear', 'language', 'binding', 'materialType', 'workExternalId'];
+const EVIDENCE_FIELDS = [
+  'isbn10',
+  'isbn13',
+  'title',
+  'authors',
+  'publisher',
+  'publicationYear',
+  'language',
+  'binding',
+  'materialType',
+  'workExternalId',
+];
 
-export function persistMetadataResults(repository, results, { workId = null, editionId = null } = {}) {
+export function persistMetadataResults(
+  repository,
+  results,
+  { workId = null, editionId = null } = {},
+) {
   return repository.transaction(() => {
     let externalRecordsCreated = 0;
     let evidenceCreated = 0;
@@ -136,7 +191,14 @@ export function persistMetadataResults(repository, results, { workId = null, edi
         for (const fieldName of EVIDENCE_FIELDS) {
           const value = record[fieldName];
           if (value == null || (Array.isArray(value) && value.length === 0)) continue;
-          const evidenceId = deterministicId('evidence', externalInput.id, fieldName, value, workId, editionId);
+          const evidenceId = deterministicId(
+            'evidence',
+            externalInput.id,
+            fieldName,
+            value,
+            workId,
+            editionId,
+          );
           const saved = repository.putMetadataEvidence({
             id: evidenceId,
             workId,
@@ -159,13 +221,20 @@ export function persistMetadataResults(repository, results, { workId = null, edi
 
 async function lookupWithCache(adapter, isbn, cache) {
   const cached = cache?.get(adapter.source, isbn);
-  if (cached) return { ...cached.result, cache: { hit: true, fetchedAt: cached.fetchedAt, expiresAt: cached.expiresAt } };
+  if (cached)
+    return {
+      ...cached.result,
+      cache: { hit: true, fetchedAt: cached.fetchedAt, expiresAt: cached.expiresAt },
+    };
   const result = await adapter.lookup(isbn);
   const stored = cache?.set(adapter.source, isbn, result) ?? false;
   return { ...result, cache: { hit: false, stored } };
 }
 
-export async function lookupISBN(isbn, { bnAdapter, openLibraryAdapter, cache = null, repository = null, target = {} } = {}) {
+export async function lookupISBN(
+  isbn,
+  { bnAdapter, openLibraryAdapter, cache = null, repository = null, target = {} } = {},
+) {
   if (!canonicalLookupKey(isbn)) throw new Error('INVALID_ISBN');
   if (!bnAdapter || !openLibraryAdapter) throw new TypeError('Both metadata adapters are required');
   const [bn, openLibrary] = await Promise.all([
@@ -173,6 +242,8 @@ export async function lookupISBN(isbn, { bnAdapter, openLibraryAdapter, cache = 
     lookupWithCache(openLibraryAdapter, isbn, cache),
   ]);
   const comparison = compareMetadataResults(bn, openLibrary);
-  const persistence = repository ? persistMetadataResults(repository, [bn, openLibrary], target) : null;
+  const persistence = repository
+    ? persistMetadataResults(repository, [bn, openLibrary], target)
+    : null;
   return { isbn: canonicalLookupKey(isbn), bn, openLibrary, comparison, persistence };
 }

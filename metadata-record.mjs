@@ -7,7 +7,10 @@ export const METADATA_SOURCES = Object.freeze({ BN: 'bn', OPEN_LIBRARY: 'open_li
 export function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
   if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(',')}}`;
   }
   return JSON.stringify(value ?? null);
 }
@@ -48,7 +51,9 @@ export function isbnCandidates(value) {
       candidates.push(...isbnCandidates(Object.values(entry)));
       continue;
     }
-    const matches = String(entry ?? '').match(/(?<!\d)(?:97[89][\d\s-]{10,20}\d|\d[\d\s-]{7,16}[\dXx])(?!\d)/g) ?? [];
+    const matches =
+      String(entry ?? '').match(/(?<!\d)(?:97[89][\d\s-]{10,20}\d|\d[\d\s-]{7,16}[\dXx])(?!\d)/g) ??
+      [];
     for (const match of matches) {
       const normalized = normalizeISBN(match);
       if (normalized) candidates.push(normalized);

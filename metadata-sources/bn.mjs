@@ -48,7 +48,8 @@ export function createBnAdapter({
     source: 'bn',
     async lookup(isbn) {
       const requestedISBN = normalizeISBN(isbn);
-      if (!requestedISBN) return { source: 'bn', status: 'invalid_response', reason: 'invalid_isbn', records: [] };
+      if (!requestedISBN)
+        return { source: 'bn', status: 'invalid_response', reason: 'invalid_isbn', records: [] };
 
       const url = new URL(BN_API_URL);
       url.searchParams.set('isbnIssn', requestedISBN);
@@ -58,9 +59,15 @@ export function createBnAdapter({
 
       const rawRecords = recordsFromPayload(response.payload);
       if (!rawRecords) {
-        return { source: 'bn', status: 'invalid_response', reason: 'missing_records_array', records: [] };
+        return {
+          source: 'bn',
+          status: 'invalid_response',
+          reason: 'missing_records_array',
+          records: [],
+        };
       }
-      if (rawRecords.length === 0) return { source: 'bn', status: 'not_found', records: [], fetchedAt: now().toISOString() };
+      if (rawRecords.length === 0)
+        return { source: 'bn', status: 'not_found', records: [], fetchedAt: now().toISOString() };
 
       const fetchedAt = now().toISOString();
       const records = [];
@@ -103,13 +110,22 @@ export function createBnAdapter({
         return {
           source: 'bn',
           status: 'invalid_response',
-          reason: issues.some((issue) => issue.reason === 'isbn_mismatch') ? 'isbn_mismatch' : 'missing_required_fields',
+          reason: issues.some((issue) => issue.reason === 'isbn_mismatch')
+            ? 'isbn_mismatch'
+            : 'missing_required_fields',
           records: [],
           issues,
           fetchedAt,
         };
       }
-      return { source: 'bn', status: 'found', records, ambiguous: records.length > 1, issues, fetchedAt };
+      return {
+        source: 'bn',
+        status: 'found',
+        records,
+        ambiguous: records.length > 1,
+        issues,
+        fetchedAt,
+      };
     },
   };
 }

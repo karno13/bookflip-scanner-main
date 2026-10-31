@@ -1,15 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 
 const html = await readFile(new URL('./app/index.html', import.meta.url), 'utf8');
 const script = await readFile(new URL('./app/app.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
 
 test('desktop shell exposes exactly the five requested workspaces in order', () => {
-  const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(match => match[1]);
+  const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
   assert.deepEqual(views, ['scanner', 'review', 'catalog', 'offers', 'settings']);
-  assert.match(html, /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/);
+  assert.match(
+    html,
+    /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/,
+  );
   assert.doesNotMatch(html, /data-view="history"/);
 });
 
@@ -21,7 +26,19 @@ test('scanner state is module-owned and navigation does not recreate it', () => 
 });
 
 test('frontend uses SQLite catalog APIs', () => {
-  for (const endpoint of ['/api/sources', '/api/history', '/api/catalog/status', '/api/catalog/works', '/api/identification-jobs', '/api/offers', '/api/catalog/lookup-preview', '/api/catalog/lookup-confirm', '/api/catalog', '/api/search?stream=1']) assert.ok(script.includes(endpoint));
+  for (const endpoint of [
+    '/api/sources',
+    '/api/history',
+    '/api/catalog/status',
+    '/api/catalog/works',
+    '/api/identification-jobs',
+    '/api/offers',
+    '/api/catalog/lookup-preview',
+    '/api/catalog/lookup-confirm',
+    '/api/catalog',
+    '/api/search?stream=1',
+  ])
+    assert.ok(script.includes(endpoint));
   assert.match(script, /id="markNotBook"/);
   assert.match(script, /decideReview\('not_book'\)/);
   assert.match(script, /state\.catalogPreview/);
@@ -42,10 +59,12 @@ test('review catalog picker filters by typed title or ISBN before selection', ()
   assert.match(styles, /\.book-options/);
 });
 
-
 test('catalog loads beyond the first SQLite page without silent JSON substitution', () => {
   assert.match(script, /async function loadCatalogPage\(kind,\{reset=false\}=\{\}\)/);
-  assert.match(script, /new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
+  assert.match(
+    script,
+    /new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/,
+  );
   assert.match(script, /INCOMPLETE_CATALOG_PAGE/);
   assert.match(script, /data-load-catalog-kind/);
   assert.match(script, /catalogPageSize = 250/);
@@ -55,7 +74,6 @@ test('catalog loads beyond the first SQLite page without silent JSON substitutio
   assert.doesNotMatch(script, /state\.sqliteOffers\.length \? state\.sqliteOffers :/);
   assert.match(script, /Nie udało się wczytać katalogu SQLite/);
 });
-
 
 test('book-centric UI exposes comparison and mobile offers without external images', () => {
   assert.match(script, /comparison-candidate/);
@@ -97,7 +115,6 @@ test('scanner saved-offer search and source filter are separated from scan count
   assert.match(styles, /\.scanner-discover-toolbar/);
 });
 
-
 test('desktop workspace preserves functional scanner controls and adds editorial shell', () => {
   assert.match(html, /class="sidebar-collection"/);
   assert.match(html, /class="desktop-scanner-grid"/);
@@ -116,7 +133,6 @@ test('mobile repairs keep scanner filters usable and catalog avoids cramped head
   assert.match(styles, /\.stats-grid \.metric\{min-height:82px/);
   assert.match(styles, /@media\(max-width:400px\)/);
 });
-
 
 test('edition price statistics reflect saved asking prices without projecting ROI', () => {
   assert.match(script, /function offerPriceSummary\(offers = \[\]\)/);
@@ -141,7 +157,6 @@ test('offer drawer reports price observations without treating them as sales', (
   assert.match(script, /priceEvidenceMarkup\(offer\)/);
 });
 
-
 test('resale simulator requires user costs and a manually assumed resale price', () => {
   assert.match(script, /function scenarioCalculatorMarkup\(offer\)/);
   assert.match(script, /function calculateScenario\(\)/);
@@ -153,7 +168,6 @@ test('resale simulator requires user costs and a manually assumed resale price',
   assert.match(script, /Przed podatkiem, bez gwarancji sprzedaży/);
   assert.match(styles, /\.scenario-fields/);
 });
-
 
 test('covers use ISBN checksum and show neutral spine until real image loads', () => {
   assert.match(script, /function validCoverIsbn\(value\)/);
@@ -169,7 +183,10 @@ test('covers use ISBN checksum and show neutral spine until real image loads', (
 test('manual refresh never announces success after SQLite load or status failure', () => {
   assert.match(script, /async function loadCatalogData\(\)/);
   assert.match(script, /return false;/);
-  assert.match(script, /Promise\.allSettled\(\[loadHistory\(\), loadCatalogStatus\(\), loadCatalogData\(\)\]\)/);
+  assert.match(
+    script,
+    /Promise\.allSettled\(\[loadHistory\(\), loadCatalogStatus\(\), loadCatalogData\(\)\]\)/,
+  );
   assert.match(script, /catalogResult\.value !== true/);
   assert.match(script, /catalogDataOk\.value !== true/);
   assert.match(script, /Nie wszystkie dane odświeżono/);
@@ -183,27 +200,41 @@ test('price evidence shares one numeric validator with edition summary', () => {
   assert.doesNotMatch(script, /const first = prices\.length/);
 });
 
-test('catalog search sends debounced SQLite queries beyond loaded pages',()=>{
- for(const name of ['works','jobs','offers'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+name+"'\\)"));
- assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
- assert.match(script,/catalogAbortControllers\.get\(kind\)\?\.abort\(\)/);
- assert.match(script,/new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
- assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query,filters\}/);
+test('catalog search sends debounced SQLite queries beyond loaded pages', () => {
+  for (const name of ['works', 'jobs', 'offers'])
+    assert.match(script, new RegExp("scheduleGlobalCatalogSearch\\('" + name + "'\\)"));
+  assert.match(
+    script,
+    /for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/,
+  );
+  assert.match(script, /catalogAbortControllers\.get\(kind\)\?\.abort\(\)/);
+  assert.match(
+    script,
+    /new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/,
+  );
+  assert.match(
+    script,
+    /state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query,filters\}/,
+  );
 });
 
-test('review and catalog DOM rendering is bounded despite loading many SQLite pages',()=>{
- assert.match(script,/visibleRows: \{works:100,jobs:100\}/);
- assert.match(script,/function visibleCatalogRows\(kind,rows\)/);
- assert.match(script,/rows\.slice\(0,visible\)/);
- assert.match(script,/state\.visibleRows\[kind\]\+=100/);
- assert.match(script,/visibleCatalogRows\('works',rows\)\.map\(row/);
- assert.match(script,/visibleCatalogRows\('jobs',rows\)\.map\(job/);
- assert.match(script,/data-show-loaded-kind/);
+test('review and catalog DOM rendering is bounded despite loading many SQLite pages', () => {
+  assert.match(script, /visibleRows: \{works:100,jobs:100\}/);
+  assert.match(script, /function visibleCatalogRows\(kind,rows\)/);
+  assert.match(script, /rows\.slice\(0,visible\)/);
+  assert.match(script, /state\.visibleRows\[kind\]\+=100/);
+  assert.match(script, /visibleCatalogRows\('works',rows\)\.map\(row/);
+  assert.match(script, /visibleCatalogRows\('jobs',rows\)\.map\(job/);
+  assert.match(script, /data-show-loaded-kind/);
 });
 
-test('filter and sort controls query the full SQLite catalogue instead of only loaded rows',()=>{
- assert.match(script,/function catalogFilters\(kind\)/);
- assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
- for(const kind of ['offers','jobs','works'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+kind+"'\\)"));
- assert.match(script,/page\.filters\|\|\{query:page\.query\|\|''\}/);
+test('filter and sort controls query the full SQLite catalogue instead of only loaded rows', () => {
+  assert.match(script, /function catalogFilters\(kind\)/);
+  assert.match(
+    script,
+    /for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/,
+  );
+  for (const kind of ['offers', 'jobs', 'works'])
+    assert.match(script, new RegExp("scheduleGlobalCatalogSearch\\('" + kind + "'\\)"));
+  assert.match(script, /page\.filters\|\|\{query:page\.query\|\|''\}/);
 });

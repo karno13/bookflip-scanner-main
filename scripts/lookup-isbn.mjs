@@ -12,7 +12,11 @@ import { SqliteCatalogRepository } from '../sqlite-catalog-repository.mjs';
 const projectRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 function parseArguments(argv) {
-  const options = { live: false, database: resolve(projectRoot, 'scan-results', 'bookflip-metadata.sqlite'), fixture: null };
+  const options = {
+    live: false,
+    database: resolve(projectRoot, 'scan-results', 'bookflip-metadata.sqlite'),
+    fixture: null,
+  };
   const positional = [];
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -33,8 +37,14 @@ async function fixtureFetcher(path) {
     return {
       status: response.status,
       url: String(url),
-      headers: { get(name) { return response.headers?.[name.toLowerCase()] ?? null; } },
-      async json() { return structuredClone(response.body); },
+      headers: {
+        get(name) {
+          return response.headers?.[name.toLowerCase()] ?? null;
+        },
+      },
+      async json() {
+        return structuredClone(response.body);
+      },
     };
   };
 }
@@ -46,13 +56,19 @@ function withoutPayload(record) {
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
-  if (!options.isbn) throw new Error('Usage: node scripts/lookup-isbn.mjs <valid ISBN> [--fixture path | --live] [--database path]');
+  if (!options.isbn)
+    throw new Error(
+      'Usage: node scripts/lookup-isbn.mjs <valid ISBN> [--fixture path | --live] [--database path]',
+    );
 
   let fetcher = globalThis.fetch;
   let userAgent = 'BookFlip/2.0 (offline fixture mode)';
   let interval = 1_000;
   if (!options.live) {
-    const fixturePath = resolve(options.fixture ?? resolve(projectRoot, 'fixtures', 'metadata', `lookup-${options.isbn}.json`));
+    const fixturePath = resolve(
+      options.fixture ??
+        resolve(projectRoot, 'fixtures', 'metadata', `lookup-${options.isbn}.json`),
+    );
     fetcher = await fixtureFetcher(fixturePath);
     interval = 0;
   } else {
@@ -63,7 +79,10 @@ async function main() {
 
   const repository = new SqliteCatalogRepository(options.database);
   try {
-    const bnAdapter = createBnAdapter({ fetcher, limiter: new SourceRateLimiter({ minIntervalMs: interval }) });
+    const bnAdapter = createBnAdapter({
+      fetcher,
+      limiter: new SourceRateLimiter({ minIntervalMs: interval }),
+    });
     const openLibraryAdapter = createOpenLibraryAdapter({
       fetcher,
       limiter: new SourceRateLimiter({ minIntervalMs: interval }),
@@ -75,14 +94,28 @@ async function main() {
       cache: new SqliteMetadataCache(repository),
       repository,
     });
-    console.log(JSON.stringify({
-      isbn: result.isbn,
-      mode: options.live ? 'live' : 'fixture',
-      bn: { status: result.bn.status, cache: result.bn.cache, records: result.bn.records.map(withoutPayload) },
-      openLibrary: { status: result.openLibrary.status, cache: result.openLibrary.cache, records: result.openLibrary.records.map(withoutPayload) },
-      comparison: result.comparison,
-      persistence: result.persistence,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          isbn: result.isbn,
+          mode: options.live ? 'live' : 'fixture',
+          bn: {
+            status: result.bn.status,
+            cache: result.bn.cache,
+            records: result.bn.records.map(withoutPayload),
+          },
+          openLibrary: {
+            status: result.openLibrary.status,
+            cache: result.openLibrary.cache,
+            records: result.openLibrary.records.map(withoutPayload),
+          },
+          comparison: result.comparison,
+          persistence: result.persistence,
+        },
+        null,
+        2,
+      ),
+    );
   } finally {
     repository.close();
   }
