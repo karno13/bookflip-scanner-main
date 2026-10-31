@@ -24,8 +24,8 @@ Workflow `.github/workflows/bookflip-scan.yml` posiada warunek identyfikujący i
 ## Dokumentacja historyczna
 
 - `docs/archive/README-legacy-github-runner.md`: dawny główny README opisujący GitHub Actions / Sites.
-- `AUDIT-2026-10-25.md`, `AUDIT-POST-PR5.md`: dawne audyty z określonego momentu rozwoju.
-- `FRONTEND-REDESIGN.md`, `design-qa.md`: poprzednie przeglądy projektu, nie stan obecnej implementacji.
+- `docs/archive/AUDIT-2026-10-25.md`, `docs/archive/AUDIT-POST-PR5.md`: dawne audyty z określonego momentu rozwoju.
+- `docs/archive/FRONTEND-REDESIGN.md`, `docs/archive/design-qa.md`: poprzednie przeglądy projektu, nie stan obecnej implementacji.
 - `artifacts/`: archiwalne zrzuty i ślady poprzednich audytów.
 
 ## Zasady dalszego porządkowania
