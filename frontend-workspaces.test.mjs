@@ -136,3 +136,16 @@ test('offer drawer reports price observations without treating them as sales', (
   assert.match(script, /Wielokrotne odczyty tej samej ceny nie są niezależnymi transakcjami/);
   assert.match(script, /priceEvidenceMarkup\(offer\)/);
 });
+
+
+test('resale simulator requires user costs and a manually assumed resale price', () => {
+  assert.match(script, /function scenarioCalculatorMarkup\(offer\)/);
+  assert.match(script, /function calculateScenario\(\)/);
+  assert.match(script, /scenarioPurchase/);
+  assert.match(script, /scenarioShipping/);
+  assert.match(script, /scenarioOther/);
+  assert.match(script, /scenarioResale/);
+  assert.match(script, /Uzupełnij wszystkie pola/);
+  assert.match(script, /Przed podatkiem, bez gwarancji sprzedaży/);
+  assert.match(styles, /\.scenario-fields/);
+});

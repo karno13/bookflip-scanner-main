@@ -142,3 +142,7 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 .detail-section .price-list a{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:12px 8px;text-decoration:none;color:inherit}
 .detail-section .price-list a:hover{background:#edf5ed}.detail-section .price-list a b{white-space:nowrap;color:#286f51}
 @media(max-width:760px){.edition-price-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.edition-price-summary>div:last-child{grid-column:1/-1}.edition-price-summary strong{font-size:18px}}
+
+
+.scenario-calculator{background:#f4f7f0;border:1px solid #d4e2d4;border-radius:12px;padding:14px}.scenario-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.scenario-fields label{display:flex;flex-direction:column;gap:6px;color:#425c4d;font-size:12px;font-weight:650}.scenario-fields input{width:100%;max-width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;background:#fffefa;padding:9px 11px;color:var(--text)}.scenario-result{display:block;padding:13px;margin-top:13px;border-radius:10px;background:#e8f2e9;color:#1c4e39;font-size:13px;line-height:1.55}.scenario-fields input:focus-visible{outline:2px solid #78b18e}
+@media(max-width:420px){.scenario-fields{grid-template-columns:1fr}}
