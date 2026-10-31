@@ -63,7 +63,7 @@ Repozytorium zawiera także starszy skaner/runner kolejki GitHub Actions, używa
 
 - [Archiwalny README runnera](docs/archive/README-legacy-github-runner.md)
 - [Mapa aktywnych i historycznych elementów](docs/REPOSITORY-MAP.md)
-- [Raport starego frontendu](FRONTEND-REDESIGN.md) oraz archiwalne audyty — tylko jako dokumentacja historyczna.
+- [Raport starego frontendu](docs/archive/FRONTEND-REDESIGN.md) oraz archiwalne audyty — tylko jako dokumentacja historyczna.
 
 ## Gotowość do wydania
 

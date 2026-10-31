@@ -1,27 +1,20 @@
-# BookFlip: przejście z JSON v2 do SQLite
+# BookFlip: magazyn SQLite i zgodność ze starszym JSON
 
-## Stan obecny
+## Aktualny stan (od PR #36)
 
-SQLite jest głównym magazynem katalogu, wydań, ofert, decyzji ISBN i historii cen udostępnianych w widokach katalogu. Starszy plik `scan-results/local-offer-history.json` nadal obsługuje kompatybilność skanera oraz dawne operacje ręczne. **To nie jest jeszcze pełne przejście na jedną bazę.**
+**Domyślnie aplikacja działa w trybie `BOOKFLIP_STORAGE=sqlite`.** Skanowanie, ręczne dodawanie książek i przypisywanie ofert, historia cen, kolejka identyfikacji ISBN oraz odczyty `/api/history` i `/api/book` używają SQLite jako jedynego aktywnego magazynu. Domyślny skan nie zapisuje pliku `scan-results/local-offer-history.json`.
 
-### Kierunek i ochrona danych
+Starsza ścieżka `BOOKFLIP_STORAGE=json` pozostaje dostępna wyłącznie do obsługi historycznych danych i kompatybilności. **Nie oznacza to podwójnego zapisu w domyślnym trybie**, ale kod dwóch ścieżek nadal jest utrzymywany. Przełączniki `BOOKFLIP_SQLITE_FIRST` i `BOOKFLIP_SQLITE_MANUAL_WRITE` dotyczą wyłącznie historycznego trybu JSON, nie są potrzebne dla nowych instalacji.
 
-- Skan zapisuje historię JSON, a następnie przekazuje zaobserwowane oferty do SQLite.
-- Ręczne dodanie książki i przypisanie oferty do katalogu JSON nie powinno ponownie odtwarzać całego archiwum w SQLite. Zmiana w PR #26 ogranicza import do wskazanej książki/oferty.
-- W tej ścieżce już zapisane w SQLite ceny, licznik wykryć, tytuły oraz aktywne przypisania pochodzące z innych źródeł niż import JSON pozostają nadrzędne.
-- Jawny import pełnego JSON v2 przez narzędzie `import-json-v2-to-sqlite.mjs` pozostaje dostępny na potrzeby migracji historycznej i kopii danych; nie należy uruchamiać go bez kopii bazy.
-- Ceny ofert są obserwacjami, nie dowodami sprzedaży.
+## Nowa instalacja bez danych
 
-## Docelowa migracja
+1. Uruchom `npm start` (Node.js 24 lub nowszy). SQLite powstanie w `scan-results/bookflip-catalog.sqlite`.
+2. Skany i decyzje zapisują się do SQLite; nie ma etapu importu JSON.
+3. Nie uruchamiaj dwóch instancji na tym samym pliku bazy. Wykonuj kopie bezpieczeństwa SQLite.
 
-1. Wykonać kopię zarówno JSON, jak i pliku SQLite oraz sprawdzić ich odczyt.
-2. Przygotować raport różnic liczby ofert, identyfikatorów źródeł, przypisań ręcznych, ISBN i chronologii cen (bez automatycznego scalania konfliktów).
-3. Zaimplementować zapis skanu wyłącznie do SQLite w jednej transakcji, zachowując opcjonalny eksport JSON wstecznej kompatybilności.
-4. Zmienić `/api/history` i historyczne akcje ręczne na odczyt/zapis z SQLite.
-5. Przetestować migrację na kopii danych użytkownika, w tym przerwanie procesu i ponowne uruchomienie.
-6. Dopiero po weryfikacji usunąć dwukierunkowe synchronizowanie i pozostawić JSON jako format eksportu.
+## Istniejąca instalacja z danymi JSON
 
-**Nie usuwać ani nie zerować pliku JSON lub SQLite automatycznie.** W razie konfliktu danych z różnych źródeł zachować oryginały, oznaczyć niepewność i wymagać decyzji użytkownika.
+Przed przejściem na SQLite wykonaj kopie plików, sprawdź `npm run check:history` i przetestuj `npm run rehearse:history` na osobnych kopiach. Nic nie jest usuwane ani migrowane automatycznie. Dalsze sekcje opisują zarówno bieżące narzędzia diagnostyczne, jak i historyczne etapy przejścia; ich opisy trybu JSON **nie są opisem domyślnych ustawień**.
 
 ## Bezpieczny raport zgodności (etap PR #27)
 

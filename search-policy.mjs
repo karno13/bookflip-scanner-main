@@ -24,17 +24,20 @@ export function matchesTopic(task,title){
  if(!terms.some(Boolean))terms.push(task.category||'');
  return matchesSearch({title:'',searchQuery:'',aliases:terms},title);
 }
-export function excludesProduct(title){
+// Conservative relevance scoring: verified bibliographic evidence boosts a
+// candidate, but explicit physical non-book formats always block it. Unknown
+// titles remain eligible for discovery instead of being silently discarded.
+export function bookProductSignals(title,{isbn=null}={}){
  const n=normalizeSearch(title);
- // Reject unambiguous non-print formats regardless of other book words.
- if(/\b(ebook|e book|epub|mobi|audiobook|audio book|stl|gra pc|gra ps5|gra ps4|gra komputerowa)\b/.test(n))return true;
  const book=/\b(ksiazka|ksiazki|ksiazek|book|books|powiesc|novel|tom|tomy|omnibus|codex|kodeks|podrecznik)\b/.test(n);
- if(book)return false;
- // Only strongly indicative product phrases; common words such as "gra",
- // "game", "model", "army", "gold" or "watch" can be book titles.
- return /\b(figurka|figurki|figurek|statuetka|miniatures?|miniatura|unpainted|sprue|wypraski|bits|booster|foil|naklejki|zakladka|bookmark|cosplay|pistol|dice|kosci|kostki|jetbike|farba|paint|gpu|geforce|rtx|funko|casio|zegarek|xbox|ps2|ps3|ps4|ps5)\b/.test(n)
-  || /\b(magic the gathering|czas[u]? gry|konto do gry|karty kolekcjonerskie|gra planszowa|gra komputerowa|model do sklejania|zestaw figurek|gra na pc|gra na xbox)\b/.test(n);
+ const format=/\b(ebook|e book|epub|mobi|audiobook|audio book|stl|gra pc|gra ps5|gra ps4|gra komputerowa)\b/.test(n);
+ const explicitNonBook=/\b(plecak|plecaki|backpack|rucksack|gra karciana|gry karciane|card game|karcianka|karcianki|talia kart|deck kart|gra planszowa|board game|karty kolekcjonerskie|trading cards|figurek|figurka|figurki|statuetka|miniatures?|miniatura|unpainted|sprue|wypraski|bits|booster|foil|naklejki|cosplay|pistol|dice|kosci|kostki|jetbike|farba|paint|gpu|geforce|rtx|funko|casio|zegarek|xbox|ps2|ps3|ps4|ps5)\b/.test(n)
+  || /\b(magic the gathering|czas[u]? gry|konto do gry|model do sklejania|zestaw figurek|gra na pc|gra na xbox)\b/.test(n);
+ const accessory=/\b(zakladka|bookmark)\b/.test(n);
+ const score=(book?3:0)+(isbn?5:0)-(format?10:0)-(explicitNonBook?8:0)-(accessory&&!book?4:0);
+ return{score,book,explicitNonBook,format,excluded:format||explicitNonBook||score<=-3};
 }
+export function excludesProduct(title,options){return bookProductSignals(title,options).excluded;}
 export function expandSearchTopics(topics){
  const seen=new Set(),out=[];
  for(const t of topics){const variants=[t.title,...(t.aliases||[]),...(t.includeAliases===false?[]:searchAliases(t.title))];if(t.searchMode==='bundle')variants.push(t.title+' zestaw',t.title+' pakiet');if(t.searchMode==='edition'&&t.isbn)variants.push(t.isbn);
