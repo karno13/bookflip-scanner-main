@@ -98,7 +98,7 @@ async function searchAndStore(input,onProgress=()=>{}){
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
  const catalogStore=getProductionCatalog();
  const sqliteFirst=String(process.env.BOOKFLIP_SQLITE_FIRST??'0')==='1';
- const {applied,ids,ingest}=await withHistoryWriteLock(async()=>{
+ const {applied,ids,ingest,catalogError}=await withHistoryWriteLock(async()=>{
   const fresh=await loadOfferHistory();
   return persistScannedOffers({
    history:fresh,offers:result.offers,searchedAt:result.searchedAt,
@@ -108,8 +108,8 @@ async function searchAndStore(input,onProgress=()=>{}){
  const offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
  let catalog=null;
  if(catalogStore){
-  if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalogStore);
-  catalog={ingest,resolution:{status:'queued'}};
+  if(!catalogError&&String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalogStore);
+  catalog=catalogError?{error:catalogError}:{ingest,resolution:{status:'queued'}};
  }
  return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan,...(catalog?{catalog}:{})};
 }
