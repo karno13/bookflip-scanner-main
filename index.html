@@ -3,13 +3,13 @@
 <head>
   <meta charset=utf-8>
   <meta name=viewport content=width=device-width,initial-scale=1>
-  <title>BookFlip 2.0 — demonstracja</title>
+  <title>BookFlip — biblioteka ofert</title>
   <link rel=stylesheet href="./styles.css">
 </head>
-<body><div style="position:relative;z-index:50;background:#fff2c7;padding:9px;text-align:center;color:#60460b;font:600 13px system-ui">PODGLĄD DEMONSTRACYJNY — przykładowe dane, bez skanowania i zapisu</div>
+<body><div class="demo-banner">PODGLĄD DEMONSTRACYJNY — przykładowe dane, bez skanowania i zapisu</div>
   <div class=app-shell>
     <aside class=sidebar>
-      <div class=brand>BookFlip <span>2.0</span></div>
+      <div class=brand><span class="brand-mark" aria-hidden="true">▣</span><span class="brand-word">BookFlip <small>3.0</small></span></div><p class="sidebar-caption">TWOJE CENTRUM KSIĄŻEK</p>
       <nav class="nav-list">
         <button class="nav-item active" type="button" data-view="scanner"><span>Skaner</span><small>Wyszukiwanie ofert</small></button>
         <button class="nav-item" type="button" data-view="review"><span>Do weryfikacji</span><small id="reviewNavCount">0 pozycji</small></button>
@@ -21,28 +21,28 @@
     </aside>
     <div class=app-frame>
       <header class="topbar">
-        <div><p class="topbar-kicker">BookFlip 2.0</p><h1 id="viewTitle">Skaner</h1></div>
+        <div><p class="topbar-kicker">BOOKFLIP / PRZESTRZEŃ ROBOCZA</p><h1 id="viewTitle">Skaner</h1></div>
         <div class="topbar-status"><span id="databaseStatus">SQLite: sprawdzanie</span><button class="button secondary compact" type="button" id="refreshView">Odśwież</button></div>
       </header>
       <main class=workspace>
         <section class="view active" id="view-scanner" data-title="Skaner">
-          <div class="view-heading"><div><h2>Nowy skan</h2><p>Wyszukaj tytuł, autora, ISBN lub serię w aktywnych źródłach.</p></div><span class="state-badge neutral" id="scanStateBadge">Gotowy</span></div>
+          <div class="view-heading scanner-heading"><div><p class="section-eyebrow">ODKRYWAJ • PORÓWNUJ • IDENTYFIKUJ</p><h2>Skanuj oferty książek</h2><p>Wyszukaj tytuł, autora, ISBN lub serię w wybranych źródłach.</p></div><span class="state-badge neutral" id="scanStateBadge">Gotowy</span></div>
           <div class="panel scanner-form-panel">
             <label class="field grow"><span>Frazy wyszukiwania</span><textarea id="queries" rows="3" placeholder="Jedna fraza w wierszu, np. Diuna, Frank Herbert lub ISBN" required></textarea><small>Maksymalnie 10 fraz.</small></label>
             <div class="source-header"><div><span class="field-label">Źródła skanowania</span><small>Tylko adaptery udostępnione przez lokalny backend</small></div><button class="link-button" id="toggleSources" type="button">Zaznacz wszystkie</button></div>
             <div class="source-grid" id="sourceGrid"><span class="loading-copy">Wczytywanie zrodel...</span></div>
-            <div class="form-actions"><span class="form-note" id="scanGuardMessage"></span><button class="button primary" id="startSearch" type="button">Uruchom skan</button></div>
+            <div class="form-actions"><span class="form-note" id="scanGuardMessage"></span><button class="button primary scan-cta" id="startSearch" type="button"><span aria-hidden="true">◎</span> Uruchom skan <span aria-hidden="true">→</span></button></div>
           </div>
           <div class="panel scan-progress-panel" id="scanProgressPanel" hidden aria-live="polite">
             <div class="progress-heading"><div><strong id="progressMessage">Przygotowywanie skanu...</strong><small id="progressDetail">Oczekiwanie na backend</small></div><span id="progressElapsed">0 s</span></div>
             <div class="progress-track" id="progressTrack" data-indeterminate="true"><i id="progressBar"></i></div>
           </div>
           <div class="stats-grid" aria-label="Statystyki aktualnego skanu">
-            <article class="metric"><span>Znalezione oferty</span><strong id="statFound">0</strong><small>ten skan</small></article>
-            <article class="metric"><span>Nowe oferty</span><strong id="statNew">0</strong><small>ten skan</small></article>
-            <article class="metric"><span>Zaktualizowane</span><strong id="statUpdated">0</strong><small>ponownie wykryte</small></article>
-            <article class="metric"><span>Zmiany cen</span><strong id="statPriceChanges">0</strong><small>ten skan</small></article>
-            <article class="metric"><span>Błędy źródeł</span><strong id="statErrors">0</strong><small>ten skan</small></article>
+            <article class="metric"><span class="metric-symbol" aria-hidden="true">▤</span><span>Znalezione oferty</span><strong id="statFound">0</strong><small>ten skan</small></article>
+            <article class="metric"><span class="metric-symbol" aria-hidden="true">✦</span><span>Nowe oferty</span><strong id="statNew">0</strong><small>ten skan</small></article>
+            <article class="metric"><span class="metric-symbol" aria-hidden="true">↻</span><span>Zaktualizowane</span><strong id="statUpdated">0</strong><small>ponownie wykryte</small></article>
+            <article class="metric"><span class="metric-symbol" aria-hidden="true">↘</span><span>Zmiany cen</span><strong id="statPriceChanges">0</strong><small>ten skan</small></article>
+            <article class="metric"><span class="metric-symbol" aria-hidden="true">!</span><span>Błędy źródeł</span><strong id="statErrors">0</strong><small>ten skan</small></article>
           </div>
           <div class="panel source-status-panel">
             <div class="panel-heading"><div><h3>Status źródeł</h3><p>Postęp i wynik każdego zadania skanowania.</p></div><button class="button secondary compact" type="button" id="goToOffers" disabled>Przejdź do ofert</button></div>
@@ -50,7 +50,7 @@
           </div>
         </section>
         <section class="view" id="view-review" data-title="Do weryfikacji" hidden>
-          <div class="view-heading"><div><h2>Weryfikacja książek</h2><p>Oferty bez pewnego przypisania do katalogu.</p></div><span class="state-badge warning" id="reviewCount">0 oczekujących</span></div>
+          <div class="view-heading"><div><p class="section-eyebrow">CENTRUM IDENTYFIKACJI</p><h2>Weryfikacja książek</h2><p>Oferty bez pewnego przypisania do katalogu.</p></div><span class="state-badge warning" id="reviewCount">0 oczekujących</span></div>
           <div class="filterbar">
             <label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="reviewSearch" type="search" placeholder="Szukaj po tytule, źródle lub ISBN"></label>
             <select id="reviewSource" aria-label="Zrodlo oferty"><option value="">Wszystkie zrodla</option></select>
@@ -63,19 +63,19 @@
           </div>
         </section>
         <section class="view" id="view-catalog" data-title="Katalog" hidden>
-          <div class="view-heading"><div><h2>Centralny katalog</h2><p>Dzieła, wydania i ich powiązania z ofertami.</p></div><button class="button primary" type="button" id="openCatalogForm">Dodaj książkę</button></div>
+          <div class="view-heading"><div><p class="section-eyebrow">TWOJA BIBLIOTEKA</p><h2>Centralny katalog</h2><p>Dzieła, wydania i ich powiązania z ofertami.</p></div><button class="button primary" type="button" id="openCatalogForm">Dodaj książkę</button></div>
           <div class="stats-grid catalog-stats"><article class="metric"><span>Dzieła</span><strong id="catalogWorks">0</strong><small>SQLite</small></article><article class="metric"><span>Wydania</span><strong id="catalogEditions">0</strong><small>SQLite</small></article><article class="metric"><span>Do uzupełnienia</span><strong id="catalogIncomplete">0</strong><small>niezweryfikowane</small></article></div>
           <div class="filterbar"><label class="search-field"><span class="sr-only">Szukaj w katalogu</span><input id="catalogSearch" type="search" placeholder="Tytul, autor lub ISBN"></label><select id="catalogSort" aria-label="Sortowanie katalogu"><option value="title">Tytul A-Z</option><option value="offers">Najwiecej ofert</option><option value="recent">Ostatnio aktualizowane</option></select></div>
           <div class="catalog-layout"><div class="panel catalog-list-panel"><div class="catalog-table-header"><span>Dzielo</span><span>Wydania</span><span>Oferty</span><span>Status</span></div><div id="catalogList"></div></div><div class="detail-panel catalog-detail" id="catalogDetail"><div class="empty-detail"><h3>Wybierz rekord</h3><p>Zobacz wydania i historie cen bez opuszczania katalogu.</p></div></div></div>
         </section>
         <section class="view" id="view-offers" data-title="Oferty" hidden>
-          <div class="view-heading"><div><h2>Wszystkie oferty</h2><p>Ogłoszenia zapisane przez lokalne skanery.</p></div><span class="state-badge neutral" id="offerTotal">0 ofert</span></div>
+          <div class="view-heading"><div><p class="section-eyebrow">RYNEK KSIĄŻEK</p><h2>Wszystkie oferty</h2><p>Ogłoszenia zapisane przez lokalne skanery.</p></div><span class="state-badge neutral" id="offerTotal">0 ofert</span></div>
           <div class="filterbar"><label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="offerSearch" type="search" placeholder="Szukaj po tytule, ISBN lub zrodle"></label><select id="offerSource" aria-label="Zrodlo"><option value="">Wszystkie zrodla</option></select><select id="offerStatus" aria-label="Status identyfikacji"><option value="">Kazdy status</option><option value="matched">Przypisane</option><option value="review">Do weryfikacji</option></select><select id="offerSort" aria-label="Sortowanie ofert"><option value="newest">Ostatnio wykryte</option><option value="price-asc">Cena rosnaco</option><option value="price-desc">Cena malejaco</option><option value="title">Tytul A-Z</option></select></div>
           <div class="panel offers-panel"><div class="table-wrap offers-table-wrap"><table class="offers-table"><thead><tr><th>Tytul</th><th>Zrodlo</th><th>Cena</th><th>ISBN</th><th>Przypisanie</th><th>Status</th><th>Ostatnio</th></tr></thead><tbody id="offersTableBody"></tbody></table></div><div class="pagination"><button class="button secondary compact" id="offerPrev" type="button">Poprzednia</button><span id="offerPageLabel">Strona 1</span><button class="button secondary compact" id="offerNext" type="button">Nastepna</button></div></div>
           <aside class="drawer" id="offerDrawer" hidden aria-label="Szczegoly oferty"><button class="drawer-close" id="closeOfferDrawer" type="button">Zamknij</button><div id="offerDrawerContent"></div></aside>
         </section>
         <section class="view" id="view-settings" data-title="Ustawienia" hidden>
-          <div class="view-heading"><div><h2>Ustawienia i diagnostyka</h2><p>Stan lokalnych integracji bez ujawniania sekretów.</p></div></div>
+          <div class="view-heading"><div><p class="section-eyebrow">KONFIGURACJA</p><h2>Ustawienia i diagnostyka</h2><p>Stan lokalnych integracji bez ujawniania sekretów.</p></div></div>
           <div class="settings-grid">
             <section class="panel settings-card"><h3>Źródła skanowania</h3><p>Adaptery aktywne w lokalnym backendzie.</p><div id="settingsSources" class="settings-list"></div></section>
             <section class="panel settings-card"><h3>Katalog SQLite</h3><p id="settingsDatabaseCopy">Sprawdzanie polaczenia...</p><div id="settingsDatabaseStats" class="settings-list"></div></section>
