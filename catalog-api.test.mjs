@@ -89,3 +89,21 @@ test('SQLite global offer and review search matches source outside first page',(
   assert.equal(listCatalogOffers(repository,{query:'%'}).total,0);
  }finally{repository.close();}
 });
+
+test('offer sorts and review filters work across the entire SQLite catalogue',()=>{
+ const {repository}=fixture();
+ try{
+  repository.upsertOffer({id:'cheap',source:'OtherSource',normalizedUrl:'https://example.test/cheap',originalTitle:'Cheap edition',currentPrice:99,lastSeenAt:at.toISOString()});
+  repository.upsertOffer({id:'expensive',source:'AnotherSource',normalizedUrl:'https://example.test/expensive',originalTitle:'Expensive edition',currentPrice:9000,lastSeenAt:at.toISOString()});
+  repository.putIdentificationJob({offerId:'cheap',status:'review_required',at});
+  const asc=listCatalogOffers(repository,{sort:'price-asc'}).items;
+  assert.equal(asc[0].id,'cheap');
+  assert.equal(listCatalogOffers(repository,{sort:'price-desc'}).items[0].id,'expensive');
+  assert.equal(listCatalogOffers(repository,{source:'OtherSource'}).total,1);
+  assert.equal(listIdentificationJobs(repository,{isbn:'missing'}).items.some(j=>j.offerId==='cheap'),true);
+  assert.equal(listIdentificationJobs(repository,{isbn:'present'}).items.some(j=>j.offerId==='cheap'),false);
+  assert.equal(listIdentificationJobs(repository,{source:'OtherSource',isbn:'missing'}).total,1);
+  assert.equal(listIdentificationJobs(repository,{query:'_',source:'OtherSource'}).total,0);
+  assert.equal(listIdentificationJobs(repository,{sort:'price'}).items[0].offerId,'cheap');
+ }finally{repository.close();}
+});
