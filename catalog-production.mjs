@@ -133,6 +133,7 @@ export function createProductionCatalog({
     completeJsonMirror(id) {
       const changed=repository.database.prepare("UPDATE scan_json_mirror_outbox SET status='completed',completed_at=? WHERE id=? AND status='pending'").run(now().toISOString(),id);
       if(Number(changed.changes)!==1)throw Error('JSON_MIRROR_CHECKPOINT_MISSING');
+      repository.database.prepare("DELETE FROM scan_json_mirror_outbox WHERE status='completed' AND id<>?").run(id);
     },
     async processQueued(limit = Number(process.env.BOOKFLIP_CATALOG_BATCH ?? 5)) {
       return worker.processBatch(limit);
