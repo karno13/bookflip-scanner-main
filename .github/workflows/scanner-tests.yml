@@ -4,6 +4,9 @@ on:
     branches: [main, release/bookflip-integrated-candidate]
     paths:
       - '**/*.mjs'
+      - 'package.json'
+      - '.prettierrc.json'
+      - 'eslint.config.mjs'
       - 'app/**'
       - 'migrations/**'
       - '.github/workflows/scanner-tests.yml'
@@ -30,6 +33,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
+      - name: Install pinned quality tools
+        run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: ESLint correctness rules
+        run: npm run lint
+      - name: Check tooling formatting
+        run: npm run format:check
       - name: Parse-check all JavaScript before tests
         run: npm run check:syntax
       - name: Offline tests (no marketplace scanning or external API calls)

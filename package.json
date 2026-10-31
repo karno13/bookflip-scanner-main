@@ -12,6 +12,13 @@
     "test": "node --test",
     "check:history": "node scripts/check-history-parity.mjs",
     "rehearse:history": "node scripts/rehearse-history-migration.mjs",
-    "check:syntax": "node scripts/check-syntax.mjs"
+    "check:syntax": "node scripts/check-syntax.mjs",
+    "lint": "eslint .",
+    "format:check": "prettier --check package.json .prettierrc.json eslint.config.mjs",
+    "format": "prettier --write \"**/*.{mjs,js,json,md,css,html}\""
+  },
+  "devDependencies": {
+    "eslint": "10.14.0",
+    "prettier": "3.9.10"
   }
 }
