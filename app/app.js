@@ -20,7 +20,7 @@ async function json(url, options) { const response = await fetch(url, options); 
 function selectedSources() { return $$('#sourceGrid input:checked').map(input => input.value); }
 function readQueries() { return [...new Set($('#queries').value.split(/\n|,/).map(value => value.trim()).filter(Boolean))].slice(0, 10); }
 function bookFor(id) { return (state.history?.books || []).find(row => row.book.id === id)?.book || null; }
-function allOffers() { return state.sqliteOffers.length ? state.sqliteOffers : (state.history?.offers || []); }
+function allOffers() { return state.catalog?.enabled === false ? (state.history?.offers || []) : state.sqliteOffers; }
 function reviewOffers() { return state.reviewJobs; }
 
 function showView(name) {
@@ -56,19 +56,41 @@ async function loadHistory() {
   renderReview(); renderCatalog(); renderOffers();
 }
 
+// API pages are limited to 250 rows. Read subsequent pages rather than silently
+// hiding catalog records after the first page. A larger dataset needs server-side UX.
+async function loadCatalogPages(endpoint, maxPages = 40) {
+  const limit = 250;
+  const items = [];
+  let expected = null;
+  for (let page = 0; page < maxPages; page++) {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const data = await json(`${endpoint}${separator}limit=${limit}&offset=${page * limit}`);
+    if (!Array.isArray(data.items) || !Number.isSafeInteger(data.total) || data.total < 0) throw Error('INVALID_CATALOG_PAGE');
+    if (expected === null) expected = data.total;
+    if (data.total !== expected) throw Error('CATALOG_CHANGED_DURING_PAGINATION');
+    items.push(...data.items);
+    if (items.length >= expected) return { items, total: expected };
+    if (data.items.length === 0) throw Error('INCOMPLETE_CATALOG_PAGE');
+  }
+  throw Error('CATALOG_PAGE_LIMIT_EXCEEDED');
+}
+
 async function loadCatalogData() {
   try {
     const [works, jobs, offers] = await Promise.all([
-      json('/api/catalog/works?limit=250'),
-      json('/api/identification-jobs?limit=250'),
-      json('/api/offers?limit=250'),
+      loadCatalogPages('/api/catalog/works'),
+      loadCatalogPages('/api/identification-jobs'),
+      loadCatalogPages('/api/offers'),
     ]);
-    state.catalogWorks = works.items || []; state.reviewJobs = jobs.items || []; state.sqliteOffers = offers.items || [];
-    $('#offersNavCount').textContent = `${offers.total || 0} zapisanych`;
-    $('#reviewNavCount').textContent = `${jobs.total || 0} pozycji`;
+    state.catalogWorks = works.items; state.reviewJobs = jobs.items; state.sqliteOffers = offers.items;
+    $('#offersNavCount').textContent = `${offers.total} zapisanych`;
+    $('#reviewNavCount').textContent = `${jobs.total} pozycji`;
     renderReview(); renderCatalog(); renderOffers();
-  } catch {
-    state.catalogWorks = []; state.reviewJobs = []; state.sqliteOffers = [];
+  } catch (error) {
+    // Preserve the previous successful snapshot. Never silently replace
+    // an unavailable SQLite catalog with unrelated JSON history.
+    $('#databaseStatus').textContent = 'SQLite: błąd odczytu katalogu';
+    toast(`Nie udało się wczytać katalogu SQLite: ${error.message}`);
   }
 }
 
