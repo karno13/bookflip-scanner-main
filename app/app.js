@@ -7,6 +7,7 @@ const state = {
   scan: {running: false, startedAt: null, timer: null, total: 0, completed: 0, rows: new Map(), result: null, fingerprint: null, lastStart: 0},
   selectedReviewId: null, selectedCatalogId: null, offerPage: 1, pageSize: 25,
   catalogPages: {works:{total:0,offset:0},jobs:{total:0,offset:0},offers:{total:0,offset:0}},
+  visibleRows: {works:100,jobs:100},
 };
 
 const savedSearch = JSON.parse(localStorage.getItem('bookflip-search') || 'null');
@@ -125,7 +126,10 @@ async function loadCatalogPage(kind,{reset=false}={}){
     if(!Array.isArray(data.items)||!Number.isSafeInteger(data.total)||data.total<0||data.items.length>catalogPageSize)throw Error('INVALID_CATALOG_PAGE');
     if(!reset&&data.total!==page.total)throw Error('CATALOG_CHANGED_DURING_PAGINATION');
     if(data.items.length===0 && offset<data.total)throw Error('INCOMPLETE_CATALOG_PAGE');
-    if(reset)state[source.stateKey]=data.items;
+    if(reset){
+      state[source.stateKey]=data.items;
+      if(kind==='works'||kind==='jobs')state.visibleRows[kind]=100;
+    }
     else state[source.stateKey]=[...state[source.stateKey],...data.items];
     state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query};
     updateCatalogLoadControls();
@@ -294,11 +298,36 @@ function filteredReviewOffers() {
   return rows.sort((a, b) => $('#reviewSort').value === 'price' ? a.offer.currentPrice - b.offer.currentPrice : String(b.offer.lastSeenAt).localeCompare(String(a.offer.lastSeenAt)));
 }
 
+// Keep at most a bounded number of catalog/review DOM nodes alive even
+// after many SQLite pages have been fetched.
+function visibleCatalogRows(kind,rows){
+ const visible=state.visibleRows[kind]||100;
+ const slice=rows.slice(0,visible);
+ const view=document.querySelector('#view-'+(kind==='works'?'catalog':'review'));
+ if(view){
+  let button=view.querySelector('[data-show-loaded-kind="'+kind+'"]');
+  if(!button){
+   button=document.createElement('button');
+   button.type='button';
+   button.className='button-secondary catalog-load-more';
+   button.dataset.showLoadedKind=kind;
+   button.addEventListener('click',()=>{
+    state.visibleRows[kind]+=100;
+    if(kind==='works')renderCatalog();else renderReview();
+   });
+   view.append(button);
+  }
+  button.hidden=rows.length<=visible;
+  button.textContent=`Pokaż kolejne wczytane (${Math.min(visible,rows.length)} z ${rows.length})`;
+ }
+ return slice;
+}
+
 function renderReview() {
   if (!state.history) return; const rows = filteredReviewOffers();
   $('#reviewCount').textContent = `${rows.length} z ${state.catalogPages.jobs.total} oczekujących`; $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
   if (state.selectedReviewId && !rows.some(row => row.id === state.selectedReviewId)) state.selectedReviewId = null;
-  $('#reviewList').innerHTML = rows.length ? rows.map(job => { const offer = job.offer; return `<button class="review-item ${job.id === state.selectedReviewId ? 'active' : ''}" type="button" data-review-id="${escapeHtml(job.id)}"><span class="book-spine" aria-hidden="true">▤</span><span><strong>${escapeHtml(offer.title)}</strong><small>${escapeHtml(offer.source)} - ${offer.observedIsbn ? `ISBN ${escapeHtml(offer.observedIsbn)}` : 'brak ISBN'}</small><small>${escapeHtml(job.status)}${job.lastError ? ` - ${escapeHtml(job.lastError)}` : ''}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`; }).join('') : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
+  $('#reviewList').innerHTML = rows.length ? visibleCatalogRows('jobs',rows).map(job => { const offer = job.offer; return `<button class="review-item ${job.id === state.selectedReviewId ? 'active' : ''}" type="button" data-review-id="${escapeHtml(job.id)}"><span class="book-spine" aria-hidden="true">▤</span><span><strong>${escapeHtml(offer.title)}</strong><small>${escapeHtml(offer.source)} - ${offer.observedIsbn ? `ISBN ${escapeHtml(offer.observedIsbn)}` : 'brak ISBN'}</small><small>${escapeHtml(job.status)}${job.lastError ? ` - ${escapeHtml(job.lastError)}` : ''}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`; }).join('') : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
   $$('[data-review-id]').forEach(button => button.addEventListener('click', async () => { state.selectedReviewId = button.dataset.reviewId; state.reviewDetail = null; renderReview(); const job = state.reviewJobs.find(row => row.id === state.selectedReviewId); if (job) { try { state.reviewDetail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`); renderReviewDetail(); } catch (error) { toast(error.message); } } })); renderReviewDetail();
 }
 
@@ -383,7 +412,7 @@ document.addEventListener('load',event=>{
 
 function renderCatalog() {
   if (!state.history) return; const rows = catalogRows();
-  $('#catalogList').innerHTML = rows.length ? rows.map(row => `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title">${coverPreviewMarkup(row.editions.flatMap(edition=>edition.identifiers))}<span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap(e => e.identifiers.filter(v => v.scheme.startsWith("isbn")).map(v => v.value))[0] || "ISBN nieznany")}</small></span></span><span>${row.editionCount}</span><span>${row.offerCount}</span><span><span class="status-pill ${['manual','verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span></span></button>`).join('') : '<div class="empty-detail"><h3>Katalog jest pusty</h3><p>Zaimportuj dane historyczne albo dodaj rekord.</p></div>';
+  $('#catalogList').innerHTML = rows.length ? visibleCatalogRows('works',rows).map(row => `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title">${coverPreviewMarkup(row.editions.flatMap(edition=>edition.identifiers))}<span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap(e => e.identifiers.filter(v => v.scheme.startsWith("isbn")).map(v => v.value))[0] || "ISBN nieznany")}</small></span></span><span>${row.editionCount}</span><span>${row.offerCount}</span><span><span class="status-pill ${['manual','verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span></span></button>`).join('') : '<div class="empty-detail"><h3>Katalog jest pusty</h3><p>Zaimportuj dane historyczne albo dodaj rekord.</p></div>';
   $$('[data-catalog-id]').forEach(button => button.addEventListener('click', () => openCatalogDetail(button.dataset.catalogId)));
 }
 
