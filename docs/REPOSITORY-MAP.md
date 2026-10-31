@@ -17,7 +17,7 @@
 
 `run.mjs`, `continuation.mjs`, `process.mjs`, `enrich.mjs`, `feed.mjs`, `rss.mjs`, `historical-reidentification.mjs`, `local-batch-scan.mjs` oraz część testów dotyczą starszego modelu kolejki/automatyzacji. **Nie są usuwane**, ponieważ nie ma jeszcze audytu zależności oraz końcowego testu uruchamiania na Windows. Status historyczny nie oznacza bezużyteczności.
 
-Workflow `.github/workflows/bookflip-scan.yml` posiada warunek identyfikujący inne repozytorium (`PJASDEM/bookflip-scanner`), więc jego zadania nie powinny wykonywać skanowania w `karno13/bookflip-scanner-main`. Wymaga osobnej decyzji o wyłączeniu harmonogramów; nie zmieniamy go w ciemno.
+Workflow `.github/workflows/bookflip-scan.yml` posiada warunek identyfikujący inne repozytorium (`PJASDEM/bookflip-scanner`), więc jego zadania nie powinny wykonywać skanowania w `karno13/bookflip-scanner-main`. W tej gałęzi wyłączono jego automatyczne harmonogramy i trigger push; pozostawiono uruchomienie ręczne, ale warunek starego repo nadal blokuje zadanie w `karno13/bookflip-scanner-main`.
 
 `.github/workflows/buyback-test.yml` i `source-connectivity.yml` to testy łączności zewnętrznej, odrębne od testów offline. Nie należy traktować ich wyników jak lokalnych testów pełnego procesu.
 
