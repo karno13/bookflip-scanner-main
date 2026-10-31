@@ -1,0 +1,16 @@
+{
+  "kind": "synthetic",
+  "source": "Allegro Lokalnie",
+  "host": "allegrolokalnie.pl",
+  "searchQuery": "Horus Rising",
+  "category": "Warhammer 40K",
+  "capturedAt": null,
+  "sanitized": true,
+  "html": "<script type=\"application/ld+json\">{\"@type\":\"Product\",\"name\":\"Horus Rising książka\",\"offers\":{\"@type\":\"Offer\",\"price\":\"31.99\",\"priceCurrency\":\"PLN\",\"availability\":\"https://schema.org/InStock\",\"url\":\"https://allegrolokalnie.pl/oferta/horus\"}}</script>",
+  "expected": [
+    {
+      "url": "https://allegrolokalnie.pl/oferta/horus",
+      "price": 3199
+    }
+  ]
+}
