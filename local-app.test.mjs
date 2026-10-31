@@ -10,3 +10,13 @@ test('a later page failure keeps earlier offers and retries the failed page',asy
 test('a transient page error can recover without marking the source partial',async()=>{let calls=0;const result=await searchOffers({queries:['Warcraft'],sources:['Empik']},{retryWait:async()=>{},scanner:async()=>{if(++calls===1)throw Object.assign(Error('SOURCE_HTTP_429'),{status:429,retryable:true});return{offers:[{title:'Warcraft książka',url:'https://www.empik.com/book,p1,ksiazka-p',price:1000}],pagination:{state:'end'}};}});assert.equal(calls,2);assert.equal(result.offers.length,1);assert.equal(result.results[0].status,'ok');});
 test('Vinted keeps already verified Polish offers when a later detail read exhausts retries',async()=>{const reads=[];const result=await searchOffers({queries:['Warcraft'],sources:['Vinted']},{retryWait:async()=>{},scanner:async()=>({offers:[{title:'Polska 1',url:'https://www.vinted.pl/items/1-p',price:100},{title:'Polska 2',url:'https://www.vinted.pl/items/2-p',price:200}],pagination:{state:'end'}}),languageReader:async url=>{reads.push(url);if(url.includes('/2-'))throw Object.assign(Error('SOURCE_HTTP_429'),{status:429,retryable:true});return{language:'Polski'};}});assert.equal(result.offers.length,1);assert.equal(result.offers[0].title,'Polska 1');assert.equal(result.results[0].status,'partial');assert.equal(reads.filter(url=>url.includes('/2-')).length,3);});
 test('access challenges are not retried but earlier Vinted offers remain available',async()=>{let reads=0;const result=await searchOffers({queries:['Warcraft'],sources:['Vinted']},{retryWait:async()=>{},scanner:async()=>({offers:[{title:'Polska 1',url:'https://www.vinted.pl/items/1-p',price:100},{title:'Polska 2',url:'https://www.vinted.pl/items/2-p',price:200}],pagination:{state:'end'}}),languageReader:async url=>{reads++;if(url.includes('/2-'))throw Object.assign(Error('SOURCE_CAPTCHA'),{status:403,blocked:true});return{language:'Polski'};}});assert.equal(reads,2);assert.equal(result.offers.length,1);assert.equal(result.results[0].status,'partial');assert.equal(result.results[0].diagnostic.blocked,true);});
+
+test('a programming TypeError is not treated as a transient source failure',async()=>{
+ let attempts=0;
+ const result=await searchOffers({queries:['Book'],sources:['Empik']},{
+  retryWait:async()=>{},
+  scanner:async()=>{attempts++;throw new TypeError('invalid fixture mapping');}
+ });
+ assert.equal(attempts,1);
+ assert.equal(result.summary.unavailable,1);
+});
