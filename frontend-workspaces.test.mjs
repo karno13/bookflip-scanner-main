@@ -127,3 +127,12 @@ test('review requires explicit edition decision with bibliographic context', () 
   assert.match(script, /Wybierz wydanie i zdecyduj/);
   assert.match(script, /Zatwierdz przypisanie/);
 });
+
+test('offer drawer reports price observations without treating them as sales', () => {
+  assert.match(script, /function priceEvidenceMarkup\(offer\)/);
+  assert.match(script, /Obserwacje cen/);
+  assert.match(script, /Minimum historyczne/);
+  assert.match(script, /Mediana obserwacji/);
+  assert.match(script, /Wielokrotne odczyty tej samej ceny nie są niezależnymi transakcjami/);
+  assert.match(script, /priceEvidenceMarkup\(offer\)/);
+});
