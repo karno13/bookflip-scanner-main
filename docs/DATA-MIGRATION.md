@@ -58,3 +58,11 @@ Wprowadzono przełącznik środowiskowy `BOOKFLIP_SQLITE_FIRST=1`. Bez niego obo
 **Nie jest to jeszcze SQLite-only.** Awaria zapisu SQLite zatrzymuje operację przed aktualizacją JSON; awaria zapisu JSON po udanym zapisie SQLite pozostawia rozbieżność pomiędzy magazynami i jest zgłaszana jako błąd (bez ukrywania jej jako sukces). Nie należy automatycznie ponawiać nieudanego skanu, zanim nie sprawdzi się obu magazynów — ponowienie może zwiększyć licznik wykryć.
 
 Przełącznik pozostaje domyślnie wyłączony do czasu testów odzyskiwania, przełączenia odczytów oraz strategii odtwarzania niespójnych zapisów. Dla niezawodnej migracji wymagana jest transakcyjna ścieżka tylko w SQLite, nie stały podwójny zapis.
+
+## Odczyt historii bezpośrednio z SQLite (eksperymentalny)
+
+Flaga `BOOKFLIP_SQLITE_HISTORY_READ=1` pozwala pobierać `/api/history` i `/api/book` z SQLite poprzez adapter zgodności, bez modyfikacji bazy. Domyślnie pozostaje odczyt JSON.
+
+W tym trybie odczytywane są oferty, bieżące ceny, obserwacje cen i **aktywne** przypisania do wydań. Przypisania nieweryfikowane nie są automatycznie uznawane za aktywne. Dane o skanach i cache szczegółów przechowywane wyłącznie w JSON nie są odtwarzane przez ten adapter; w odpowiedzi `lastScan` jest `null`. Przed przełączeniem produkcyjnym wymagane są testy zgodności na kopii rzeczywistych danych oraz migracja metadanych skanów.
+
+Przełącznika odczytu nie należy traktować jako finalnego wycofania JSON. W razie braku katalogu SQLite aktywny tryb zgłasza błąd zamiast prezentować nieaktualne informacje.
