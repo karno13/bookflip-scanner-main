@@ -42,7 +42,8 @@ export function importJsonV2Data(history,repository,{now=()=>new Date(),preserve
    const storedOfferId=importedOffers.get(legacyId);if(!storedOfferId)continue;
    const editionId=bookEditions.get(offer.bookId);
    if(offer.bookId&&!editionId){conflicts.push({kind:'missing_book_for_offer',offerId:legacyId,bookId:offer.bookId});}
-   if(editionId){
+   const authoritativeMatch=preserveExistingOffers?repository.database.prepare("SELECT id FROM offer_matches WHERE offer_id=? AND status='active' AND created_by!='json_v2_import' LIMIT 1").get(storedOfferId):null;
+   if(editionId&&!authoritativeMatch){
     const manual=offer.linkMode==='manual',status=manual?'active':'review_required',method=manual?'legacy_manual':'legacy_isbn';
     repository.assignOfferToEdition(storedOfferId,editionId,{id:stableId('legacy_match',`${legacyId}:${offer.bookId}:${method}`),method,status,confidence:manual?1:null,reason:manual?'Ręczne przypisanie zachowane z JSON v2.':'Historyczne przypisanie po ISBN; niezweryfikowane przez BN ani Open Library.',createdBy:'json_v2_import',at:offer.lastSeenAt||at});sourceMatches++;
    }
