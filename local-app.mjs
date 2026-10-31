@@ -14,6 +14,7 @@ import {offerExternalId} from './offer-identity.mjs';
 import {importJsonV2Data} from './import-json-v2-to-sqlite.mjs';
 import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
 import {persistScannedOffers} from './scan-persistence.mjs';
+import {sqliteHistoryModel} from './sqlite-history-read.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
 const contentTypes={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
@@ -74,6 +75,13 @@ function syncHistoryToCatalog(history,selection){
 
 function recordProgress(event){const safe={at:new Date().toISOString(),...event};void appendFile(logPath,JSON.stringify(safe)+'\n').catch(()=>{});return safe;}
 function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){response.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://covers.openlibrary.org; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});}
+export async function readHistoryForUi({catalog=getProductionCatalog(),sqliteRead=process.env.BOOKFLIP_SQLITE_HISTORY_READ==='1'}={}){
+ if(sqliteRead){
+  if(!catalog)throw Error('SQLITE_HISTORY_REQUIRES_CATALOG');
+  return sqliteHistoryModel(catalog.repository);
+ }
+ return loadOfferHistory();
+}
 function historySnapshot(history){return{updatedAt:history.updatedAt,lastScan:history.lastScan,books:Object.values(history.books).map(book=>bookStatistics(history,book.id)).filter(Boolean).sort((a,b)=>String(b.book.lastSeenAt).localeCompare(String(a.book.lastSeenAt))),offers:analyzedOffers(history).sort((a,b)=>String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)))};}
 let historyWriteTail=Promise.resolve();
 export async function withHistoryWriteLock(work){
@@ -138,8 +146,8 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(rejected)return send(response,rejected.status,JSON.stringify({error:rejected.error}));
  const url=new URL(request.url||'/','http://127.0.0.1');
  if(request.method==='GET'&&url.pathname==='/api/sources')return send(response,200,JSON.stringify({sources:Object.keys(localSourceHosts)}));
- if(request.method==='GET'&&url.pathname==='/api/history'){const history=await loadOfferHistory();return send(response,200,JSON.stringify(historySnapshot(history)));}
- if(request.method==='GET'&&url.pathname==='/api/book'){const history=await loadOfferHistory(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
+ if(request.method==='GET'&&url.pathname==='/api/history'){const history=await readHistoryForUi();return send(response,200,JSON.stringify(historySnapshot(history)));}
+ if(request.method==='GET'&&url.pathname==='/api/book'){const history=await readHistoryForUi(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
  if(request.method==='POST'&&url.pathname==='/api/catalog'){const input=await readJson(request);const created=await withHistoryWriteLock(async()=>{const history=await loadOfferHistory(),next=createCatalogBook(history,input);await saveOfferHistory(next.history);return{...next,catalogSync:syncHistoryToCatalog(next.history,{bookId:next.book.id}),snapshot:historySnapshot(next.history)};});return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:created.snapshot,catalogSync:created.catalogSync}));}
  if(request.method==='GET'&&url.pathname==='/api/catalog/status'){const catalog=getProductionCatalog();return send(response,200,JSON.stringify(catalog?catalog.status():{enabled:false}));}
  if(request.method==='GET'&&url.pathname==='/api/catalog/works'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(listCatalogWorks(catalog.repository,Object.fromEntries(url.searchParams))));}
