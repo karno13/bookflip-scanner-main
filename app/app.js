@@ -282,9 +282,24 @@ function catalogRows() {
   return rows.sort((a, b) => sort === 'offers' ? b.offerCount - a.offerCount : a.title.localeCompare(b.title, 'pl'));
 }
 
+function validCoverIsbn(value) {
+  const isbn=String(value || '').replace(/[^0-9Xx]/g,'').toUpperCase();
+  if (/^\\d{13}$/.test(isbn)) return [...isbn].reduce((sum,d,i)=>sum+Number(d)*(i%2?3:1),0)%10===0 ? isbn : null;
+  if (/^\\d{9}[0-9X]$/.test(isbn)) return [...isbn].reduce((sum,d,i)=>sum+(10-i)*(d==='X'?10:Number(d)),0)%11===0 ? isbn : null;
+  return null;
+}
+function coverPreviewMarkup(identifiers=[]) {
+  const isbn=identifiers.map(item=>validCoverIsbn(item.value)).find(Boolean);
+  const cover=isbn ? `<img class="cover-preview-image" src="https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
+  return `<span class="cover-preview"><span class="book-spine" aria-hidden="true">▤</span>${cover}</span>`;
+}
+document.addEventListener('load',event=>{
+  if (event.target instanceof HTMLImageElement && event.target.classList.contains('cover-preview-image') && event.target.naturalWidth>1) event.target.closest('.cover-preview')?.classList.add('has-cover');
+},true);
+
 function renderCatalog() {
   if (!state.history) return; const rows = catalogRows();
-  $('#catalogList').innerHTML = rows.length ? rows.map(row => `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title"><span class="book-spine" aria-hidden="true">▤</span><span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap(e => e.identifiers.filter(v => v.scheme.startsWith("isbn")).map(v => v.value))[0] || "ISBN nieznany")}</small></span></span><span>${row.editionCount}</span><span>${row.offerCount}</span><span><span class="status-pill ${['manual','verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span></span></button>`).join('') : '<div class="empty-detail"><h3>Katalog jest pusty</h3><p>Zaimportuj dane historyczne albo dodaj rekord.</p></div>';
+  $('#catalogList').innerHTML = rows.length ? rows.map(row => `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title">${coverPreviewMarkup(row.editions.flatMap(edition=>edition.identifiers))}<span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap(e => e.identifiers.filter(v => v.scheme.startsWith("isbn")).map(v => v.value))[0] || "ISBN nieznany")}</small></span></span><span>${row.editionCount}</span><span>${row.offerCount}</span><span><span class="status-pill ${['manual','verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span></span></button>`).join('') : '<div class="empty-detail"><h3>Katalog jest pusty</h3><p>Zaimportuj dane historyczne albo dodaj rekord.</p></div>';
   $$('[data-catalog-id]').forEach(button => button.addEventListener('click', () => openCatalogDetail(button.dataset.catalogId)));
 }
 
@@ -308,7 +323,7 @@ function offerPriceSummaryMarkup(offers = []) {
 
 async function openEditionDetail(id) {
   const detail = $('#catalogDetail'); detail.innerHTML = '<div class="empty-detail"><p>Wczytywanie wydania...</p></div>';
-  try { const row = await json(`/api/catalog/editions/${encodeURIComponent(id)}`); detail.innerHTML = `<section class="detail-section"><button class="link-button" id="backToWork" type="button">← Wróć do dzieła</button><h3>${escapeHtml(row.title)}</h3><div class="detail-grid"><span><b>ISBN</b><small>${escapeHtml(row.identifiers.filter(item => item.scheme.startsWith('isbn')).map(item => item.value).join(', ') || 'brak')}</small></span><span><b>Wydawca</b><small>${escapeHtml(row.publisher || '-')}</small></span><span><b>Rok</b><small>${escapeHtml(row.publicationYear || '-')}</small></span><span><b>Język / oprawa</b><small>${escapeHtml([row.language,row.binding].filter(Boolean).join(' / ') || '-')}</small></span></div></section><section class="detail-section"><h4>Analiza cen wydania</h4>${offerPriceSummaryMarkup(row.offers)}</section><section class="detail-section"><h4>Powiązane oferty</h4><div class="price-list">${row.offers.map(item => `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(item.title)}<small>${escapeHtml(item.source)}</small></span><b>${money(item.currentPrice)}</b></a>`).join('') || '<p>Brak ofert.</p>'}</div></section>`; $('#backToWork').addEventListener('click', () => openCatalogDetail(row.workId)); } catch (error) { detail.innerHTML = `<div class="empty-detail"><p>${escapeHtml(error.message)}</p></div>`; }
+  try { const row = await json(`/api/catalog/editions/${encodeURIComponent(id)}`); detail.innerHTML = `<section class="detail-section"><button class="link-button" id="backToWork" type="button">← Wróć do dzieła</button><div class="edition-identity">${coverPreviewMarkup(row.identifiers)}<div><h3>${escapeHtml(row.title)}</h3><p class="inline-note">${escapeHtml(row.authors?.join(", ") || "Autor nieznany")}</p></div></div><div class="detail-grid"><span><b>ISBN</b><small>${escapeHtml(row.identifiers.filter(item => item.scheme.startsWith('isbn')).map(item => item.value).join(', ') || 'brak')}</small></span><span><b>Wydawca</b><small>${escapeHtml(row.publisher || '-')}</small></span><span><b>Rok</b><small>${escapeHtml(row.publicationYear || '-')}</small></span><span><b>Język / oprawa</b><small>${escapeHtml([row.language,row.binding].filter(Boolean).join(' / ') || '-')}</small></span></div></section><section class="detail-section"><h4>Analiza cen wydania</h4>${offerPriceSummaryMarkup(row.offers)}</section><section class="detail-section"><h4>Powiązane oferty</h4><div class="price-list">${row.offers.map(item => `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(item.title)}<small>${escapeHtml(item.source)}</small></span><b>${money(item.currentPrice)}</b></a>`).join('') || '<p>Brak ofert.</p>'}</div></section>`; $('#backToWork').addEventListener('click', () => openCatalogDetail(row.workId)); } catch (error) { detail.innerHTML = `<div class="empty-detail"><p>${escapeHtml(error.message)}</p></div>`; }
 }
 
 function filteredOffers() {
