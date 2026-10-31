@@ -82,8 +82,15 @@ export function listCatalogOffers(repository, options = {}) {
     LEFT JOIN editions e ON e.id=m.edition_id LEFT JOIN works w ON w.id=e.work_id
     LEFT JOIN identification_jobs j ON j.offer_id=o.id AND j.job_type='identify_edition'`;
   const total = Number(database.prepare(`SELECT count(DISTINCT o.id) AS count ${from} ${where}`).get(...params).count);
+  const offerSort = {
+    newest: 'o.last_seen_at DESC,o.id',
+    title: 'lower(o.original_title),o.id',
+    'price-asc': 'o.current_price IS NULL,o.current_price ASC,o.id',
+    'price-desc': 'o.current_price IS NULL,o.current_price DESC,o.id',
+  };
+  const orderBy=offerSort[String(options.sort||'newest')]||offerSort.newest;
   const rows = database.prepare(`SELECT o.*,m.id AS match_id,m.method,e.id AS edition_id,e.title AS edition_title,w.title AS work_title,j.id AS job_id,j.status AS job_status
-    ${from} ${where} ORDER BY o.last_seen_at DESC,o.id LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    ${from} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   return { total, limit, offset, items: rows.map((row) => ({ ...offer(row), match: row.match_id ? { id: row.match_id, method: row.method, editionId: row.edition_id, editionTitle: row.edition_title, workTitle: row.work_title } : null, identification: row.job_id ? { jobId: row.job_id, status: row.job_status } : null })) };
 }
 
