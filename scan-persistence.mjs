@@ -27,13 +27,13 @@ export async function persistScannedOffers({
  if(sqliteFirst){
   // Synchronous, transactional SQLite ingest; reject on failure before JSON write.
   const mirrorId=randomUUID();
-  ingest=catalogStore.ingestOffers(observations,searchedAt,{jsonMirror:{id:mirrorId,snapshot:applied.history}});
+  ingest=catalogStore.ingestOffers(observations,searchedAt,{jsonMirror:{id:mirrorId,snapshot:applied.history},scanSummary:applied.history.lastScan});
   await saveHistory(applied.history);
   if(catalogStore.completeJsonMirror)catalogStore.completeJsonMirror(mirrorId);
  }else{
   await saveHistory(applied.history);
   if(catalogStore){
-   try{ingest=catalogStore.ingestOffers(observations,searchedAt)}
+   try{ingest=catalogStore.ingestOffers(observations,searchedAt,{scanSummary:applied.history.lastScan})}
    catch(error){catalogError=/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR';}
   }
  }
