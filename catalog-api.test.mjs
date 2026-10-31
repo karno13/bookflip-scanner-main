@@ -73,3 +73,19 @@ test('catalog LIKE search treats % and _ as text, not wildcards',()=>{
   assert.equal(listCatalogWorks(repository,{query:'_42'}).total,1);
  }finally{repository.close();}
 });
+
+test('SQLite global offer and review search matches source outside first page',()=>{
+ const {repository}=fixture();
+ try{
+  for(let i=0;i<260;i++)repository.upsertOffer({id:'bulk-'+i,source:'fixture',normalizedUrl:'https://example.test/bulk/'+i,originalTitle:'Other title '+i,currentPrice:100+i,lastSeenAt:at.toISOString()});
+  repository.upsertOffer({id:'search-target',source:'RareSource',normalizedUrl:'https://example.test/search-target',originalTitle:'Special edition',currentPrice:900,lastSeenAt:at.toISOString()});
+  repository.putIdentificationJob({offerId:'search-target',status:'review_required',at});
+  const offers=listCatalogOffers(repository,{query:'raresource',limit:25,offset:0});
+  assert.equal(offers.total,1);
+  assert.equal(offers.items[0].id,'search-target');
+  const jobs=listIdentificationJobs(repository,{query:'raresource'});
+  assert.equal(jobs.total,1);
+  assert.equal(jobs.items[0].offerId,'search-target');
+  assert.equal(listCatalogOffers(repository,{query:'%'}).total,0);
+ }finally{repository.close();}
+});
