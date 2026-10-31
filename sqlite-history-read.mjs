@@ -40,5 +40,8 @@ export function sqliteHistoryModel(repository) {
   offerId:row.offer_id,price:row.price,observedAt:row.observed_at
  }));
  const lastScanAt=rows.reduce((max,row)=>String(row.last_seen_at||'')>max?String(row.last_seen_at):max,'');
- return{version:2,updatedAt:lastScanAt||null,books,offers,priceHistory,details:{},lastScan:null};
+ const scanRow=db.prepare("SELECT summary_json FROM scan_runs ORDER BY scanned_at DESC LIMIT 1").get();
+ let lastScan=null;
+ try{lastScan=scanRow?JSON.parse(scanRow.summary_json):null;}catch{}
+ return{version:2,updatedAt:lastScanAt||lastScan?.at||null,books,offers,priceHistory,details:{},lastScan};
 }
