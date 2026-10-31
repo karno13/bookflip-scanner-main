@@ -16,6 +16,7 @@ import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
 import {persistScannedOffers} from './scan-persistence.mjs';
 import {sqliteHistoryModel} from './sqlite-history-read.mjs';
 import {recoverPendingMirrors} from './scan-mirror-recovery.mjs';
+import {persistManualCatalogAction} from './sqlite-manual-catalog.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
 const contentTypes={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
@@ -153,7 +154,23 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='GET'&&url.pathname==='/api/sources')return send(response,200,JSON.stringify({sources:Object.keys(localSourceHosts)}));
  if(request.method==='GET'&&url.pathname==='/api/history'){const history=await readHistoryForUi();return send(response,200,JSON.stringify(historySnapshot(history)));}
  if(request.method==='GET'&&url.pathname==='/api/book'){const history=await readHistoryForUi(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
- if(request.method==='POST'&&url.pathname==='/api/catalog'){const input=await readJson(request);const created=await withHistoryWriteLock(async()=>{const history=await loadOfferHistory(),next=createCatalogBook(history,input);await saveOfferHistory(next.history);return{...next,catalogSync:syncHistoryToCatalog(next.history,{bookId:next.book.id}),snapshot:historySnapshot(next.history)};});return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:created.snapshot,catalogSync:created.catalogSync}));}
+ if(request.method==='POST'&&url.pathname==='/api/catalog'){
+ const input=await readJson(request);
+ const created=await withHistoryWriteLock(async()=>{
+  if(process.env.BOOKFLIP_SQLITE_MANUAL_WRITE==='1'){
+   const catalog=getProductionCatalog();
+   if(!catalog)throw Error('SQLITE_MANUAL_REQUIRES_CATALOG');
+   await recoverPendingMirrors({repository:catalog.repository});
+   const history=await loadOfferHistory();
+   const result=await persistManualCatalogAction({catalogStore:catalog,history,action:'create',input});
+   return{...result,catalogSync:{mode:'sqlite_first'},snapshot:historySnapshot(result.history)};
+  }
+  const history=await loadOfferHistory(),next=createCatalogBook(history,input);
+  await saveOfferHistory(next.history);
+  return{...next,catalogSync:syncHistoryToCatalog(next.history,{bookId:next.book.id}),snapshot:historySnapshot(next.history)};
+ });
+ return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:created.snapshot,catalogSync:created.catalogSync}));
+}
  if(request.method==='GET'&&url.pathname==='/api/catalog/status'){const catalog=getProductionCatalog();return send(response,200,JSON.stringify(catalog?catalog.status():{enabled:false}));}
  if(request.method==='GET'&&url.pathname==='/api/catalog/works'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(listCatalogWorks(catalog.repository,Object.fromEntries(url.searchParams))));}
  if(request.method==='GET'&&url.pathname.startsWith('/api/catalog/works/')){const catalog=getProductionCatalog(),id=decodeURIComponent(url.pathname.slice('/api/catalog/works/'.length));if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));const data=getCatalogWork(catalog.repository,id);return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'WORK_NOT_FOUND'}));}
@@ -164,7 +181,24 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='POST'&&/^\/api\/identification-jobs\/[^/]+\/decision$/.test(url.pathname)){const catalog=getProductionCatalog(),id=decodeURIComponent(url.pathname.split('/')[3]);if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(decideIdentificationJob(catalog.repository,id,await readJson(request))));}
  if(request.method==='POST'&&url.pathname==='/api/catalog/lookup-preview'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));return send(response,200,JSON.stringify(await catalog.lookupIsbn((await readJson(request)).isbn)));}
  if(request.method==='POST'&&url.pathname==='/api/catalog/lookup-confirm'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));const result=await catalog.resolveIsbn((await readJson(request)).isbn);return send(response,['created_edition','created_work_and_edition','matched_existing'].includes(result.decision)?200:409,JSON.stringify(result));}
- if(request.method==='POST'&&url.pathname==='/api/catalog/link'){const input=await readJson(request);const snapshot=await withHistoryWriteLock(async()=>{const history=linkOfferToBook(await loadOfferHistory(),String(input.offerId||''),String(input.bookId||''));await saveOfferHistory(history);syncHistoryToCatalog(history,{bookId:String(input.bookId||''),offerId:String(input.offerId||'')});return historySnapshot(history);});return send(response,200,JSON.stringify(snapshot));}
+ if(request.method==='POST'&&url.pathname==='/api/catalog/link'){
+ const input=await readJson(request);
+ const snapshot=await withHistoryWriteLock(async()=>{
+  if(process.env.BOOKFLIP_SQLITE_MANUAL_WRITE==='1'){
+   const catalog=getProductionCatalog();
+   if(!catalog)throw Error('SQLITE_MANUAL_REQUIRES_CATALOG');
+   await recoverPendingMirrors({repository:catalog.repository});
+   const history=await loadOfferHistory();
+   const result=await persistManualCatalogAction({catalogStore:catalog,history,action:'link',input});
+   return historySnapshot(result.history);
+  }
+  const history=linkOfferToBook(await loadOfferHistory(),String(input.offerId||''),String(input.bookId||''));
+  await saveOfferHistory(history);
+  syncHistoryToCatalog(history,{bookId:String(input.bookId||''),offerId:String(input.offerId||'')});
+  return historySnapshot(history);
+ });
+ return send(response,200,JSON.stringify(snapshot));
+}
  if(request.method==='POST'&&url.pathname==='/api/search'&&url.searchParams.get('stream')==='1'){
   streamHeaders(response);const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
   try{const result=await searchAndStore(await readJson(request),emit);response.write(JSON.stringify({type:'result',result})+'\n');response.end();}catch(error){response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();}return;
