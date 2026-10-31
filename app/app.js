@@ -115,11 +115,13 @@ async function loadCatalogData() {
     $('#offersNavCount').textContent = `${offers.total} zapisanych`;
     $('#reviewNavCount').textContent = `${jobs.total} pozycji`;
     renderReview(); renderCatalog(); renderOffers(); renderScannerOffers();
+    return true;
   } catch (error) {
     // Preserve the previous successful snapshot. Never silently replace
     // an unavailable SQLite catalog with unrelated JSON history.
     $('#databaseStatus').textContent = 'SQLite: błąd odczytu katalogu';
     toast(`Nie udało się wczytać katalogu SQLite: ${error.message}`);
+    return false;
   }
 }
 
@@ -132,9 +134,11 @@ async function loadCatalogStatus() {
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled ? 'Baza lokalna jest dostepna.' : 'Integracja katalogu jest wylaczona.';
     $('#settingsDatabaseStats').innerHTML = Object.entries(counts).slice(0, 8).map(([key, value]) => `<span><b>${escapeHtml(key.replaceAll('_', ' '))}</b><small>${value}</small></span>`).join('');
     $('#connectionDot').classList.add('online'); $('#connectionLabel').textContent = 'Aplikacja online';
+    return true;
   } catch {
     state.catalog = null; $('#databaseStatus').textContent = 'SQLite: niedostepny'; $('#settingsDatabaseCopy').textContent = 'Nie udalo sie odczytac statusu bazy.';
     $('#connectionDot').classList.remove('online'); $('#connectionLabel').textContent = 'Blad polaczenia';
+    return false;
   }
 }
 
@@ -430,7 +434,19 @@ $('.nav-item').forEach(button => button.addEventListener('click', () => showView
 $('#scannerBrowseOffers').addEventListener('click', () => showView('offers'));
 $('#scannerOfferSearch').addEventListener('input', renderScannerOffers);
 $('#scannerOfferSource').addEventListener('change', renderScannerOffers);
-$('#refreshView').addEventListener('click', () => Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]).then(() => toast('Dane odswiezone.')));
+$('#refreshView').addEventListener('click', async () => {
+  const button = $('#refreshView');
+  button.disabled = true;
+  try {
+    const [historyResult, catalogResult, catalogDataOk] = await Promise.allSettled([loadHistory(), loadCatalogStatus(), loadCatalogData()]);
+    const errors = [historyResult, catalogResult].filter(result => result.status === 'rejected');
+    if (errors.length || catalogResult.value !== true || catalogDataOk.status !== 'fulfilled' || catalogDataOk.value !== true) {
+      toast('Nie wszystkie dane odświeżono. Sprawdź stan katalogu SQLite.');
+      return;
+    }
+    toast('Dane odświeżone.');
+  } finally { button.disabled = false; }
+});
 $('#toggleSources').addEventListener('click', () => { const boxes = $$('#sourceGrid input'); const all = boxes.length && boxes.every(box => box.checked); boxes.forEach(box => { box.checked = !all; }); });
 $('#startSearch').addEventListener('click', startSearch); $('#goToOffers').addEventListener('click', () => showView('offers'));
 for (const selector of ['#reviewSearch', '#reviewSource', '#reviewIsbn', '#reviewSort']) $(selector).addEventListener(selector === '#reviewSearch' ? 'input' : 'change', renderReview);

@@ -161,3 +161,13 @@ test('covers use ISBN checksum and show neutral spine until real image loads', (
   assert.match(styles, /\.cover-preview\.has-cover/);
   assert.match(styles, /\.edition-identity/);
 });
+
+test('manual refresh never announces success after SQLite load or status failure', () => {
+  assert.match(script, /async function loadCatalogData\(\)/);
+  assert.match(script, /return false;/);
+  assert.match(script, /Promise\.allSettled\(\[loadHistory\(\), loadCatalogStatus\(\), loadCatalogData\(\)\]\)/);
+  assert.match(script, /catalogResult\.value !== true/);
+  assert.match(script, /catalogDataOk\.value !== true/);
+  assert.match(script, /Nie wszystkie dane odświeżono/);
+  assert.match(script, /finally \{ button\.disabled = false; \}/);
+});
