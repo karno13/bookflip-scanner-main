@@ -1,3 +1,4 @@
+// Format-only PR: the existing ESLint correctness rules remain unchanged.
 export default [
   {
     ignores: ['node_modules/**', 'scan-results/**', 'coverage/**', 'fixtures/**'],
