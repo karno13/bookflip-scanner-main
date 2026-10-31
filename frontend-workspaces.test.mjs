@@ -41,3 +41,14 @@ test('review catalog picker filters by typed title or ISBN before selection', ()
   assert.match(script, /dataset\.reviewEditionId/);
   assert.match(styles, /\.book-options/);
 });
+
+
+test('catalog loads beyond the first SQLite page without silent JSON substitution', () => {
+  assert.match(script, /async function loadCatalogPages\(endpoint, maxPages = 40\)/);
+  assert.match(script, /offset=\$\{page \* limit\}/);
+  assert.match(script, /INCOMPLETE_CATALOG_PAGE/);
+  assert.match(script, /CATALOG_CHANGED_DURING_PAGINATION/);
+  assert.match(script, /state\.catalog\?\.enabled === false \? \(state\.history\?\.offers \|\| \[\]\) : state\.sqliteOffers/);
+  assert.doesNotMatch(script, /state\.sqliteOffers\.length \? state\.sqliteOffers :/);
+  assert.match(script, /Nie udało się wczytać katalogu SQLite/);
+});
