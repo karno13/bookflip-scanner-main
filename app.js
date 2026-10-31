@@ -34,3 +34,7 @@ set('#settingsDatabaseCopy','SQLite nie jest podłączone do GitHub Pages.');
 set('#settingsDatabaseStats','Brak dostępu do danych lokalnych.');
 $$('.nav-item').forEach(n=>n.setAttribute('aria-label',n.textContent.trim()));
 navigate(new URLSearchParams(location.search).get('view')||'scanner');
+
+/* Mobile offer cards intentionally use illustrative dataset; no API calls. */
+function demoMobileOffers(){const node=$('#offersMobileList');if(!node)return;const q=$('#offerSearch').value.toLocaleLowerCase('pl');const list=books.filter(b=>(b.title+' '+b.source).toLocaleLowerCase('pl').includes(q));node.innerHTML=list.map(b=>'<button class="mobile-offer" type="button" data-demo-title="'+esc(b.title)+'"><span class="book-spine" aria-hidden="true">▤</span><span class="mobile-offer-copy"><strong>'+esc(b.title)+'</strong><small>'+esc(b.source)+' · '+esc(b.isbn)+'</small><small class="mobile-offer-match">Wydanie demonstracyjne</small></span><span class="mobile-offer-price"><b>'+b.price+',00 zł</b><small>Demo</small></span></button>').join('');node.querySelectorAll('button').forEach(b=>b.onclick=()=>alert('Podgląd statyczny: '+b.dataset.demoTitle));}
+$('#offerSearch').addEventListener('input',demoMobileOffers);demoMobileOffers();
