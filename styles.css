@@ -45,31 +45,31 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 @media(max-width:400px){.source-grid{grid-template-columns:1fr 1fr}.view-heading h2{font-size:25px}.stats-grid .metric{padding:10px}.catalog-table-header,.catalog-row{grid-template-columns:minmax(0,1.5fr) 44px 42px 55px}}
 
 
-/* Book-centric components, designed without fabricated book-cover images. */
-.book-spine{display:grid;place-items:center;flex:none;width:39px;height:53px;background:linear-gradient(140deg,#173d32,#317256);border-radius:3px 8px 8px 3px;border-left:4px solid #bbaf81;color:#f5efe1;font:25px Georgia,serif;box-shadow:inset -4px 0 rgba(0,0,0,.12),2px 3px 6px rgba(22,49,38,.12)}
-.catalog-book-title{display:flex;align-items:center;gap:11px;min-width:0;text-align:left}.catalog-book-copy{min-width:0;display:flex;flex-direction:column;gap:3px}.catalog-book-copy strong{font-weight:700}.catalog-isbn{font-size:10px;color:#70827a}
-.review-item .book-spine{width:31px;height:42px;font-size:20px}.review-item-body{min-width:0;display:flex;flex:1;flex-direction:column;gap:4px}.review-reason{color:#956531}
-.offers-mobile-list{display:none}.mobile-offer{display:none}
+/* BookFlip V4: purposeful book-centred patterns and mobile-first information density. */
+.book-spine{display:grid;place-items:center;flex:none;width:36px;height:49px;border-radius:3px 8px 8px 3px;border-left:4px solid #bdac7e;background:linear-gradient(140deg,#173d32,#357d5c);box-shadow:inset -4px 0 rgba(0,0,0,.12),2px 3px 5px rgba(22,49,38,.12);color:#fcf4df;font:23px Georgia,serif}
+.catalog-book-title{display:flex;gap:10px;align-items:center;min-width:0;text-align:left}.catalog-book-copy{display:flex;flex-direction:column;gap:3px;min-width:0}.catalog-isbn{color:#6c7d74;font-size:10px}
+.review-item .book-spine{width:30px;height:41px;font-size:18px}.review-comparison{background:#f2f7f0;border-radius:12px}.comparison-candidate{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #cddfce;border-radius:11px;background:#fffefa}.comparison-candidate>span:last-child{display:flex;flex-direction:column;gap:5px;min-width:0}.comparison-candidate small{font-size:11px;color:#6c7d74}
+.offers-mobile-list{display:none}
 @media(max-width:760px){
- .catalog-row{grid-template-columns:minmax(0,1fr) 38px 38px 56px;align-items:center;gap:5px}
- .catalog-book-title{gap:8px}.catalog-book-title .book-spine{height:44px;width:31px;font-size:19px}
- .catalog-book-copy strong{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;font-size:12px}
- .catalog-book-copy small{font-size:10px}.catalog-book-copy .catalog-isbn{font-size:9px}
- .catalog-table-header{grid-template-columns:minmax(0,1fr) 38px 38px 56px;gap:5px;font-size:10px}
- .review-item{display:flex;align-items:center;gap:10px;text-align:left}.review-item strong{white-space:normal;line-height:1.3}
- .offers-mobile-list{display:flex;flex-direction:column;gap:0}.offers-table-wrap{display:none}
- .mobile-offer{display:flex;width:100%;gap:12px;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fffefb;padding:13px 12px;color:var(--text);font:inherit;cursor:pointer}
- .mobile-offer:last-child{border-bottom:0}.mobile-offer:focus-visible{outline:3px solid #7fb899;outline-offset:-3px}
- .mobile-offer .book-spine{width:36px;height:50px;font-size:23px}
- .mobile-offer-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
- .mobile-offer-copy strong{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
- .mobile-offer-copy small{font-size:10px;color:var(--muted);line-height:1.35}
- .mobile-offer-copy .mobile-offer-match{color:#2b7055}
- .mobile-offer-price{flex:none;max-width:104px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-align:right}
- .mobile-offer-price b{font-size:14px;color:#23694c;white-space:nowrap}
- .mobile-offer-price small{font-size:10px;color:#8a6a30}
- .offers-panel{padding:0}.pagination{padding:12px}
+.catalog-row,.catalog-table-header{grid-template-columns:minmax(0,1fr) 39px 39px 57px;gap:5px}.catalog-row{padding:12px 7px}.catalog-book-title{gap:7px}.catalog-book-title .book-spine{width:29px;height:42px;font-size:18px}.catalog-book-copy strong{font-size:12px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25}.catalog-book-copy small{font-size:10px}.catalog-book-copy .catalog-isbn{font-size:9px}
+.review-item{display:flex;gap:10px;align-items:center;text-align:left}.review-item strong{white-space:normal;line-height:1.3}
+.offers-mobile-list{display:flex;flex-direction:column}.offers-table-wrap{display:none}
+.mobile-offer{display:flex;gap:11px;align-items:center;text-align:left;width:100%;padding:13px 10px;border:0;border-bottom:1px solid var(--line);background:#fffefa;color:var(--text);cursor:pointer;font:inherit}.mobile-offer:last-child{border-bottom:0}.mobile-offer:focus-visible{outline:3px solid #80b99b;outline-offset:-3px}
+.mobile-offer-copy{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}.mobile-offer-copy strong{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.mobile-offer-copy small{font-size:10px;color:var(--muted);line-height:1.35}.mobile-offer-match{color:#287457!important}
+.mobile-offer-price{display:flex;flex-direction:column;align-items:flex-end;text-align:right;gap:6px;flex:none;max-width:108px}.mobile-offer-price b{font-size:14px;color:#246849;white-space:nowrap}.mobile-offer-price small{color:#896b3a;font-size:10px}.offers-panel{padding:0}.pagination{padding:12px}
 }
+
+/* Scanner: genuine saved-offer discovery, independent from current-scan counters. */
+.scanner-discover{margin-top:18px}.scanner-discover .section-eyebrow{margin:0 0 5px}.scanner-offer-list{display:flex;flex-direction:column;padding:0 15px 12px}.scanner-offer-row{display:flex;gap:13px;width:100%;align-items:center;text-align:left;padding:13px 3px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);font:inherit;cursor:pointer}.scanner-offer-row:last-child{border-bottom:0}.scanner-offer-row:hover{background:#f2f7ef}.scanner-offer-row:focus-visible{outline:3px solid #7bb392;outline-offset:-3px}.scanner-offer-copy{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}.scanner-offer-copy strong{font-size:13px;line-height:1.3}.scanner-offer-copy small{font-size:11px;color:var(--muted)}.scanner-offer-price{font-size:15px;font-weight:750;color:#246849;white-space:nowrap}
+@media(max-width:760px){.scanner-discover{margin-top:12px}.scanner-offer-list{padding:0 10px 8px}.scanner-offer-row{gap:9px;padding:12px 2px}.scanner-offer-row .book-spine{width:30px;height:42px;font-size:18px}.scanner-offer-copy strong{font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.scanner-offer-copy small{font-size:10px}.scanner-offer-price{font-size:12px}}
+
+/* BookFlip identification batch: evidence-first comparison. */
+.review-comparison{background:#f1f6ee;border:1px solid #d5e4d4}.review-comparison .inline-note{margin:4px 0 12px;line-height:1.5}.comparison-candidate{align-items:flex-start;padding:16px;background:#fffefa}.comparison-candidate .book-spine{width:42px;height:59px}.candidate-body{display:flex;flex-direction:column;gap:6px;line-height:1.35;min-width:0}.candidate-body>b{font:700 17px Georgia,"Times New Roman",serif;color:#173b2b}.candidate-body>small{font-size:12px;color:#596d60;overflow-wrap:anywhere}.verification-fact{padding:13px 15px;border-radius:9px;margin-top:12px;font-size:13px;line-height:1.5}.verification-match{background:#e5f4e9;color:#165535;border:1px solid #afd5b9}.verification-unknown{background:#f5f1e7;color:#665337;border:1px solid #e2d7bc}.verification-conflict{background:#fff0e6;color:#8e3c21;border:1px solid #e7b29c;font-weight:650}
+.review-comparison+.detail-section .detail-actions{gap:9px;flex-wrap:wrap}.review-comparison+.detail-section .detail-select{min-height:44px}
+@media(max-width:760px){.comparison-candidate{padding:12px;gap:10px}.comparison-candidate .book-spine{width:32px;height:46px}.candidate-body>b{font-size:15px}.candidate-body>small{font-size:11px}.verification-fact{font-size:12px;padding:11px}}
+
+.scanner-discover-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:0 16px 8px}.scanner-discover-toolbar label{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:11px;font-weight:700;color:var(--muted)}.scanner-filter-search{flex:1;min-width:200px!important}.scanner-discover-toolbar input,.scanner-discover-toolbar select{height:39px;padding:8px 11px;border-radius:9px;border:1px solid var(--line);background:#fffefa;color:var(--text);font:inherit}.scanner-discover-toolbar input:focus-visible,.scanner-discover-toolbar select:focus-visible{outline:2px solid #7eae94}.scanner-discover-count{margin-left:auto;font-size:11px;color:var(--muted);padding-bottom:10px}
+@media(max-width:760px){.scanner-discover-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(115px,.7fr);gap:8px;padding:0 12px 8px}.scanner-filter-search{min-width:0!important}.scanner-discover-toolbar input,.scanner-discover-toolbar select{width:100%;font-size:12px}.scanner-discover-count{grid-column:1/-1;padding:0;margin:0}}
 
 .demo-banner{position:relative;z-index:50;background:#f4edd1;color:#665018;text-align:center;padding:8px 12px;font:700 11px/1.4 "Segoe UI",sans-serif;letter-spacing:.8px}
 @media(max-width:760px){.demo-banner{font-size:10px}}
