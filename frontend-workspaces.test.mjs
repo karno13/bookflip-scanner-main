@@ -83,3 +83,13 @@ test('review compares observed ISBN against candidate edition and warns on confl
   assert.match(styles, /\.verification-conflict/);
   assert.match(styles, /\.verification-match/);
 });
+
+test('scanner saved-offer search and source filter are separated from scan counters', () => {
+  assert.match(html, /id="scannerOfferSearch"/);
+  assert.match(html, /id="scannerOfferSource"/);
+  assert.match(html, /id="scannerOfferCount"/);
+  assert.match(script, /sourceSelect\.value/);
+  assert.match(script, /filtered\.slice\(0, 12\)/);
+  assert.match(script, /scannerOfferSearch'\)\.addEventListener\('input', renderScannerOffers\)/);
+  assert.match(styles, /\.scanner-discover-toolbar/);
+});
