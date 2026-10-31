@@ -109,6 +109,8 @@ export class SqliteCatalogRepository extends CatalogRepository {
 
  appendPriceObservation(offerId,price,observedAt){
   integer(price,'OFFER_PRICE');
+  const previous=this.database.prepare('SELECT price FROM offer_price_history WHERE offer_id=? ORDER BY observed_at DESC,id DESC LIMIT 1').get(offerId);
+  if(previous && Number(previous.price)===price)return{created:false};
   const result=this.database.prepare('INSERT OR IGNORE INTO offer_price_history(offer_id,price,observed_at) VALUES(?,?,?)').run(offerId,price,iso(observedAt));
   return{created:Number(result.changes)===1};
  }
