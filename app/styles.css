@@ -146,3 +146,11 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 
 .scenario-calculator{background:#f4f7f0;border:1px solid #d4e2d4;border-radius:12px;padding:14px}.scenario-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.scenario-fields label{display:flex;flex-direction:column;gap:6px;color:#425c4d;font-size:12px;font-weight:650}.scenario-fields input{width:100%;max-width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;background:#fffefa;padding:9px 11px;color:var(--text)}.scenario-result{display:block;padding:13px;margin-top:13px;border-radius:10px;background:#e8f2e9;color:#1c4e39;font-size:13px;line-height:1.55}.scenario-fields input:focus-visible{outline:2px solid #78b18e}
 @media(max-width:420px){.scenario-fields{grid-template-columns:1fr}}
+
+
+/* Book cover previews: available only for checksum-valid ISBNs and genuine Open Library artwork. */
+.cover-preview{display:inline-flex;flex:none;position:relative;align-items:center;justify-content:center;width:39px;height:53px}
+.cover-preview>.book-spine{width:100%;height:100%}.cover-preview-image{display:none;width:100%;height:100%;object-fit:cover;border-radius:3px 6px 6px 3px;box-shadow:1px 3px 7px #15362625}
+.cover-preview.has-cover>.book-spine{display:none}.cover-preview.has-cover>.cover-preview-image{display:block}
+.edition-identity{display:flex;gap:16px;align-items:flex-start;margin:16px 0}.edition-identity .cover-preview{width:72px;height:104px}.edition-identity .cover-preview>.book-spine{font-size:32px}.edition-identity>div{min-width:0;flex:1}.edition-identity h3{font:700 23px Georgia,serif;margin:0 0 7px}
+@media(max-width:760px){.catalog-book-title .cover-preview{width:33px;height:48px}.edition-identity .cover-preview{width:56px;height:81px}.edition-identity h3{font-size:20px}}
