@@ -74,3 +74,13 @@ W trybie `BOOKFLIP_SQLITE_FIRST=1` skan zapisuje w SQLite, w **tej samej transak
 Gdy plik JSON ma datę modyfikacji **nowszą** od oczekującej kopii, odzyskiwanie przerywa się błędem `JSON_MIRROR_RECOVERY_CONFLICT` i nie zastępuje nowszych danych. Konflikt jest utrwalony do ręcznej analizy w SQLite. Należy wtedy wykonać kopię obu magazynów i zbadać raport zgodności `npm run check:history`, zamiast usuwać rekord lub wymuszać nadpisanie.
 
 Mechanizm nie jest transakcją obejmującą dwa pliki. Nie chroni przed uszkodzeniem dysku, niezależną edycją JSON pomiędzy zapisami lub niezgodnością całych danych bibliograficznych. Nadal nie należy kasować JSON ani włączać tego trybu bez aktualnej kopii zapasowej.
+
+## Opcjonalne zapisy ręczne do SQLite przed JSON
+
+Zmienne `BOOKFLIP_SQLITE_MANUAL_WRITE=1` i `BOOKFLIP_SQLITE_HISTORY_READ=1` umożliwiają przetestowanie ręcznego dodania książki i przypisania oferty z zachowaniem SQLite jako głównego zapisu. Tryb jest **domyślnie wyłączony**. Dla spójnej próby zalecane jest również `BOOKFLIP_SQLITE_FIRST=1`, po wykonaniu kopii bazy oraz pliku JSON i sprawdzeniu raportu `npm run check:history`.
+
+Nowe operacje w trybie SQLite-first zapisują zmianę bibliograficzną i snapshot JSON w jednej transakcji SQLite; JSON stanowi kopię zgodności z istniejącymi ekranami. Przed operacją są odtwarzane niedokończone kopie JSON. Przy błędzie zapisu JSON kopia pozostaje oznaczona jako oczekująca i może być odzyskana bez powtarzania przypisania SQLite.
+
+W razie konfliktu numeru ISBN z już istniejącym wydaniem SQLite nowy zapis zostanie odrzucony kodem `SQLITE_ISBN_ALREADY_EXISTS`, zamiast tworzyć drugie wydanie. Przypisanie wymaga, aby oferta i wydanie były już obecne w SQLite; brak tożsamości skutkuje błędem, a nie milczącym utworzeniem danych.
+
+Ta funkcja **nie usuwa** starych zapisów JSON i **nie przenosi** automatycznie wszystkich historycznych decyzji użytkownika; nadal potrzebny jest test migracji na kopii danych użytkownika oraz przejście pozostałych zapisów aplikacji na pojedynczą bazę.
