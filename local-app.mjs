@@ -114,7 +114,7 @@ function validateLocalRequest(request) {
   return null;
 }
 
-export function createLocalAppServer({catalogProvider=getProductionCatalog,search=searchOffers}={}){const getProductionCatalog=catalogProvider;let scanInFlight=false;const server=createServer(async(request,response)=>{try{
+export function createLocalAppServer({catalogProvider=getProductionCatalog,search=searchOffers}={}){storageMode();const getProductionCatalog=catalogProvider;let scanInFlight=false;const server=createServer(async(request,response)=>{try{
  const rejected=validateLocalRequest(request);
  if(rejected)return send(response,rejected.status,JSON.stringify({error:rejected.error}));
  const url=new URL(request.url||'/','http://127.0.0.1');
