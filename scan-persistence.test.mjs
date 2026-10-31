@@ -47,3 +47,14 @@ test('legacy compatibility mode retains JSON-first ordering',async()=>{
  });
  assert.deepEqual(order,['json','sqlite']);
 });
+
+test('legacy mode reports SQLite integration error but keeps historical JSON',async()=>{
+ let saved=false;
+ const result=await persistScannedOffers({...input(),
+  catalogStore:{ingestOffers(){throw Error('CATALOG_TEMPORARY_FAILURE')}},
+  saveHistory:async()=>{saved=true}
+ });
+ assert.equal(saved,true);
+ assert.equal(result.catalogError,'CATALOG_TEMPORARY_FAILURE');
+ assert.equal(result.applied.summary.new,1);
+});
