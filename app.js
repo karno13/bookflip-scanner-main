@@ -38,3 +38,16 @@ navigate(new URLSearchParams(location.search).get('view')||'scanner');
 /* Mobile offer cards intentionally use illustrative dataset; no API calls. */
 function demoMobileOffers(){const node=$('#offersMobileList');if(!node)return;const q=$('#offerSearch').value.toLocaleLowerCase('pl');const list=books.filter(b=>(b.title+' '+b.source).toLocaleLowerCase('pl').includes(q));node.innerHTML=list.map(b=>'<button class="mobile-offer" type="button" data-demo-title="'+esc(b.title)+'"><span class="book-spine" aria-hidden="true">▤</span><span class="mobile-offer-copy"><strong>'+esc(b.title)+'</strong><small>'+esc(b.source)+' · '+esc(b.isbn)+'</small><small class="mobile-offer-match">Wydanie demonstracyjne</small></span><span class="mobile-offer-price"><b>'+b.price+',00 zł</b><small>Demo</small></span></button>').join('');node.querySelectorAll('button').forEach(b=>b.onclick=()=>alert('Podgląd statyczny: '+b.dataset.demoTitle));}
 $('#offerSearch').addEventListener('input',demoMobileOffers);demoMobileOffers();
+
+/* BookFlip 3.1 static preview: independent, read-only illustration of filters and comparison. */
+const demoOfferSource=$('#scannerOfferSource'),demoOfferSearch=$('#scannerOfferSearch');
+function demoScannerOffers(){
+  if(!demoOfferSource||!demoOfferSearch)return;
+  const source=demoOfferSource.value,needle=demoOfferSearch.value.trim().toLocaleLowerCase('pl');
+  const matches=books.filter(b=>(!source||b.source===source)&&(!needle||(b.title+' '+b.author+' '+b.isbn+' '+b.source).toLocaleLowerCase('pl').includes(needle)));
+  set('#scannerOfferCount','Pokazano '+matches.length+' z '+matches.length+' przykładów');
+  $('#scannerOfferList').innerHTML=matches.map(b=>'<button type="button" class="scanner-offer-row" data-example="'+esc(b.title)+'"><span class="book-spine" aria-hidden="true">▤</span><span class="scanner-offer-copy"><strong>'+esc(b.title)+'</strong><small>'+esc(b.source)+' · '+esc(b.isbn)+'</small><small>Przykładowa oferta</small></span><span class="scanner-offer-price">'+b.price+',00 zł</span></button>').join('')||'<div class="empty-detail">Brak pasujących przykładowych ofert.</div>';
+  $$('#scannerOfferList [data-example]').forEach(b=>b.onclick=()=>alert('Demonstracja — '+b.dataset.example+'. Brak lokalnego API.'));
+}
+if(demoOfferSource&&demoOfferSearch){demoOfferSource.innerHTML='<option value="">Wszystkie źródła</option>'+[...new Set(books.map(x=>x.source))].map(v=>'<option>'+esc(v)+'</option>').join('');demoOfferSource.onchange=demoScannerOffers;demoOfferSearch.oninput=demoScannerOffers;demoScannerOffers();}
+$('#scannerBrowseOffers').onclick=()=>navigate('offers');
