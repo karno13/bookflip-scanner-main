@@ -313,11 +313,14 @@ async function openCatalogDetail(id) {
   catch (error) { detail.innerHTML = `<div class="empty-detail"><h3>Nie udalo sie wczytac rekordu</h3><p>${escapeHtml(error.message)}</p></div>`; }
 }
 
+function priceStats(prices) {
+  const sorted = prices.map(Number).filter(value => Number.isFinite(value) && value >= 0).sort((a,b)=>a-b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return {count: sorted.length, min: sorted[0], max: sorted[sorted.length-1], median: sorted.length % 2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2};
+}
 function offerPriceSummary(offers = []) {
-  const prices = offers.map(item => Number(item.currentPrice)).filter(value => Number.isFinite(value) && value >= 0).sort((a,b) => a-b);
-  if (!prices.length) return null;
-  const middle = Math.floor(prices.length / 2);
-  return {count:prices.length,min:prices[0],median:prices.length % 2 ? prices[middle] : (prices[middle-1]+prices[middle])/2,max:prices[prices.length-1]};
+  return priceStats(offers.map(item => item.currentPrice));
 }
 function offerPriceSummaryMarkup(offers = []) {
   const stats = offerPriceSummary(offers);
@@ -354,15 +357,11 @@ function renderOffers() {
 
 function priceEvidenceMarkup(offer) {
   const observations = Array.isArray(offer.priceHistory) ? offer.priceHistory : [];
-  const prices = observations.map(item => Number(item.price)).filter(value => Number.isFinite(value) && value >= 0);
-  const first = prices.length ? prices[0] : null, last = prices.length ? prices[prices.length-1] : null;
-  const values = prices.slice().sort((a,b) => a-b);
-  const mid = Math.floor(values.length / 2);
-  const median = values.length ? (values.length % 2 ? values[mid] : (values[mid-1]+values[mid])/2) : null;
+  const stats = priceStats(observations.map(item => item.price));
   const fields = [
-    ['Obserwacje cen', String(prices.length)],
-    ['Minimum historyczne', values.length ? money(values[0]) : 'brak danych'],
-    ['Mediana obserwacji', median !== null ? money(median) : 'brak danych']
+    ['Obserwacje cen', String(stats?.count ?? 0)],
+    ['Minimum historyczne', stats ? money(stats.min) : 'brak danych'],
+    ['Mediana obserwacji', stats ? money(stats.median) : 'brak danych']
   ];
   return `<section class="detail-section"><h4>Dowody cenowe</h4><div class="edition-price-summary">${fields.map(([name,value])=>`<div><small>${name}</small><strong>${value}</strong></div>`).join('')}</div><p class="inline-note">Obserwacje dotyczą tego ogłoszenia, nie całego rynku. Wielokrotne odczyty tej samej ceny nie są niezależnymi transakcjami. Brak podstaw do wyliczenia wiarygodnego ROI.</p></section>`;
 }
