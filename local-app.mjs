@@ -161,7 +161,7 @@ function validateLocalRequest(request) {
   return null;
 }
 
-export function createLocalAppServer(){return createServer(async(request,response)=>{try{
+export function createLocalAppServer(){const server=createServer(async(request,response)=>{try{
  const rejected=validateLocalRequest(request);
  if(rejected)return send(response,rejected.status,JSON.stringify({error:rejected.error}));
  const url=new URL(request.url||'/','http://127.0.0.1');
@@ -231,7 +231,10 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method!=='GET')return send(response,405,JSON.stringify({error:'METHOD_NOT_ALLOWED'}));
  const files={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js'},file=files[url.pathname];if(!file)return send(response,404,'Nie znaleziono','text/plain; charset=utf-8');
  const body=await readFile(join(appDirectory,file));return send(response,200,body,contentTypes[extname(file)]||'application/octet-stream');
- }catch(error){send(response,error.statusCode||500,JSON.stringify({error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'}));}});}
+ }catch(error){send(response,error.statusCode||500,JSON.stringify({error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'}));}});
+ server.on('close',()=>{if(productionCatalog){productionCatalog.close();productionCatalog=null;}});
+ return server;
+}
 
 function openLocalApp(url){if(process.platform==='win32'&&!process.argv.includes('--no-open'))spawn('cmd.exe',['/c','start','',url],{detached:true,stdio:'ignore',windowsHide:true}).unref();}
 async function main(){
