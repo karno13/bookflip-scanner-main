@@ -2,7 +2,7 @@ name: Source connectivity
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/source-connectivity.yml']
+    paths: ['marketplaces.mjs', '.github/workflows/source-connectivity.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +22,6 @@ jobs:
             try{
               const result=await scanMarketplace({source,host,mode:'watchlist',title:'Warcraft',category:'Warcraft',page:1,paginationVersion:1});
               console.log(JSON.stringify({source,result:'read',offers:result.offers.length,pagination:result.pagination,examples:result.offers.slice(0,2).map(o=>({title:o.title,price:o.price,url:o.url}))}));
-            }catch(e){console.log(JSON.stringify({source,result:'unavailable',error:e.message,status:e.status||null}));}
+            }catch(e){console.log(JSON.stringify({source,result:'unavailable',code:e.message,status:e.status??null,blocked:e.blocked===true,retryable:e.retryable===true,retryAfter:e.retryAfter??null}));}
           }
           JS

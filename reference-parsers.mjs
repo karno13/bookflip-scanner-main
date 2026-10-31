@@ -89,6 +89,10 @@ function parseVinted(html, b, checked) {
 		if (typeof amount !== "string" && typeof amount !== "number") continue;
 		const state = p.itemBox?.secondLine || "";
 		const condition = /nowy|new with|new without/i.test(state) ? "new" : /dobry|zadowalaj|very good|good|satisfactory/i.test(state) ? "used" : "unknown";
+		const languageAttribute = Array.isArray(p.attributes) ? p.attributes.find(attribute => /(?:język|language)/i.test(String(attribute?.name || attribute?.key || attribute?.title || ""))) : null;
+		const languageValue = languageAttribute?.value?.title || languageAttribute?.value?.name || languageAttribute?.value || languageAttribute?.values?.[0]?.title || languageAttribute?.values?.[0]?.name || languageAttribute?.values?.[0];
+		const metadata = {language: p.language || p.languageCode || languageValue};
+		if (!b.accept(p.title, metadata)) continue;
 		const o = baseOffer(b, p.title, "https://www.vinted.pl" + p.url, "Vinted", Number(amount), currency || "PLN", condition, checked, true);
 		if (!o) continue;
 		if (/magyar|hungarian|rész|français|francais|deutsch|german|italiano|espa[nñ]ol/i.test(p.title)) continue;

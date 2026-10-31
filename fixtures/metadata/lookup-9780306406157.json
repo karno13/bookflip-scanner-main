@@ -1,0 +1,52 @@
+{
+  "responses": [
+    {
+      "match": "data.bn.org.pl/api/institutions/bibs.json",
+      "status": 200,
+      "body": {
+        "bibs": [
+          {
+            "id": "bn-1234567",
+            "isbnIssn": ["978-0-306-40615-7"],
+            "title": "Theoretical Physics",
+            "authors": ["Georg Joos"],
+            "publisher": "Dover Publications",
+            "publicationYear": "1986",
+            "language": "eng",
+            "kind": "book"
+          }
+        ]
+      }
+    },
+    {
+      "match": "/isbn/9780306406157.json",
+      "status": 200,
+      "body": {
+        "key": "/books/OL123M",
+        "title": "Theoretical Physics",
+        "isbn_13": ["9780306406157"],
+        "works": [{"key": "/works/OL456W"}],
+        "authors": [{"key": "/authors/OL789A"}],
+        "publishers": ["Dover Publications"],
+        "publish_date": "1986",
+        "languages": [{"key": "/languages/eng"}],
+        "physical_format": "Paperback",
+        "type": {"key": "/type/edition"}
+      }
+    },
+    {
+      "match": "/works/OL456W.json",
+      "status": 200,
+      "body": {
+        "key": "/works/OL456W",
+        "title": "Theoretical Physics",
+        "authors": [{"author": {"key": "/authors/OL789A"}}]
+      }
+    },
+    {
+      "match": "/authors/OL789A.json",
+      "status": 200,
+      "body": {"key": "/authors/OL789A", "name": "Georg Joos"}
+    }
+  ]
+}

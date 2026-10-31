@@ -19,6 +19,15 @@ function htmlAttributeISBN(html){
  const value=unescapeHTML(match[1].replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim());
  return value?{parameters:[{name:'ISBN',value}]}:null;
 }
+function languageFromCandidates(candidates){
+ const visit=(node,depth=0)=>{if(!node||typeof node!=='object'||depth>12)return null;if(Array.isArray(node)){for(const entry of node){const found=visit(entry,depth+1);if(found)return found;}return null;}
+  if(node.code==='language_book'){const value=node.data?.value??node.value;if(value!=null&&String(value).trim())return String(value).trim();}
+  const label=String(node.name||node.key||node.title||node.data?.title||'');if(/^(?:język|language)$/i.test(label)){const value=node.data?.value??node.value?.title??node.value?.name??node.value??node.values?.[0]?.title??node.values?.[0]?.name??node.values?.[0];if(value!=null&&String(value).trim())return String(value).trim();}
+  for(const key of ['language','languageCode','language_code'])if(node[key]!=null&&typeof node[key]!=='object')return String(node[key]).trim();
+  for(const value of Object.values(node)){const found=visit(value,depth+1);if(found)return found;}return null;};
+ for(const candidate of candidates){const found=visit(candidate);if(found)return found;}
+ return null;
+}
 // Read only the requested item, never recommendation cards or the full page.
 // Never read ISBN from recommendations: require exact item ID or an exact item URL.
 export function parseVintedDetail(html,url){
@@ -53,19 +62,32 @@ export function parseVintedDetail(html,url){
      const u=new URL(link,url);
      return ['www.vinted.pl','vinted.pl'].includes(u.hostname)&&u.pathname.match(/^\/items\/(\d+)(?:-|\/|$)/)?.[1]===id;
     }catch{return false;}});
-    if(exact){identityMatched=true;candidates.push(p);}
+   if(exact){identityMatched=true;candidates.push(p);}
    }
   }
  }
+ // In the current Vinted page the selected book's language is rendered as
+ // a sibling sidebar section, not inside the identified item object.
+ // Read it only after this page has been tied to the requested item ID.
+ if(identityMatched)for(const match of data.matchAll(/\{\s*"code"\s*:\s*"language_book"/g)){
+  const section=objectAt(data,match.index);if(section)candidates.push(section);
+ }
  const evidence=extractOfferISBN({parameters:candidates});
+ const language=languageFromCandidates(candidates);
  return {
   isbn:evidence.isbn,
   isbnDetection:evidence,
   recognized:identityMatched,
-  isbnStatus:!identityMatched?'schema_unrecognized':evidence.status==='missing'?'missing_in_response':evidence.status==='valid'?'found':evidence.status
+  isbnStatus:!identityMatched?'schema_unrecognized':evidence.status==='missing'?'missing_in_response':evidence.status==='valid'?'found':evidence.status,
+  language,
+  languageStatus:!identityMatched?'schema_unrecognized':language?'found':'missing_in_response'
  };
 }
 export async function readVintedISBN(url,options={}){
+ const u=new URL(url);if(u.protocol!=='https:'||!['www.vinted.pl','vinted.pl'].includes(u.hostname)||!/^\/items\/\d+/.test(u.pathname)||u.port||u.username||u.password)throw Error('INVALID_VINTED_ITEM');
+ const html=await readSourceHtml(url,{...options,source:'Vinted'});return parseVintedDetail(html,url);
+}
+export async function readVintedLanguage(url,options={}){
  const u=new URL(url);if(u.protocol!=='https:'||!['www.vinted.pl','vinted.pl'].includes(u.hostname)||!/^\/items\/\d+/.test(u.pathname)||u.port||u.username||u.password)throw Error('INVALID_VINTED_ITEM');
  const html=await readSourceHtml(url,{...options,source:'Vinted'});return parseVintedDetail(html,url);
 }
@@ -93,4 +115,3 @@ export async function enrichVintedBatch(offers,options={}){
  }
  return out;
 }
-
