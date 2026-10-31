@@ -95,31 +95,63 @@ const catalogSources = {
 };
 const catalogPageSize = 250;
 const loadingCatalogPages = new Set();
+const catalogAbortControllers = new Map();
+const catalogSearchTimers = new Map();
+const catalogSearchInputs = {works:'#catalogSearch',jobs:'#reviewSearch',offers:'#offerSearch'};
+function catalogQuery(kind){return $(catalogSearchInputs[kind])?.value?.trim()||'';}
 
 // Fetch one page at a time. A large catalog must not block the UI by
 // attempting to download every row on startup.
 async function loadCatalogPage(kind,{reset=false}={}){
   const source=catalogSources[kind];
-  if(!source || loadingCatalogPages.has(kind))return false;
+  if(!source)return false;
+  if(reset)catalogAbortControllers.get(kind)?.abort();
+  else if(loadingCatalogPages.has(kind))return false;
   const page=state.catalogPages[kind];
   if(!reset && page.offset>=page.total)return false;
   loadingCatalogPages.add(kind);
+  const controller=new AbortController();
+  catalogAbortControllers.set(kind,controller);
   updateCatalogLoadControls();
   try {
     const offset=reset?0:page.offset;
-    const data=await json(`${source.endpoint}?limit=${catalogPageSize}&offset=${offset}`);
+    const query=reset?catalogQuery(kind):(page.query||'');
+    const params=new URLSearchParams({limit:String(catalogPageSize),offset:String(offset)});
+    if(query)params.set('query',query);
+    const response=await fetch(`${source.endpoint}?${params}`,{signal:controller.signal});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||`HTTP_${response.status}`);
+    if(controller.signal.aborted)return false;
     if(!Array.isArray(data.items)||!Number.isSafeInteger(data.total)||data.total<0||data.items.length>catalogPageSize)throw Error('INVALID_CATALOG_PAGE');
     if(!reset&&data.total!==page.total)throw Error('CATALOG_CHANGED_DURING_PAGINATION');
     if(data.items.length===0 && offset<data.total)throw Error('INCOMPLETE_CATALOG_PAGE');
     if(reset)state[source.stateKey]=data.items;
     else state[source.stateKey]=[...state[source.stateKey],...data.items];
-    state.catalogPages[kind]={total:data.total,offset:offset+data.items.length};
+    state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query};
     updateCatalogLoadControls();
     return true;
   }finally{
-    loadingCatalogPages.delete(kind);
-    updateCatalogLoadControls();
+    if(catalogAbortControllers.get(kind)===controller){
+      loadingCatalogPages.delete(kind);
+      catalogAbortControllers.delete(kind);
+      updateCatalogLoadControls();
+    }
   }
+}
+
+function scheduleGlobalCatalogSearch(kind){
+  clearTimeout(catalogSearchTimers.get(kind));
+  const timer=setTimeout(async()=>{
+    try{
+      const changed=await loadCatalogPage(kind,{reset:true});
+      if(changed){
+        if(kind==='works')renderCatalog();
+        if(kind==='jobs')renderReview();
+        if(kind==='offers'){state.offerPage=1;renderOffers();renderScannerOffers();}
+      }
+    }catch(error){if(error.name!=='AbortError')toast('Wyszukiwanie SQLite: '+error.message);}
+  },350);
+  catalogSearchTimers.set(kind,timer);
 }
 
 function updateCatalogLoadControls(){
@@ -496,9 +528,12 @@ $('#refreshView').addEventListener('click', async () => {
 });
 $('#toggleSources').addEventListener('click', () => { const boxes = $$('#sourceGrid input'); const all = boxes.length && boxes.every(box => box.checked); boxes.forEach(box => { box.checked = !all; }); });
 $('#startSearch').addEventListener('click', startSearch); $('#goToOffers').addEventListener('click', () => showView('offers'));
-for (const selector of ['#reviewSearch', '#reviewSource', '#reviewIsbn', '#reviewSort']) $(selector).addEventListener(selector === '#reviewSearch' ? 'input' : 'change', renderReview);
-for (const selector of ['#catalogSearch', '#catalogSort']) $(selector).addEventListener(selector === '#catalogSearch' ? 'input' : 'change', renderCatalog);
-for (const selector of ['#offerSearch', '#offerSource', '#offerStatus', '#offerSort']) $(selector).addEventListener(selector === '#offerSearch' ? 'input' : 'change', () => { state.offerPage = 1; renderOffers(); });
+for (const selector of ['#reviewSource', '#reviewIsbn', '#reviewSort']) $(selector).addEventListener('change', renderReview);
+$('#reviewSearch').addEventListener('input',()=>scheduleGlobalCatalogSearch('jobs'));
+$('#catalogSort').addEventListener('change',renderCatalog);
+$('#catalogSearch').addEventListener('input',()=>scheduleGlobalCatalogSearch('works'));
+for (const selector of ['#offerSource', '#offerStatus', '#offerSort']) $(selector).addEventListener('change',()=>{state.offerPage=1;renderOffers();});
+$('#offerSearch').addEventListener('input',()=>scheduleGlobalCatalogSearch('offers'));
 $('#offerPrev').addEventListener('click', () => { state.offerPage -= 1; renderOffers(); }); $('#offerNext').addEventListener('click', () => { state.offerPage += 1; renderOffers(); }); $('#closeOfferDrawer').addEventListener('click', () => { $('#offerDrawer').hidden = true; });
 $('#openCatalogForm').addEventListener('click', () => { $('#catalogDialog').showModal(); setCatalogMode('manual'); }); $('#closeCatalogForm').addEventListener('click', () => $('#catalogDialog').close()); $('#cancelCatalogForm').addEventListener('click', () => $('#catalogDialog').close());
 $$('[data-catalog-mode]').forEach(button => button.addEventListener('click', () => setCatalogMode(button.dataset.catalogMode))); $('#catalogForm').addEventListener('submit', submitCatalog); $('#runDiagnostics').addEventListener('click', runDiagnostics);
