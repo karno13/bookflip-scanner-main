@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import {fileURLToPath} from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import { CatalogResolver } from './catalog-resolver.mjs';
 import { IdentificationWorker } from './identification-worker.mjs';
@@ -21,11 +21,14 @@ function integerPrice(value) {
 }
 
 export function productionCatalogEnabled(environment = process.env) {
-  return !['0', 'false', 'off', 'no'].includes(String(environment.BOOKFLIP_CATALOG_ENABLED ?? '1').toLowerCase());
+  return !['0', 'false', 'off', 'no'].includes(
+    String(environment.BOOKFLIP_CATALOG_ENABLED ?? '1').toLowerCase(),
+  );
 }
 
 export function createProductionCatalog({
-  databasePath = process.env.BOOKFLIP_CATALOG_DB ?? fileURLToPath(new URL('./scan-results/bookflip-catalog.sqlite',import.meta.url)),
+  databasePath = process.env.BOOKFLIP_CATALOG_DB ??
+    fileURLToPath(new URL('./scan-results/bookflip-catalog.sqlite', import.meta.url)),
   fetcher = globalThis.fetch,
   contact = process.env.BOOKFLIP_OPEN_LIBRARY_CONTACT ?? 'bookflip-local@localhost',
   now = () => new Date(),
@@ -47,11 +50,12 @@ export function createProductionCatalog({
   const resolver = new CatalogResolver({
     repository,
     now,
-    lookupMetadata: (isbn) => lookupISBN(isbn, {
-      bnAdapter,
-      openLibraryAdapter,
-      cache,
-    }),
+    lookupMetadata: (isbn) =>
+      lookupISBN(isbn, {
+        bnAdapter,
+        openLibraryAdapter,
+        cache,
+      }),
   });
   const worker = new IdentificationWorker({
     repository,
@@ -69,18 +73,32 @@ export function createProductionCatalog({
       return lookupISBN(isbn, { bnAdapter, openLibraryAdapter, cache });
     },
     resolveIsbn(isbn, { dryRun = false } = {}) {
-      return resolver.resolve({ evidence: {
-        status: 'valid', values: [isbn], isbn, candidateIsbn: isbn,
-        classification: 'structured', autoAssignable: true, reviewRequired: false, observations: [],
-      }, dryRun });
+      return resolver.resolve({
+        evidence: {
+          status: 'valid',
+          values: [isbn],
+          isbn,
+          candidateIsbn: isbn,
+          classification: 'structured',
+          autoAssignable: true,
+          reviewRequired: false,
+          observations: [],
+        },
+        dryRun,
+      });
     },
-    ingestOffers(offers, observedAt = now(), {scanSummary=null} = {}) {
+    ingestOffers(offers, observedAt = now(), { scanSummary = null } = {}) {
       const report = { offers: 0, evidence: 0, jobs: 0, skipped: 0 };
       const at = observedAt instanceof Date ? observedAt.toISOString() : String(observedAt);
       repository.transaction(() => {
         for (const offer of offers ?? []) {
           let identity;
-          try { identity = identifyOffer(offer); } catch { report.skipped += 1; continue; }
+          try {
+            identity = identifyOffer(offer);
+          } catch {
+            report.skipped += 1;
+            continue;
+          }
           const price = integerPrice(offer.price ?? offer.currentPrice);
           const stored = repository.upsertOffer({
             id: identity.id,
@@ -96,7 +114,10 @@ export function createProductionCatalog({
             matchedQueries: offer.matchedQueries ?? [],
             firstSeenAt: offer.firstSeenAt ?? at,
             lastSeenAt: offer.lastSeenAt ?? at,
-            seenCount: Number.isSafeInteger(offer.seenCount) && offer.seenCount > 0 ? offer.seenCount : undefined,
+            seenCount:
+              Number.isSafeInteger(offer.seenCount) && offer.seenCount > 0
+                ? offer.seenCount
+                : undefined,
             at: observedAt,
           });
           if (price != null) repository.appendPriceObservation(stored.id, price, observedAt);
@@ -119,15 +140,21 @@ export function createProductionCatalog({
             });
             if (saved.created) report.evidence += 1;
           }
-          const job = repository.putIdentificationJob({ offerId: stored.id, status: 'queued', at: observedAt });
+          const job = repository.putIdentificationJob({
+            offerId: stored.id,
+            status: 'queued',
+            at: observedAt,
+          });
           if (job.created) report.jobs += 1;
         }
-        if(scanSummary){
-          if(scanSummary.at!==at)throw Error('INVALID_SCAN_SUMMARY_TIME');
-          repository.database.prepare("INSERT OR REPLACE INTO scan_runs(scanned_at,summary_json,created_at) VALUES(?,?,?)")
-            .run(at,JSON.stringify(scanSummary),at);
+        if (scanSummary) {
+          if (scanSummary.at !== at) throw Error('INVALID_SCAN_SUMMARY_TIME');
+          repository.database
+            .prepare(
+              'INSERT OR REPLACE INTO scan_runs(scanned_at,summary_json,created_at) VALUES(?,?,?)',
+            )
+            .run(at, JSON.stringify(scanSummary), at);
         }
-
       });
       return report;
     },
@@ -136,10 +163,22 @@ export function createProductionCatalog({
     },
     status() {
       const counts = repository.counts();
-      const cache = Number(repository.database.prepare('SELECT count(*) AS count FROM metadata_lookup_cache').get().count);
-      const pending = Number(repository.database.prepare("SELECT count(*) AS count FROM identification_jobs WHERE status<>'completed'").get().count);
-      return { enabled: true, counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache } };
+      const cache = Number(
+        repository.database.prepare('SELECT count(*) AS count FROM metadata_lookup_cache').get()
+          .count,
+      );
+      const pending = Number(
+        repository.database
+          .prepare("SELECT count(*) AS count FROM identification_jobs WHERE status<>'completed'")
+          .get().count,
+      );
+      return {
+        enabled: true,
+        counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache },
+      };
     },
-    close() { repository.close(); },
+    close() {
+      repository.close();
+    },
   };
 }

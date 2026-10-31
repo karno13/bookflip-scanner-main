@@ -51,45 +51,81 @@ export function createOpenLibraryAdapter({
   now = () => new Date(),
   userAgent = 'BookFlip/2.0 (metadata lookup; contact not configured)',
 } = {}) {
-  const request = requester ?? createJsonRequester({
-    fetcher,
-    limiter,
-    timeoutMs,
-    retries,
-    wait,
-    headers: { 'User-Agent': userAgent, Accept: 'application/json' },
-  });
+  const request =
+    requester ??
+    createJsonRequester({
+      fetcher,
+      limiter,
+      timeoutMs,
+      retries,
+      wait,
+      headers: { 'User-Agent': userAgent, Accept: 'application/json' },
+    });
 
   return {
     source: 'open_library',
     async lookup(isbn) {
       const requestedISBN = normalizeISBN(isbn);
-      if (!requestedISBN) return { source: 'open_library', status: 'invalid_response', reason: 'invalid_isbn', records: [] };
+      if (!requestedISBN)
+        return {
+          source: 'open_library',
+          status: 'invalid_response',
+          reason: 'invalid_isbn',
+          records: [],
+        };
 
       const editionUrl = `${OPEN_LIBRARY_BASE_URL}/isbn/${requestedISBN}.json`;
       const editionResponse = await request(editionUrl);
-      if (editionResponse.status !== 'found') return { source: 'open_library', ...editionResponse, records: [] };
+      if (editionResponse.status !== 'found')
+        return { source: 'open_library', ...editionResponse, records: [] };
       const edition = editionResponse.payload;
       if (!edition || typeof edition !== 'object' || Array.isArray(edition)) {
-        return { source: 'open_library', status: 'invalid_response', reason: 'missing_required_fields', records: [] };
+        return {
+          source: 'open_library',
+          status: 'invalid_response',
+          reason: 'missing_required_fields',
+          records: [],
+        };
       }
 
       const editionId = olid(edition.key, 'books');
       const title = normalizedText(edition.title);
       const matched = matchingISBNs([edition.isbn_10, edition.isbn_13], requestedISBN);
-      const workIds = [...new Set((edition.works ?? []).map((entry) => olid(entry, 'works')).filter(Boolean))];
+      const workIds = [
+        ...new Set((edition.works ?? []).map((entry) => olid(entry, 'works')).filter(Boolean)),
+      ];
       if (matched.length === 0) {
-        return { source: 'open_library', status: 'invalid_response', reason: 'isbn_mismatch', records: [] };
+        return {
+          source: 'open_library',
+          status: 'invalid_response',
+          reason: 'isbn_mismatch',
+          records: [],
+        };
       }
       if (!editionId || !title || workIds.length !== 1) {
-        return { source: 'open_library', status: 'invalid_response', reason: 'missing_required_fields', records: [] };
+        return {
+          source: 'open_library',
+          status: 'invalid_response',
+          reason: 'missing_required_fields',
+          records: [],
+        };
       }
 
       const workId = workIds[0];
       const workResponse = await request(`${OPEN_LIBRARY_BASE_URL}/works/${workId}.json`);
-      if (workResponse.status === 'temporary_error') return { source: 'open_library', ...workResponse, records: [] };
-      if (workResponse.status !== 'found' || !workResponse.payload || typeof workResponse.payload !== 'object') {
-        return { source: 'open_library', status: 'invalid_response', reason: 'invalid_work_record', records: [] };
+      if (workResponse.status === 'temporary_error')
+        return { source: 'open_library', ...workResponse, records: [] };
+      if (
+        workResponse.status !== 'found' ||
+        !workResponse.payload ||
+        typeof workResponse.payload !== 'object'
+      ) {
+        return {
+          source: 'open_library',
+          status: 'invalid_response',
+          reason: 'invalid_work_record',
+          records: [],
+        };
       }
       const work = workResponse.payload;
 
@@ -103,10 +139,16 @@ export function createOpenLibraryAdapter({
         const authorId = olid(reference.key, 'authors');
         if (!authorId) continue;
         const authorResponse = await request(`${OPEN_LIBRARY_BASE_URL}/authors/${authorId}.json`);
-        if (authorResponse.status === 'temporary_error') return { source: 'open_library', ...authorResponse, records: [] };
-        if (authorResponse.status === 'found' && authorResponse.payload && typeof authorResponse.payload === 'object') {
+        if (authorResponse.status === 'temporary_error')
+          return { source: 'open_library', ...authorResponse, records: [] };
+        if (
+          authorResponse.status === 'found' &&
+          authorResponse.payload &&
+          typeof authorResponse.payload === 'object'
+        ) {
           authorPayloads.push(authorResponse.payload);
-          if (normalizedText(authorResponse.payload.name)) authors.push(authorResponse.payload.name);
+          if (normalizedText(authorResponse.payload.name))
+            authors.push(authorResponse.payload.name);
         }
       }
 
@@ -131,7 +173,14 @@ export function createOpenLibraryAdapter({
         fetchedAt,
         payloadHash: payloadHash(payload),
       });
-      return { source: 'open_library', status: 'found', records: [{ ...record, payload }], ambiguous: false, issues: [], fetchedAt };
+      return {
+        source: 'open_library',
+        status: 'found',
+        records: [{ ...record, payload }],
+        ambiguous: false,
+        issues: [],
+        fetchedAt,
+      };
     },
   };
 }

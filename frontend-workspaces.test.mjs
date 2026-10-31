@@ -1,27 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 
 const html = await readFile(new URL('./app/index.html', import.meta.url), 'utf8');
 const script = await readFile(new URL('./app/app.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
 
 test('desktop shell exposes exactly the five requested workspaces in order', () => {
-  const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(match => match[1]);
+  const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
   assert.deepEqual(views, ['scanner', 'review', 'catalog', 'offers', 'settings']);
-  assert.match(html, /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/);
+  assert.match(
+    html,
+    /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/,
+  );
   assert.doesNotMatch(html, /data-view="history"/);
 });
 
 test('scanner state is module-owned and navigation does not recreate it', () => {
-  assert.match(script, /scan:\s*\{running:\s*false/);
-  assert.match(script, /if \(state\.scan\.running\) return/);
-  assert.match(script, /showView\(button\.dataset\.view\)/);
-  assert.match(script, /readSearchStream/);
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['scan:{running:false','if(state.scan.running)return','showView(button.dataset.view)','readSearchStream'])assert.ok(compact.includes(expression),expression);
 });
 
 test('frontend uses SQLite catalog APIs', () => {
-  for (const endpoint of ['/api/sources', '/api/history', '/api/catalog/status', '/api/catalog/works', '/api/identification-jobs', '/api/offers', '/api/catalog/lookup-preview', '/api/catalog/lookup-confirm', '/api/catalog', '/api/search?stream=1']) assert.ok(script.includes(endpoint));
+  for (const endpoint of [
+    '/api/sources',
+    '/api/history',
+    '/api/catalog/status',
+    '/api/catalog/works',
+    '/api/identification-jobs',
+    '/api/offers',
+    '/api/catalog/lookup-preview',
+    '/api/catalog/lookup-confirm',
+    '/api/catalog',
+    '/api/search?stream=1',
+  ])
+    assert.ok(script.includes(endpoint));
   assert.match(script, /id="markNotBook"/);
   assert.match(script, /decideReview\('not_book'\)/);
   assert.match(script, /state\.catalogPreview/);
@@ -42,20 +57,11 @@ test('review catalog picker filters by typed title or ISBN before selection', ()
   assert.match(styles, /\.book-options/);
 });
 
-
 test('catalog loads beyond the first SQLite page without silent JSON substitution', () => {
-  assert.match(script, /async function loadCatalogPage\(kind,\{reset=false\}=\{\}\)/);
-  assert.match(script, /new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
-  assert.match(script, /INCOMPLETE_CATALOG_PAGE/);
-  assert.match(script, /data-load-catalog-kind/);
-  assert.match(script, /catalogPageSize = 250/);
-  assert.doesNotMatch(script, /CATALOG_PAGE_LIMIT_EXCEEDED/);
-  assert.match(script, /CATALOG_CHANGED_DURING_PAGINATION/);
-  assert.match(script, /function allOffers\(\) \{ return state\.sqliteOffers; \}/);
-  assert.doesNotMatch(script, /state\.sqliteOffers\.length \? state\.sqliteOffers :/);
-  assert.match(script, /Nie udało się wczytać katalogu SQLite/);
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['asyncfunctionloadCatalogPage(kind,{reset=false}={})','newURLSearchParams({limit:String(catalogPageSize),offset:String(offset)})','INCOMPLETE_CATALOG_PAGE','data-load-catalog-kind','catalogPageSize=250','CATALOG_CHANGED_DURING_PAGINATION','functionallOffers(){returnstate.sqliteOffers;}','NieudałosięwczytaćkataloguSQLite'])assert.ok(compact.includes(expression),expression);
+  assert.doesNotMatch(script,/CATALOG_PAGE_LIMIT_EXCEEDED|state\.sqliteOffers\.length\s*\?/);
 });
-
 
 test('book-centric UI exposes comparison and mobile offers without external images', () => {
   assert.match(script, /comparison-candidate/);
@@ -97,7 +103,6 @@ test('scanner saved-offer search and source filter are separated from scan count
   assert.match(styles, /\.scanner-discover-toolbar/);
 });
 
-
 test('desktop workspace preserves functional scanner controls and adds editorial shell', () => {
   assert.match(html, /class="sidebar-collection"/);
   assert.match(html, /class="desktop-scanner-grid"/);
@@ -116,7 +121,6 @@ test('mobile repairs keep scanner filters usable and catalog avoids cramped head
   assert.match(styles, /\.stats-grid \.metric\{min-height:82px/);
   assert.match(styles, /@media\(max-width:400px\)/);
 });
-
 
 test('edition price statistics reflect saved asking prices without projecting ROI', () => {
   assert.match(script, /function offerPriceSummary\(offers = \[\]\)/);
@@ -141,7 +145,6 @@ test('offer drawer reports price observations without treating them as sales', (
   assert.match(script, /priceEvidenceMarkup\(offer\)/);
 });
 
-
 test('resale simulator requires user costs and a manually assumed resale price', () => {
   assert.match(script, /function scenarioCalculatorMarkup\(offer\)/);
   assert.match(script, /function calculateScenario\(\)/);
@@ -154,56 +157,37 @@ test('resale simulator requires user costs and a manually assumed resale price',
   assert.match(styles, /\.scenario-fields/);
 });
 
-
 test('covers use ISBN checksum and show neutral spine until real image loads', () => {
-  assert.match(script, /function validCoverIsbn\(value\)/);
-  assert.match(script, /function coverPreviewMarkup\(identifiers=\[\]\)/);
-  assert.match(script, /covers\.openlibrary\.org\/b\/isbn/);
-  assert.match(script, /default=false/);
-  assert.match(script, /referrerpolicy="no-referrer"/);
-  assert.match(script, /naturalWidth>1/);
-  assert.match(styles, /\.cover-preview\.has-cover/);
-  assert.match(styles, /\.edition-identity/);
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['functionvalidCoverIsbn(value)','functioncoverPreviewMarkup(identifiers=[])','covers.openlibrary.org/b/isbn','default=false','referrerpolicy="no-referrer"','naturalWidth>1'])assert.ok(compact.includes(expression),expression);
+  assert.match(styles,/\.cover-preview\.has-cover/);
+  assert.match(styles,/\.edition-identity/);
 });
 
 test('manual refresh never announces success after SQLite load or status failure', () => {
-  assert.match(script, /async function loadCatalogData\(\)/);
-  assert.match(script, /return false;/);
-  assert.match(script, /Promise\.allSettled\(\[loadHistory\(\), loadCatalogStatus\(\), loadCatalogData\(\)\]\)/);
-  assert.match(script, /catalogResult\.value !== true/);
-  assert.match(script, /catalogDataOk\.value !== true/);
-  assert.match(script, /Nie wszystkie dane odświeżono/);
-  assert.match(script, /finally \{ button\.disabled = false; \}/);
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['asyncfunctionloadCatalogData()','returnfalse;','Promise.allSettled([loadHistory(),loadCatalogStatus(),loadCatalogData(),])','catalogResult.value!==true','catalogDataOk.value!==true','Nie wszystkiedaneodświeżono'.replace(/\s+/g,''),'finally{button.disabled=false;}'])assert.ok(compact.includes(expression),expression);
 });
 
 test('price evidence shares one numeric validator with edition summary', () => {
-  assert.match(script, /return priceStats\(offers\.map\(item => item\.currentPrice\)\)/);
-  assert.match(script, /const stats = priceStats\(observations\.map\(item => item\.price\)\)/);
-  assert.match(script, /Number\.isFinite\(value\) && value >= 0/);
-  assert.doesNotMatch(script, /const first = prices\.length/);
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['returnpriceStats(offers.map((item)=>item.currentPrice))','conststats=priceStats(observations.map((item)=>item.price))','Number.isFinite(value)&&value>=0'])assert.ok(compact.includes(expression),expression);
+  assert.doesNotMatch(script,/const first = prices\.length/);
 });
 
-test('catalog search sends debounced SQLite queries beyond loaded pages',()=>{
- for(const name of ['works','jobs','offers'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+name+"'\\)"));
- assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
- assert.match(script,/catalogAbortControllers\.get\(kind\)\?\.abort\(\)/);
- assert.match(script,/new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
- assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query,filters\}/);
+test('catalog search sends debounced SQLite queries beyond loaded pages', () => {
+  const compact=script.replace(/\s+/g,'');
+  for(const kind of ['works','jobs','offers'])assert.ok(compact.includes("scheduleGlobalCatalogSearch('"+kind+"')"));
+  for(const expression of ['for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)','catalogAbortControllers.get(kind)?.abort()','newURLSearchParams({limit:String(catalogPageSize),offset:String(offset)})','state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query,filters,}'])assert.ok(compact.includes(expression),expression);
 });
 
-test('review and catalog DOM rendering is bounded despite loading many SQLite pages',()=>{
- assert.match(script,/visibleRows: \{works:100,jobs:100\}/);
- assert.match(script,/function visibleCatalogRows\(kind,rows\)/);
- assert.match(script,/rows\.slice\(0,visible\)/);
- assert.match(script,/state\.visibleRows\[kind\]\+=100/);
- assert.match(script,/visibleCatalogRows\('works',rows\)\.map\(row/);
- assert.match(script,/visibleCatalogRows\('jobs',rows\)\.map\(job/);
- assert.match(script,/data-show-loaded-kind/);
+test('review and catalog DOM rendering is bounded despite loading many SQLite pages', () => {
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['visibleRows:{works:100,jobs:100}','functionvisibleCatalogRows(kind,rows)','rows.slice(0,visible)','state.visibleRows[kind]+=100',"visibleCatalogRows('works',rows).map((row)", "visibleCatalogRows('jobs',rows).map((job)",'data-show-loaded-kind'])assert.ok(compact.includes(expression),expression);
 });
 
-test('filter and sort controls query the full SQLite catalogue instead of only loaded rows',()=>{
- assert.match(script,/function catalogFilters\(kind\)/);
- assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
- for(const kind of ['offers','jobs','works'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+kind+"'\\)"));
- assert.match(script,/page\.filters\|\|\{query:page\.query\|\|''\}/);
+test('filter and sort controls query the full SQLite catalogue instead of only loaded rows', () => {
+  const compact=script.replace(/\s+/g,'');
+  for(const expression of ['functioncatalogFilters(kind)','for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)',"page.filters||{query:page.query||''}"])assert.ok(compact.includes(expression),expression);
+  for(const kind of ['works','jobs','offers'])assert.ok(compact.includes("scheduleGlobalCatalogSearch('"+kind+"')"));
 });

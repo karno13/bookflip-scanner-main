@@ -1,10 +1,159 @@
-import {matchesTopic} from './search-policy.mjs';
-import {bibliographicMetadata} from './isbn.mjs';
+import { matchesTopic } from './search-policy.mjs';
+import { bibliographicMetadata } from './isbn.mjs';
 import https from 'node:https';
 import dns from 'node:dns/promises';
 import net from 'node:net';
-export function publicAddress(ip){if(net.isIP(ip)===4){const [a,b]=ip.split('.').map(Number);return a>0&&a<224&&a!==10&&a!==127&&!(a===169&&b===254)&&!(a===172&&b>=16&&b<=31)&&!(a===192&&[0,168].includes(b))&&!(a===100&&b>=64&&b<=127)&&!(a===198&&[18,19,51].includes(b))&&!(a===203&&b===0);}if(net.isIP(ip)===6)return /^[23][0-9a-f]{3}:/i.test(ip)&&!/^2001:(db8|0*0|0*2|0*10):/i.test(ip);return false;}
-export async function fetchFeed(raw,{lookup=dns.lookup,request=https.request,format='json'}={}){const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||u.port&&u.port!=='443'||net.isIP(u.hostname.replace(/[\[\]]/g,''))||!/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(u.hostname)||/\.(local|internal|localhost)$/i.test(u.hostname)||[...u.searchParams.keys()].some(k=>/token|secret|password|api.?key|auth/i.test(k)))throw Error('UNSAFE_FEED_URL');const addresses=await lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(a=>!publicAddress(a.address)))throw Error('PRIVATE_FEED_ADDRESS');const chosen=addresses[0];return await new Promise((resolve,reject)=>{let count=0;const req=request(u,{method:'GET',headers:{Accept:format==='atom'?'application/atom+xml':'application/json','User-Agent':'BookFlip/1.0 public-feed-reader'},lookup:(_h,opts,cb)=>opts?.all?cb(null,[chosen]):cb(null,chosen.address,chosen.family),timeout:15000},res=>{if(res.statusCode!==200){res.resume();const err=Object.assign(Error('FEED_HTTP_'+res.statusCode),{status:res.statusCode,retryAfter:parseRetryAfter(res.headers['retry-after'])});reject(err);return;}if(!String(res.headers['content-type']).includes(format==='atom'?'xml':'json')){res.resume();reject(Error(format==='atom'?'FEED_NOT_ATOM':'FEED_NOT_JSON'));return;}let body='';res.setEncoding('utf8');res.on('data',s=>{count+=Buffer.byteLength(s);if(count>1000000){req.destroy();reject(Error('FEED_TOO_LARGE'));}else body+=s;});res.on('end',()=>{try{resolve(format==='atom'?body:JSON.parse(body));}catch{reject(Error('INVALID_FEED_JSON'));}});res.on('error',reject);});req.on('timeout',()=>req.destroy(Error('FEED_TIMEOUT')));req.on('error',reject);req.end();});}
-export function parseRetryAfter(v){const n=Number(v);if(Number.isFinite(n)&&n>=0)return Math.min(86400,n);const d=Date.parse(String(v));return Number.isFinite(d)?Math.min(86400,Math.max(60,Math.ceil((d-Date.now())/1000))):300;}
-const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ł/g,'l');
-export function selectOffers(data,task,now=Date.now(),limit=20){const rows=Array.isArray(data)?data:data?.offers;if(!Array.isArray(rows)||rows.length>1000)throw Error('INVALID_FEED_SHAPE');const out=[],seen=new Set();for(const r of rows){if(r.active!==true||r.currency!=null&&String(r.currency).toUpperCase()!=='PLN')continue;const title=String(r.title||'');const relevant=matchesTopic(task,title);if(!relevant)continue;let u;try{u=new URL(r.url);}catch{continue;}if(![task.host,task.host.replace(/^www\./,'')].includes(u.hostname)||u.protocol!=='https:'||u.username||u.password)continue;const observed=Date.parse(r.observedAt);if(!Number.isFinite(observed)||observed>now+60000||now-observed>24*3600000)continue;if(!Number.isSafeInteger(r.price)||r.price<0||r.price>100000000)continue;u.hash='';u.search='';const key=task.host==='www.vinted.pl'?(u.pathname.match(/^\/items\/(\d+)/)?.[1]||u.href):u.href;if(seen.has(key))continue;seen.add(key);out.push({...bibliographicMetadata(r),title:title.slice(0,500),url:u.href,price:r.price,observedAt:r.observedAt,activeConfirmed:true,priceConfirmed:true});if(out.length===Math.max(1,Math.min(1000,limit)))break;}return out;}
+export function publicAddress(ip) {
+  if (net.isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    return (
+      a > 0 &&
+      a < 224 &&
+      a !== 10 &&
+      a !== 127 &&
+      !(a === 169 && b === 254) &&
+      !(a === 172 && b >= 16 && b <= 31) &&
+      !(a === 192 && [0, 168].includes(b)) &&
+      !(a === 100 && b >= 64 && b <= 127) &&
+      !(a === 198 && [18, 19, 51].includes(b)) &&
+      !(a === 203 && b === 0)
+    );
+  }
+  if (net.isIP(ip) === 6)
+    return /^[23][0-9a-f]{3}:/i.test(ip) && !/^2001:(db8|0*0|0*2|0*10):/i.test(ip);
+  return false;
+}
+export async function fetchFeed(
+  raw,
+  { lookup = dns.lookup, request = https.request, format = 'json' } = {},
+) {
+  const u = new URL(raw);
+  if (
+    u.protocol !== 'https:' ||
+    u.username ||
+    u.password ||
+    (u.port && u.port !== '443') ||
+    net.isIP(u.hostname.replace(/[\[\]]/g, '')) ||
+    !/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(u.hostname) ||
+    /\.(local|internal|localhost)$/i.test(u.hostname) ||
+    [...u.searchParams.keys()].some((k) => /token|secret|password|api.?key|auth/i.test(k))
+  )
+    throw Error('UNSAFE_FEED_URL');
+  const addresses = await lookup(u.hostname, { all: true });
+  if (!addresses.length || addresses.some((a) => !publicAddress(a.address)))
+    throw Error('PRIVATE_FEED_ADDRESS');
+  const chosen = addresses[0];
+  return await new Promise((resolve, reject) => {
+    let count = 0;
+    const req = request(
+      u,
+      {
+        method: 'GET',
+        headers: {
+          Accept: format === 'atom' ? 'application/atom+xml' : 'application/json',
+          'User-Agent': 'BookFlip/1.0 public-feed-reader',
+        },
+        lookup: (_h, opts, cb) =>
+          opts?.all ? cb(null, [chosen]) : cb(null, chosen.address, chosen.family),
+        timeout: 15000,
+      },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          const err = Object.assign(Error('FEED_HTTP_' + res.statusCode), {
+            status: res.statusCode,
+            retryAfter: parseRetryAfter(res.headers['retry-after']),
+          });
+          reject(err);
+          return;
+        }
+        if (!String(res.headers['content-type']).includes(format === 'atom' ? 'xml' : 'json')) {
+          res.resume();
+          reject(Error(format === 'atom' ? 'FEED_NOT_ATOM' : 'FEED_NOT_JSON'));
+          return;
+        }
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (s) => {
+          count += Buffer.byteLength(s);
+          if (count > 1000000) {
+            req.destroy();
+            reject(Error('FEED_TOO_LARGE'));
+          } else body += s;
+        });
+        res.on('end', () => {
+          try {
+            resolve(format === 'atom' ? body : JSON.parse(body));
+          } catch {
+            reject(Error('INVALID_FEED_JSON'));
+          }
+        });
+        res.on('error', reject);
+      },
+    );
+    req.on('timeout', () => req.destroy(Error('FEED_TIMEOUT')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+export function parseRetryAfter(v) {
+  const n = Number(v);
+  if (Number.isFinite(n) && n >= 0) return Math.min(86400, n);
+  const d = Date.parse(String(v));
+  return Number.isFinite(d)
+    ? Math.min(86400, Math.max(60, Math.ceil((d - Date.now()) / 1000)))
+    : 300;
+}
+const norm = (s) =>
+  String(s)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ł/g, 'l');
+export function selectOffers(data, task, now = Date.now(), limit = 20) {
+  const rows = Array.isArray(data) ? data : data?.offers;
+  if (!Array.isArray(rows) || rows.length > 1000) throw Error('INVALID_FEED_SHAPE');
+  const out = [],
+    seen = new Set();
+  for (const r of rows) {
+    if (r.active !== true || (r.currency != null && String(r.currency).toUpperCase() !== 'PLN'))
+      continue;
+    const title = String(r.title || '');
+    const relevant = matchesTopic(task, title);
+    if (!relevant) continue;
+    let u;
+    try {
+      u = new URL(r.url);
+    } catch {
+      continue;
+    }
+    if (
+      ![task.host, task.host.replace(/^www\./, '')].includes(u.hostname) ||
+      u.protocol !== 'https:' ||
+      u.username ||
+      u.password
+    )
+      continue;
+    const observed = Date.parse(r.observedAt);
+    if (!Number.isFinite(observed) || observed > now + 60000 || now - observed > 24 * 3600000)
+      continue;
+    if (!Number.isSafeInteger(r.price) || r.price < 0 || r.price > 100000000) continue;
+    u.hash = '';
+    u.search = '';
+    const key =
+      task.host === 'www.vinted.pl' ? u.pathname.match(/^\/items\/(\d+)/)?.[1] || u.href : u.href;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ...bibliographicMetadata(r),
+      title: title.slice(0, 500),
+      url: u.href,
+      price: r.price,
+      observedAt: r.observedAt,
+      activeConfirmed: true,
+      priceConfirmed: true,
+    });
+    if (out.length === Math.max(1, Math.min(1000, limit))) break;
+  }
+  return out;
+}
