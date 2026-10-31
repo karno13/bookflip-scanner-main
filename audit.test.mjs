@@ -30,10 +30,14 @@ test('matching exits on paused or retry-delayed queue',async()=>{
   assert.equal(result.remaining,3);assert.equal(calls,automatic?3:1);
  }
 });
-test('CI runs all tests and both jobs accept five-minute schedule',()=>{
+test('CI runs offline tests and legacy hosted runner cannot schedule scans in this repo',()=>{
  const ci=readFileSync(new URL('./.github/workflows/scanner-tests.yml',import.meta.url),'utf8');
  assert.match(ci,/run: node --test\s*$/m);
  const workflow=readFileSync(new URL('./.github/workflows/bookflip-scan.yml',import.meta.url),'utf8');
- assert.doesNotMatch(workflow,/github.event.schedule != '\*\/5/);
- assert.match(workflow,/group: bookflip-scanner/);assert.match(workflow,/group: bookflip-matching/);
+ assert.match(workflow,/workflow_dispatch:/);
+ assert.doesNotMatch(workflow,/cron:/);
+ assert.doesNotMatch(workflow,/\n  push:/);
+ assert.match(workflow,/github\.repository == 'PJASDEM\/bookflip-scanner'/);
+ assert.match(workflow,/group: bookflip-scanner/);
+ assert.match(workflow,/group: bookflip-matching/);
 });

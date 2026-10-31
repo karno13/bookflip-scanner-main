@@ -1,17 +1,11 @@
 name: BookFlip Scanner
+# Legacy hosted runner; no automatic schedules in the local BookFlip repository.
 on:
-  schedule:
-    - cron: '17 * * * *'
-    - cron: '47 * * * *'
-    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       continuation:
         type: string
         default: '0'
-  push:
-    branches: [main]
-    paths: ['run.mjs', 'enrich.mjs', 'search-policy.mjs', 'continuation.mjs', 'feed.mjs', 'marketplaces.mjs', 'reference-parsers.mjs', 'rss.mjs', 'vinted-detail.mjs', 'isbn.mjs', '.github/workflows/bookflip-scan.yml']
 permissions:
   contents: read
   actions: write
