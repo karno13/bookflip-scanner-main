@@ -22,3 +22,23 @@ SQLite jest głównym magazynem katalogu, wydań, ofert, decyzji ISBN i historii
 6. Dopiero po weryfikacji usunąć dwukierunkowe synchronizowanie i pozostawić JSON jako format eksportu.
 
 **Nie usuwać ani nie zerować pliku JSON lub SQLite automatycznie.** W razie konfliktu danych z różnych źródeł zachować oryginały, oznaczyć niepewność i wymagać decyzji użytkownika.
+
+## Bezpieczny raport zgodności (etap PR #27)
+
+Przed przełączeniem skanera na zapis wyłącznie do SQLite uruchom na komputerze, na którym znajdują się **oba** magazyny:
+
+```powershell
+npm run check:history
+```
+
+Opcjonalnie można podać jawne ścieżki:
+
+```powershell
+node scripts/check-history-parity.mjs "C:\\BookFlip\\scan-results\\local-offer-history.json" "C:\\BookFlip\\scan-results\\bookflip-catalog.sqlite"
+```
+
+Polecenie odczytuje plik JSON oraz bazę SQLite w trybie **read-only**. Nie importuje danych ani nie zmienia przypisań. Porównuje oferty po źródle i znormalizowanym URL, a następnie wykrywa brakujące rekordy, różnice aktualnych cen, liczników wykryć i niejednoznaczne tożsamości. Raport obejmuje ograniczone próbki identyfikatorów.
+
+Kod wyjścia: `0` — brak blokujących rozbieżności, `1` — rozbieżności, `2` — brak plików albo błąd odczytu. Status `safeToCutOver=true` jest tylko **wstępną kontrolą**: nie potwierdza zgodności całej historii cen, ISBN, decyzji bibliograficznych ani odporności na awarię. Dodatkowe oferty występujące wyłącznie w SQLite mogą być poprawnymi nowszymi zapisami, więc raportuje się je osobno; różnice liczników wykryć również nie są automatycznie naprawiane.
+
+**Nie wykonuj migracji na podstawie samego statusu tego raportu.** Przed właściwym przełączeniem nadal wymagana jest kopia obu magazynów, porównanie historii cen i przypisań oraz test na danych testowych.
