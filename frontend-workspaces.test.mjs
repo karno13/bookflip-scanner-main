@@ -52,3 +52,14 @@ test('catalog loads beyond the first SQLite page without silent JSON substitutio
   assert.doesNotMatch(script, /state\.sqliteOffers\.length \? state\.sqliteOffers :/);
   assert.match(script, /Nie udało się wczytać katalogu SQLite/);
 });
+
+
+test('book-centric UI exposes comparison and mobile offers without external images', () => {
+  assert.match(script, /comparison-candidate/);
+  assert.match(script, /suggested\.edition\.title/);
+  assert.match(script, /offersMobileList/);
+  assert.match(script, /data-mobile-offer-id/);
+  assert.match(html, /id="offersMobileList"/);
+  assert.match(styles, /\.mobile-offer/);
+  assert.match(styles, /\.book-spine/);
+});
