@@ -74,7 +74,7 @@ export function createProductionCatalog({
         classification: 'structured', autoAssignable: true, reviewRequired: false, observations: [],
       }, dryRun });
     },
-    ingestOffers(offers, observedAt = now(), {jsonMirror=null} = {}) {
+    ingestOffers(offers, observedAt = now(), {jsonMirror=null,scanSummary=null} = {}) {
       const report = { offers: 0, evidence: 0, jobs: 0, skipped: 0 };
       const at = observedAt instanceof Date ? observedAt.toISOString() : String(observedAt);
       repository.transaction(() => {
@@ -121,6 +121,11 @@ export function createProductionCatalog({
           }
           const job = repository.putIdentificationJob({ offerId: stored.id, status: 'queued', at: observedAt });
           if (job.created) report.jobs += 1;
+        }
+        if(scanSummary){
+          if(scanSummary.at!==at)throw Error('INVALID_SCAN_SUMMARY_TIME');
+          repository.database.prepare("INSERT OR REPLACE INTO scan_runs(scanned_at,summary_json,created_at) VALUES(?,?,?)")
+            .run(at,JSON.stringify(scanSummary),at);
         }
         if(jsonMirror){
           if(typeof jsonMirror.id!=='string'||!jsonMirror.id||typeof jsonMirror.snapshot!=='object')throw Error('INVALID_SCAN_MIRROR');
