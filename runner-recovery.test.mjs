@@ -22,8 +22,8 @@ for(const scenario of ['resume','changed','uncertain','cancelled','network','fee
   return Response.json({automatic:true,active:0,processing:6});
  };
  try{
-  let code=readFileSync(new URL('./run.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/main\(\)\.catch\([\s\S]*$/,'export {main};').replace('setTimeout(r,2000*(attempt+1))','setTimeout(r,0)');
-  const cursor=readFileSync(new URL('./page-cursor.mjs',import.meta.url),'utf8').replace(/^export /gm,'');
+  let code=readFileSync(new URL('./run.mjs',import.meta.url),'utf8').replace(/\r\n/g,'\n').replace(/^import .*;\n/gm,'').replace(/main\(\)\.catch\([\s\S]*$/,'export {main};').replace('setTimeout(r,2000*(attempt+1))','setTimeout(r,0)');
+  const cursor=readFileSync(new URL('./page-cursor.mjs',import.meta.url),'utf8').replace(/\r\n/g,'\n').replace(/^export /gm,'');
   const prefix=cursor+`const createHash=()=>{};const dispatchContinuation=async()=>{throw Error('unexpected continuation')};const scanMarketplace=async()=>{${scenario==='aborted'?"throw new DOMException('The operation was aborted','AbortError');":scenario==='socket'?"throw Object.assign(Error('terminated'),{cause:{code:'UND_ERR_SOCKET'}});":scenario==='network'?"throw TypeError('fetch failed');":scenario==='feed429'?"throw Object.assign(Error('FEED_HTTP_429'),{status:429,retryAfter:180});":''}return ({offers:Array.from({length:6},(_,i)=>({url:'https://www.vinted.pl/items/'+i,title:'Book'})),pagination:{digest:'digest',page:1,total:6,state:'end',nextPage:null},coverage:'fixture'});};\n`;
   const runner=await import('data:text/javascript;base64,'+Buffer.from(prefix+code).toString('base64')+'#'+scenario);await runner.main();
   assert.equal(calls.find(b=>b.action==='ensure').resumeOnly,true);
