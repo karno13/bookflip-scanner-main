@@ -42,3 +42,26 @@ test('recovery refuses to overwrite newer JSON manual changes',async()=>{
   assert.equal(c.repository.database.prepare("SELECT COUNT(*) AS n FROM scan_json_mirror_outbox WHERE status='conflict'").get().n,1);
  }finally{c.close();}
 });
+
+test('same timestamp with different JSON content blocks recovery',async()=>{
+ const c=catalog();
+ try{
+  await assert.rejects(persistScannedOffers({history:emptyOfferHistory(),offers,searchedAt:at,catalogStore:c,sqliteFirst:true,saveHistory:async()=>{throw Error('DISK_FULL')}}),/DISK_FULL/);
+  let saved=false;
+  const current={...emptyOfferHistory(),updatedAt:at,books:{'book:user-edit':{id:'book:user-edit',title:'User edited book'}}};
+  await assert.rejects(recoverPendingMirrors({repository:c.repository,loadHistory:async()=>current,saveHistory:async()=>{saved=true}}),/JSON_MIRROR_RECOVERY_CONFLICT/);
+  assert.equal(saved,false);
+  assert.equal(c.repository.database.prepare("SELECT COUNT(*) AS n FROM scan_json_mirror_outbox WHERE status='conflict'").get().n,1);
+ }finally{c.close();}
+});
+test('already-applied identical snapshot is acknowledged without rewriting JSON',async()=>{
+ const c=catalog();
+ try{
+  await assert.rejects(persistScannedOffers({history:emptyOfferHistory(),offers,searchedAt:at,catalogStore:c,sqliteFirst:true,saveHistory:async()=>{throw Error('DISK_FULL')}}),/DISK_FULL/);
+  const snapshot=JSON.parse(c.repository.database.prepare('SELECT snapshot_json FROM scan_json_mirror_outbox LIMIT 1').get().snapshot_json);
+  let writes=0;
+  const report=await recoverPendingMirrors({repository:c.repository,loadHistory:async()=>snapshot,saveHistory:async()=>{writes++}});
+  assert.equal(report.recovered,1);
+  assert.equal(writes,0);
+ }finally{c.close();}
+});
