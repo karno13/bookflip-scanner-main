@@ -108,7 +108,10 @@ async function searchAndStore(input,onProgress=()=>{}){
  const catalogStore=getProductionCatalog();
  const sqliteFirst=String(process.env.BOOKFLIP_SQLITE_FIRST??'0')==='1';
  const {applied,ids,ingest,catalogError}=await withHistoryWriteLock(async()=>{
-  if(sqliteFirst)await recoverPendingMirrors({repository:catalogStore?.repository});
+  if(sqliteFirst){
+   if(!catalogStore)throw Error('SQLITE_FIRST_REQUIRES_CATALOG');
+   await recoverPendingMirrors({repository:catalogStore.repository});
+  }
   const fresh=await loadOfferHistory();
   return persistScannedOffers({
    history:fresh,offers:result.offers,searchedAt:result.searchedAt,
