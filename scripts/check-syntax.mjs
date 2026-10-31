@@ -1,14 +1,15 @@
 import {readdirSync} from 'node:fs';
 import {join,relative,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 
-const root=resolve(new URL('..',import.meta.url).pathname);
+const root=fileURLToPath(new URL('..',import.meta.url));
 const ignored=new Set(['.git','node_modules','scan-results','coverage']);
 function* sources(dir){
  for(const entry of readdirSync(dir,{withFileTypes:true})){
   if(entry.isDirectory()){
    if(!ignored.has(entry.name))yield* sources(join(dir,entry.name));
-  }else if(entry.isFile()&&/\\.(?:mjs|js)$/.test(entry.name)){
+  }else if(entry.isFile()&&/\.(?:mjs|js)$/.test(entry.name)){
    yield join(dir,entry.name);
   }
  }
@@ -18,7 +19,7 @@ for(const file of files){
  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8',windowsHide:true});
  if(result.status!==0){
   failed.push(relative(root,file));
-  process.stderr.write(result.stderr||result.stdout||'Syntax check failed\\n');
+  process.stderr.write(result.stderr||result.stdout||'Syntax check failed\n');
  }
 }
 if(failed.length){
