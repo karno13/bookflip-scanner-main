@@ -230,12 +230,12 @@ export function createLocalAppServer({catalogProvider=getProductionCatalog,searc
   try{
    if(url.searchParams.get('stream')==='1'){
     streamHeaders(response);
-    const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\\n');};
+    const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
     try{
      const result=await searchAndStore(await readJson(request),emit,{catalogProvider,search});
-     response.write(JSON.stringify({type:'result',result})+'\\n');response.end();
+     response.write(JSON.stringify({type:'result',result})+'\n');response.end();
     }catch(error){
-     response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\\n');response.end();
+     response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();
     }
     return;
    }
