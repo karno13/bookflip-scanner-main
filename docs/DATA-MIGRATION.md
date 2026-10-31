@@ -90,3 +90,15 @@ Ta funkcja **nie usuwa** starych zapisów JSON i **nie przenosi** automatycznie 
 Migracja `006_scan_runs.sql` wprowadza tabelę `scan_runs`. Podczas skanowania status (liczba znalezionych ofert, nowych ofert, zmian cen i błędy źródeł) jest zapisywany w **tej samej transakcji SQLite** co oferty. Odczyt `/api/history` w trybie `BOOKFLIP_SQLITE_HISTORY_READ=1` odtwarza teraz pole `lastScan`.
 
 Dane starszych skanów zapisane tylko w historycznym pliku JSON nie są automatycznie przenoszone do nowej tabeli. Przed porzuceniem JSON nadal należy sprawdzić starsze raporty i szczegóły skanowania na kopii istniejących danych.
+
+## Próbna migracja na osobnej kopii bazy
+
+Po pobraniu aktualnego kodu uruchom z terminala w folderze BookFlip:
+
+```powershell
+npm run rehearse:history -- --json ".\\scan-results\\local-offer-history.json" --sqlite ".\\scan-results\\bookflip-catalog.sqlite" --output ".\\migration-trial-1"
+```
+
+Ścieżka `--output` **nie może istnieć** przed uruchomieniem. Program tworzy tam kopię JSON i spójny snapshot SQLite z użyciem funkcji backup SQLite (uwzględnia zatwierdzone dane WAL). Następnie uruchamia import historii **wyłącznie na kopii bazy**, porównuje stan przed i po oraz generuje plik `migration-rehearsal-report.json`. Oryginalne pliki są otwierane tylko do odczytu.
+
+Wynik nie jest automatyczną zgodą na wyłączenie JSON. Sprawdź `before`, `after`, `import.conflicts` i kopie próbnych danych; w szczególności przypisania ISBN, ręczne decyzje oraz różnice historii cen. Kod wyjścia: `0` — brak wykrytych blokujących różnic w zakresie raportu, `1` — rozbieżności, `2` — błąd narzędzia. Nie wskazuj jako `--output` folderu zawierającego oryginalne dane i nie usuwaj plików oryginalnych po wykonaniu próby.
