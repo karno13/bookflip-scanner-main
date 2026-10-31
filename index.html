@@ -6,34 +6,34 @@
   <title>BookFlip — biblioteka ofert</title>
   <link rel=stylesheet href="./styles.css">
 </head>
-<body><div class="demo-banner">PODGLĄD DEMONSTRACYJNY — przykładowe dane, bez skanowania i zapisu</div>
+<body><div class="demo-banner">BOOKFLIP 3.2 — PODGLĄD DESKTOP / MOBILE · DANE DEMONSTRACYJNE, BEZ ZAPISU</div>
   <div class=app-shell>
     <aside class=sidebar>
-      <div class=brand><span class="brand-mark" aria-hidden="true">▣</span><span class="brand-word">BookFlip <small>3.0</small></span></div><p class="sidebar-caption">TWOJE CENTRUM KSIĄŻEK</p>
+      <div class=brand><span class="brand-mark" aria-hidden="true">▣</span><span class="brand-word">BookFlip <small>3.2</small></span></div><p class="sidebar-caption">BIBLIOTEKA · ANALIZA · OFERTY</p><div class="sidebar-collection"><span class="sidebar-collection-icon" aria-hidden="true">✦</span><span><b>Twoja biblioteka</b><small>Stanowisko pracy</small></span></div>
       <nav class="nav-list">
-        <button class="nav-item active" type="button" data-view="scanner"><span>Skaner</span><small>Wyszukiwanie ofert</small></button>
-        <button class="nav-item" type="button" data-view="review"><span>Do weryfikacji</span><small id="reviewNavCount">0 pozycji</small></button>
-        <button class="nav-item" type="button" data-view="catalog"><span>Katalog</span><small>Dzieła i wydania</small></button>
-        <button class="nav-item" type="button" data-view="offers"><span>Oferty</span><small id="offersNavCount">0 zapisanych</small></button>
-        <button class="nav-item" type="button" data-view="settings"><span>Ustawienia</span><small>Źródła i diagnostyka</small></button>
+        <button class="nav-item active" type="button" data-view="scanner"><span class="nav-glyph" aria-hidden="true">⌕</span><span>Skaner</span><small>Wyszukiwanie ofert</small></button>
+        <button class="nav-item" type="button" data-view="review"><span class="nav-glyph" aria-hidden="true">◇</span><span>Do weryfikacji</span><small id="reviewNavCount">0 pozycji</small></button>
+        <button class="nav-item" type="button" data-view="catalog"><span class="nav-glyph" aria-hidden="true">▤</span><span>Katalog</span><small>Dzieła i wydania</small></button>
+        <button class="nav-item" type="button" data-view="offers"><span class="nav-glyph" aria-hidden="true">♢</span><span>Oferty</span><small id="offersNavCount">0 zapisanych</small></button>
+        <button class="nav-item" type="button" data-view="settings"><span class="nav-glyph" aria-hidden="true">⚙</span><span>Ustawienia</span><small>Źródła i diagnostyka</small></button>
       </nav>
       <div class="sidebar-footer"><span class="connection-dot" id="connectionDot"></span><div><strong id="connectionLabel">Laczenie...</strong><small>127.0.0.1</small></div></div>
     </aside>
     <div class=app-frame>
       <header class="topbar">
-        <div><p class="topbar-kicker">BOOKFLIP / PRZESTRZEŃ ROBOCZA</p><h1 id="viewTitle">Skaner</h1></div>
+        <div><p class="topbar-kicker">BOOKFLIP <span class="topbar-divider">/</span> STANOWISKO ANALIZY OFERT</p><h1 id="viewTitle">Skaner</h1></div>
         <div class="topbar-status"><span id="databaseStatus">SQLite: sprawdzanie</span><button class="button secondary compact" type="button" id="refreshView">Odśwież</button></div>
       </header>
       <main class=workspace>
         <section class="view active" id="view-scanner" data-title="Skaner">
           <div class="view-heading scanner-heading"><div><p class="section-eyebrow">ODKRYWAJ • PORÓWNUJ • IDENTYFIKUJ</p><h2>Skanuj oferty książek</h2><p>Wyszukaj tytuł, autora, ISBN lub serię w wybranych źródłach.</p></div><span class="state-badge neutral" id="scanStateBadge">Gotowy</span></div>
-          <div class="panel scanner-form-panel">
+          <div class="desktop-scanner-grid"><div class="panel scanner-form-panel">
             <label class="field grow"><span>Frazy wyszukiwania</span><textarea id="queries" rows="3" placeholder="Jedna fraza w wierszu, np. Diuna, Frank Herbert lub ISBN" required></textarea><small>Maksymalnie 10 fraz.</small></label>
             <div class="source-header"><div><span class="field-label">Źródła skanowania</span><small>Tylko adaptery udostępnione przez lokalny backend</small></div><button class="link-button" id="toggleSources" type="button">Zaznacz wszystkie</button></div>
             <div class="source-grid" id="sourceGrid"><span class="loading-copy">Wczytywanie zrodel...</span></div>
             <div class="form-actions"><span class="form-note" id="scanGuardMessage"></span><button class="button primary scan-cta" id="startSearch" type="button"><span aria-hidden="true">◎</span> Uruchom skan <span aria-hidden="true">→</span></button></div>
           </div>
-          <div class="panel scan-progress-panel" id="scanProgressPanel" hidden aria-live="polite">
+          </div><div class="panel scan-progress-panel" id="scanProgressPanel" hidden aria-live="polite">
             <div class="progress-heading"><div><strong id="progressMessage">Przygotowywanie skanu...</strong><small id="progressDetail">Oczekiwanie na backend</small></div><span id="progressElapsed">0 s</span></div>
             <div class="progress-track" id="progressTrack" data-indeterminate="true"><i id="progressBar"></i></div>
           </div>
