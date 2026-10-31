@@ -56,7 +56,7 @@ test('catalog loads beyond the first SQLite page without silent JSON substitutio
 
 test('book-centric UI exposes comparison and mobile offers without external images', () => {
   assert.match(script, /comparison-candidate/);
-  assert.match(script, /suggested\.edition\.title/);
+  assert.match(script, /reviewCandidateMarkup\(offer, suggested\)/);
   assert.match(script, /offersMobileList/);
   assert.match(script, /data-mobile-offer-id/);
   assert.match(html, /id="offersMobileList"/);
