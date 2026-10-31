@@ -26,4 +26,4 @@ Historyczny opis migracji i wygaszonych trybów znajduje się w [archiwum](archi
 
 ## Stan techniczny
 
-SQLite jest magazynem zapisu i odczytu, także dla `/api/history` i `/api/book`. Interfejs pobiera dane stronicowo. Tekstowe wyszukiwanie i filtry/sortowanie katalogu wykonują zapytania do SQLite. Narzędzia JSON, testy migracyjne i starsze tabele outbox pozostają w kodzie jedynie do celów historycznych i diagnostycznych; nie należy usuwać istniejących migracji SQL z łańcucha migracyjnego.
+SQLite jest magazynem zapisu i odczytu, także dla `/api/history` i `/api/book`. Interfejs pobiera dane stronicowo. Tekstowe wyszukiwanie i filtry/sortowanie katalogu wykonują zapytania do SQLite. Narzędzia importu JSON i raporty zgodności pozostają dla historycznych danych. Kod podwójnego zapisu i odzyskiwania mirrora został usunięty. Migracji SQL (w tym historycznej tabeli outbox) nie należy usuwać ani zmieniać: istniejące bazy przechowują ich sumy kontrolne.
