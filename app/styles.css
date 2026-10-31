@@ -132,3 +132,13 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
  .detail-panel{overflow-wrap:anywhere}
 }
 @media(max-width:400px){.source-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-row{padding:10px!important}.stats-grid .metric{min-height:76px}}
+
+
+/* Prior BookFlip: dense bibliographic editions and truthful offer-price comparisons. */
+.edition-price-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}
+.edition-price-summary>div{display:flex;flex-direction:column;gap:7px;border:1px solid #d7e3d9;background:#f2f7f0;border-radius:11px;padding:12px;min-width:0}
+.edition-price-summary small{font-size:10px;line-height:1.4;color:#5a7262}.edition-price-summary strong{font:700 20px Georgia,serif;color:#18553e;font-variant-numeric:tabular-nums}
+.review-comparison{border-left:3px solid #4e8f69}.review-comparison .verification-fact{font-weight:650}
+.detail-section .price-list a{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:12px 8px;text-decoration:none;color:inherit}
+.detail-section .price-list a:hover{background:#edf5ed}.detail-section .price-list a b{white-space:nowrap;color:#286f51}
+@media(max-width:760px){.edition-price-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.edition-price-summary>div:last-child{grid-column:1/-1}.edition-price-summary strong{font-size:18px}}
