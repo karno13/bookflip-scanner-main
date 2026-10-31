@@ -105,3 +105,11 @@ test('desktop workspace preserves functional scanner controls and adds editorial
   assert.match(styles, /\.scanner-offer-list\{display:grid;grid-template-columns:repeat\(2/);
   assert.match(styles, /@media\(min-width:761px\)/);
 });
+
+test('mobile repairs keep scanner filters usable and catalog avoids cramped headers', () => {
+  assert.match(styles, /\.scanner-discover-toolbar\{display:grid!important/);
+  assert.match(styles, /\.catalog-table-header\{display:none!important/);
+  assert.match(styles, /\.catalog-row\{display:grid!important/);
+  assert.match(styles, /\.stats-grid \.metric\{min-height:82px/);
+  assert.match(styles, /@media\(max-width:400px\)/);
+});
