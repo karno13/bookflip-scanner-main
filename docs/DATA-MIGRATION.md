@@ -66,3 +66,11 @@ Flaga `BOOKFLIP_SQLITE_HISTORY_READ=1` pozwala pobierać `/api/history` i `/api/
 W tym trybie odczytywane są oferty, bieżące ceny, obserwacje cen i **aktywne** przypisania do wydań. Przypisania nieweryfikowane nie są automatycznie uznawane za aktywne. Dane o skanach i cache szczegółów przechowywane wyłącznie w JSON nie są odtwarzane przez ten adapter; w odpowiedzi `lastScan` jest `null`. Przed przełączeniem produkcyjnym wymagane są testy zgodności na kopii rzeczywistych danych oraz migracja metadanych skanów.
 
 Przełącznika odczytu nie należy traktować jako finalnego wycofania JSON. W razie braku katalogu SQLite aktywny tryb zgłasza błąd zamiast prezentować nieaktualne informacje.
+
+## Odzyskiwanie JSON po przerwanym zapisie SQLite-first
+
+W trybie `BOOKFLIP_SQLITE_FIRST=1` skan zapisuje w SQLite, w **tej samej transakcji** co nowe oferty, rekord `scan_json_mirror_outbox` zawierający stan kopii JSON. Dopiero potem aktualizuje plik JSON i oznacza rekord jako zakończony. Przed następnym skanem w tym trybie aplikacja próbuje odtworzyć oczekujące zapisy JSON bez ponownego zapisywania ofert SQLite (ani ponownego naliczania `seen_count`).
+
+Gdy plik JSON ma datę modyfikacji **nowszą** od oczekującej kopii, odzyskiwanie przerywa się błędem `JSON_MIRROR_RECOVERY_CONFLICT` i nie zastępuje nowszych danych. Konflikt jest utrwalony do ręcznej analizy w SQLite. Należy wtedy wykonać kopię obu magazynów i zbadać raport zgodności `npm run check:history`, zamiast usuwać rekord lub wymuszać nadpisanie.
+
+Mechanizm nie jest transakcją obejmującą dwa pliki. Nie chroni przed uszkodzeniem dysku, niezależną edycją JSON pomiędzy zapisami lub niezgodnością całych danych bibliograficznych. Nadal nie należy kasować JSON ani włączać tego trybu bez aktualnej kopii zapasowej.

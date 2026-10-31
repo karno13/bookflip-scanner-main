@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {applyScanToHistory,saveOfferHistory,sourceOfferId} from './offer-history.mjs';
 import {offerExternalId} from './offer-identity.mjs';
 
@@ -25,8 +26,10 @@ export async function persistScannedOffers({
  let ingest=null,catalogError=null;
  if(sqliteFirst){
   // Synchronous, transactional SQLite ingest; reject on failure before JSON write.
-  ingest=catalogStore.ingestOffers(observations,searchedAt);
+  const mirrorId=randomUUID();
+  ingest=catalogStore.ingestOffers(observations,searchedAt,{jsonMirror:{id:mirrorId,snapshot:applied.history}});
   await saveHistory(applied.history);
+  if(catalogStore.completeJsonMirror)catalogStore.completeJsonMirror(mirrorId);
  }else{
   await saveHistory(applied.history);
   if(catalogStore){
