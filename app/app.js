@@ -333,10 +333,25 @@ function renderOffers() {
   $$('[data-offer-id]').forEach(button => button.addEventListener('click', () => openOfferDrawer(button.dataset.offerId)));
 }
 
+function priceEvidenceMarkup(offer) {
+  const observations = Array.isArray(offer.priceHistory) ? offer.priceHistory : [];
+  const prices = observations.map(item => Number(item.price)).filter(value => Number.isFinite(value) && value >= 0);
+  const first = prices.length ? prices[0] : null, last = prices.length ? prices[prices.length-1] : null;
+  const values = prices.slice().sort((a,b) => a-b);
+  const mid = Math.floor(values.length / 2);
+  const median = values.length ? (values.length % 2 ? values[mid] : (values[mid-1]+values[mid])/2) : null;
+  const fields = [
+    ['Obserwacje cen', String(prices.length)],
+    ['Minimum historyczne', values.length ? money(values[0]) : 'brak danych'],
+    ['Mediana obserwacji', median !== null ? money(median) : 'brak danych']
+  ];
+  return `<section class="detail-section"><h4>Dowody cenowe</h4><div class="edition-price-summary">${fields.map(([name,value])=>`<div><small>${name}</small><strong>${value}</strong></div>`).join('')}</div><p class="inline-note">Obserwacje dotyczą tego ogłoszenia, nie całego rynku. Wielokrotne odczyty tej samej ceny nie są niezależnymi transakcjami. Brak podstaw do wyliczenia wiarygodnego ROI.</p></section>`;
+}
+
 async function openOfferDrawer(id) {
   $('#offerDrawer').hidden = false; $('#offerDrawerContent').innerHTML = '<p>Wczytywanie szczegółów...</p>';
   try { const offer = await json(`/api/offers/${encodeURIComponent(id)}`), active = offer.matches.find(item => item.status === 'active');
-    $('#offerDrawerContent').innerHTML = `<span class="status-pill ${active ? 'success' : 'neutral'}">${active ? 'Przypisana' : escapeHtml(offer.identificationJob?.status || 'Bez przypisania')}</span><h2>${escapeHtml(offer.title)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'brak')}</small></span><span><b>Ostatnio</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(active?.editionTitle || 'nieprzypisane')}</small></span></div><section class="detail-section"><h4>Historia cen ofertowych</h4><p class="inline-note">Historia zapisanych cen ogłoszenia; nie potwierdza transakcji ani dostępności.</p><div class="price-list">${offer.priceHistory.map(item => `<span><small>${escapeHtml(date(item.observedAt))}</small><b>${money(item.price)}</b></span>`).join('') || '<p>Brak obserwacji.</p>'}</div></section><div class="detail-actions"><a class="button primary" href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz ogloszenie</a>${offer.identificationJob && offer.identificationJob.status !== 'completed' ? '<button class="button secondary" type="button" id="drawerReview">Przejdz do weryfikacji</button>' : ''}</div>`;
+    $('#offerDrawerContent').innerHTML = `<span class="status-pill ${active ? 'success' : 'neutral'}">${active ? 'Przypisana' : escapeHtml(offer.identificationJob?.status || 'Bez przypisania')}</span><h2>${escapeHtml(offer.title)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'brak')}</small></span><span><b>Ostatnio</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(active?.editionTitle || 'nieprzypisane')}</small></span></div>${priceEvidenceMarkup(offer)}<section class="detail-section"><h4>Historia cen ofertowych</h4><p class="inline-note">Historia zapisanych cen ogłoszenia; nie potwierdza transakcji ani dostępności.</p><div class="price-list">${offer.priceHistory.map(item => `<span><small>${escapeHtml(date(item.observedAt))}</small><b>${money(item.price)}</b></span>`).join('') || '<p>Brak obserwacji.</p>'}</div></section><div class="detail-actions"><a class="button primary" href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz ogloszenie</a>${offer.identificationJob && offer.identificationJob.status !== 'completed' ? '<button class="button secondary" type="button" id="drawerReview">Przejdz do weryfikacji</button>' : ''}</div>`;
     $('#drawerReview')?.addEventListener('click', () => { state.selectedReviewId = offer.identificationJob.id; state.reviewDetail = offer; $('#offerDrawer').hidden = true; showView('review'); });
   } catch (error) { $('#offerDrawerContent').innerHTML = `<p>${escapeHtml(error.message)}</p>`; }
 }
