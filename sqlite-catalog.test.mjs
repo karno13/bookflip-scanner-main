@@ -113,3 +113,18 @@ test('manual legacy sync does not overwrite authoritative SQLite price or seen c
  assert.equal(result.source.priceHistory,0);
  assert.equal(repo.database.prepare('SELECT COUNT(*) AS count FROM offers').get().count,3);
 });
+
+test('legacy link synchronization does not supersede manually verified SQLite match',t=>{
+ const repo=repository(t);
+ importJsonV2Data(fixture,repo);
+ const target='Example:https://example.test/manual';
+ const authoritative=repo.database.prepare('SELECT edition_id FROM offer_matches WHERE offer_id=? AND status=? LIMIT 1').get(target,'active');
+ assert.ok(authoritative);
+ repo.assignOfferToEdition(target,authoritative.edition_id,{id:'manual-verified-sqlite-test',method:'manual',status:'active',createdBy:'human'});
+ const before=repo.database.prepare("SELECT COUNT(*) AS n FROM offer_matches WHERE offer_id=? AND status='active'").get(target).n;
+ importJsonV2Data(legacySyncSlice(fixture,{offerId:target}),repo,{preserveExistingOffers:true});
+ const after=repo.database.prepare("SELECT * FROM offer_matches WHERE offer_id=? AND status='active'").all(target);
+ assert.equal(before,1);
+ assert.equal(after.length,1);
+ assert.equal(after[0].id,'manual-verified-sqlite-test');
+});
