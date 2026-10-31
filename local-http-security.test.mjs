@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLocalAppServer} from './local-app.mjs';
+import {request as httpRequest} from 'node:http';
 
 test('local server rejects foreign Host, cross-origin and non-JSON writes', async () => {
   const server=createLocalAppServer();
@@ -8,9 +9,10 @@ test('local server rejects foreign Host, cross-origin and non-JSON writes', asyn
   const port=server.address().port;
   const base='http://127.0.0.1:'+port;
   try {
-    let response=await fetch(base+'/api/sources',{headers:{Host:'evil.example:'+port}});
-    assert.equal(response.status,403);assert.equal((await response.json()).error,'INVALID_HOST');
-    response=await fetch(base+'/api/sources',{headers:{Host:'127.0.0.1:'+port}});
+    const foreign=await new Promise((resolve,reject)=>{const req=httpRequest(base+'/api/sources',{headers:{Host:'evil.example:'+port}},response=>{let body='';response.on('data',chunk=>body+=chunk);response.on('end',()=>resolve({status:response.statusCode,body:JSON.parse(body)}))});req.on('error',reject);req.end()});
+    assert.equal(foreign.status,403);assert.equal(foreign.body.error,'INVALID_HOST');
+    let response;
+    response=await fetch(base+'/api/sources');
     assert.equal(response.status,200);
     response=await fetch(base+'/api/catalog',{method:'POST',headers:{'Content-Type':'text/plain','Origin':'https://attacker.example'},body:'{}'});
     assert.equal(response.status,403);assert.equal((await response.json()).error,'INVALID_ORIGIN');
