@@ -161,7 +161,7 @@ function validateLocalRequest(request) {
   return null;
 }
 
-export function createLocalAppServer({catalogProvider=getProductionCatalog,search=searchOffers}={}){const getProductionCatalog=catalogProvider;const server=createServer(async(request,response)=>{try{
+export function createLocalAppServer({catalogProvider=getProductionCatalog,search=searchOffers}={}){const getProductionCatalog=catalogProvider;let scanInFlight=false;const server=createServer(async(request,response)=>{try{
  const rejected=validateLocalRequest(request);
  if(rejected)return send(response,rejected.status,JSON.stringify({error:rejected.error}));
  const url=new URL(request.url||'/','http://127.0.0.1');
@@ -223,11 +223,26 @@ export function createLocalAppServer({catalogProvider=getProductionCatalog,searc
  });
  return send(response,200,JSON.stringify(snapshot));
 }
- if(request.method==='POST'&&url.pathname==='/api/search'&&url.searchParams.get('stream')==='1'){
-  streamHeaders(response);const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
-  try{const result=await searchAndStore(await readJson(request),emit,{catalogProvider,search});response.write(JSON.stringify({type:'result',result})+'\n');response.end();}catch(error){response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();}return;
+
+ if(request.method==='POST'&&url.pathname==='/api/search'){
+  if(scanInFlight)return send(response,409,JSON.stringify({error:'SCAN_ALREADY_RUNNING'}));
+  scanInFlight=true;
+  try{
+   if(url.searchParams.get('stream')==='1'){
+    streamHeaders(response);
+    const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\\n');};
+    try{
+     const result=await searchAndStore(await readJson(request),emit,{catalogProvider,search});
+     response.write(JSON.stringify({type:'result',result})+'\\n');response.end();
+    }catch(error){
+     response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\\n');response.end();
+    }
+    return;
+   }
+   const result=await searchAndStore(await readJson(request),undefined,{catalogProvider,search});
+   return send(response,200,JSON.stringify(result));
+  }finally{scanInFlight=false;}
  }
- if(request.method==='POST'&&url.pathname==='/api/search')return send(response,200,JSON.stringify(await searchAndStore(await readJson(request),undefined,{catalogProvider,search})));
  if(request.method!=='GET')return send(response,405,JSON.stringify({error:'METHOD_NOT_ALLOWED'}));
  const files={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js'},file=files[url.pathname];if(!file)return send(response,404,'Nie znaleziono','text/plain; charset=utf-8');
  const body=await readFile(join(appDirectory,file));return send(response,200,body,contentTypes[extname(file)]||'application/octet-stream');
