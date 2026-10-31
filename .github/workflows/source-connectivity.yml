@@ -1,8 +1,5 @@
 name: Source connectivity
 on:
-  push:
-    branches: [main]
-    paths: ['marketplaces.mjs', '.github/workflows/source-connectivity.yml']
   workflow_dispatch:
 permissions:
   contents: read
