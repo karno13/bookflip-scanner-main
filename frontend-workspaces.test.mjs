@@ -113,3 +113,17 @@ test('mobile repairs keep scanner filters usable and catalog avoids cramped head
   assert.match(styles, /\.stats-grid \.metric\{min-height:82px/);
   assert.match(styles, /@media\(max-width:400px\)/);
 });
+
+
+test('edition price statistics reflect saved asking prices without projecting ROI', () => {
+  assert.match(script, /function offerPriceSummary\(offers = \[\]\)/);
+  assert.match(script, /prices\.length % 2/);
+  assert.match(script, /offerPriceSummaryMarkup\(row\.offers\)/);
+  assert.match(script, /Nie są to ceny sprzedaży ani prognoza zysku/);
+  assert.match(styles, /\.edition-price-summary/);
+});
+test('review requires explicit edition decision with bibliographic context', () => {
+  assert.match(script, /Dopasowanie dotyczy konkretnego wydania/);
+  assert.match(script, /Wybierz wydanie i zdecyduj/);
+  assert.match(script, /Zatwierdz przypisanie/);
+});
