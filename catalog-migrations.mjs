@@ -7,8 +7,10 @@ const migrationsDirectory=fileURLToPath(new URL('./migrations/',import.meta.url)
 
 export function availableCatalogMigrations(directory=migrationsDirectory){
  return readdirSync(directory).filter(name=>/^\d+_[a-z0-9_-]+\.sql$/i.test(name)).sort().map(name=>{
-  const sql=readFileSync(join(directory,name),'utf8'),version=Number(name.match(/^\d+/)[0]);
-  return{version,name,sql,checksum:createHash('sha256').update(sql).digest('hex')};
+  const sql=readFileSync(join(directory,name),'utf8').replace(/\r\n/g,'\n'),version=Number(name.match(/^\d+/)[0]);
+  const checksum=createHash('sha256').update(sql).digest('hex');
+  const legacyCrlfChecksum=createHash('sha256').update(sql.replace(/\n/g,'\r\n')).digest('hex');
+  return{version,name,sql,checksum,legacyCrlfChecksum};
  });
 }
 
@@ -23,7 +25,7 @@ export function applyCatalogMigrations(database,{directory=migrationsDirectory,n
  const completed=[];
  for(const migration of availableCatalogMigrations(directory)){
   if(applied.has(migration.version)){
-   if(applied.get(migration.version)!==migration.checksum)throw Error(`MIGRATION_CHECKSUM_MISMATCH:${migration.version}`);
+   if(![migration.checksum,migration.legacyCrlfChecksum].includes(applied.get(migration.version)))throw Error(`MIGRATION_CHECKSUM_MISMATCH:${migration.version}`);
    continue;
   }
   database.exec('BEGIN IMMEDIATE');
