@@ -28,3 +28,21 @@ test('production dual-write stores offer, ISBN evidence and one job without netw
     assert.equal(catalog.status().counts.identification_jobs, 1);
   } finally { catalog.close(); }
 });
+
+test('offer without ISBN is queued for manual review and seen_count increments', async () => {
+  const catalog=createProductionCatalog({databasePath:':memory:',fetcher:async()=>{throw Error('NETWORK_NOT_EXPECTED')}});
+  try {
+    const sample={source:'fixture',url:'https://example.test/items/no-isbn',title:'Unknown printing',price:175};
+    const when=new Date('2026-01-02T00:00:00Z');
+    const first=catalog.ingestOffers([sample],when);
+    assert.equal(first.jobs,1);
+    const second=catalog.ingestOffers([sample],new Date('2026-01-03T00:00:00Z'));
+    assert.equal(second.jobs,0);
+    const row=catalog.repository.database.prepare('SELECT seen_count FROM offers LIMIT 1').get();
+    assert.equal(row.seen_count,2);
+    const processed=await catalog.processQueued(1);
+    assert.equal(processed.processed,1);
+    const job=catalog.repository.database.prepare('SELECT status FROM identification_jobs LIMIT 1').get();
+    assert.equal(job.status,'review_required');
+  } finally {catalog.close();}
+});
