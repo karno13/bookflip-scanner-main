@@ -107,20 +107,20 @@ function scheduleCatalogResolution(catalogStore){
  return runningCatalogResolution;
 }
 
-async function searchAndStore(input,onProgress=()=>{}){
+async function searchAndStore(input,onProgress=()=>{},{catalogProvider=getProductionCatalog,search=searchOffers}={}){
  if(storageMode()==='sqlite'){
-  const catalog=getProductionCatalog();
+  const catalog=catalogProvider();
   if(!catalog)throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
   // Catalog reads and all writes occur under one lock. No JSON history is
   // loaded or written by the active SQLite-only scanning path.
-  const result=await searchOffers(input,{onProgress,detailCache:new Map()});
+  const result=await search(input,{onProgress,detailCache:new Map()});
   const errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
   const saved=await withHistoryWriteLock(async()=>persistSqliteScan(catalog,{offers:result.offers,searchedAt:result.searchedAt,errors}));
   if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalog);
   return{...result,offers:saved.offers,summary:{...result.summary,...saved.summary},history:saved.history,lastScan:saved.lastScan,catalog:{ingest:saved.ingest,resolution:{status:'queued'}}};
  }
- const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
- const catalogStore=getProductionCatalog();
+ const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await search(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
+ const catalogStore=catalogProvider();
  const sqliteFirst=String(process.env.BOOKFLIP_SQLITE_FIRST??'0')==='1';
  const {applied,ids,ingest,catalogError}=await withHistoryWriteLock(async()=>{
   if(sqliteFirst){
@@ -161,13 +161,13 @@ function validateLocalRequest(request) {
   return null;
 }
 
-export function createLocalAppServer(){const server=createServer(async(request,response)=>{try{
+export function createLocalAppServer({catalogProvider=getProductionCatalog,search=searchOffers}={}){const getProductionCatalog=catalogProvider;const server=createServer(async(request,response)=>{try{
  const rejected=validateLocalRequest(request);
  if(rejected)return send(response,rejected.status,JSON.stringify({error:rejected.error}));
  const url=new URL(request.url||'/','http://127.0.0.1');
  if(request.method==='GET'&&url.pathname==='/api/sources')return send(response,200,JSON.stringify({sources:Object.keys(localSourceHosts)}));
- if(request.method==='GET'&&url.pathname==='/api/history'){const history=await readHistoryForUi();return send(response,200,JSON.stringify(historySnapshot(history)));}
- if(request.method==='GET'&&url.pathname==='/api/book'){const history=await readHistoryForUi(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
+ if(request.method==='GET'&&url.pathname==='/api/history'){const history=await readHistoryForUi({catalog:getProductionCatalog()});return send(response,200,JSON.stringify(historySnapshot(history)));}
+ if(request.method==='GET'&&url.pathname==='/api/book'){const history=await readHistoryForUi({catalog:getProductionCatalog()}),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
  if(request.method==='POST'&&url.pathname==='/api/catalog'){
  const input=await readJson(request);
  if(storageMode()==='sqlite'){
@@ -225,9 +225,9 @@ export function createLocalAppServer(){const server=createServer(async(request,r
 }
  if(request.method==='POST'&&url.pathname==='/api/search'&&url.searchParams.get('stream')==='1'){
   streamHeaders(response);const emit=event=>{const safe=recordProgress(event);response.write(JSON.stringify({type:'progress',event:safe})+'\n');};
-  try{const result=await searchAndStore(await readJson(request),emit);response.write(JSON.stringify({type:'result',result})+'\n');response.end();}catch(error){response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();}return;
+  try{const result=await searchAndStore(await readJson(request),emit,{catalogProvider,search});response.write(JSON.stringify({type:'result',result})+'\n');response.end();}catch(error){response.write(JSON.stringify({type:'error',error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'})+'\n');response.end();}return;
  }
- if(request.method==='POST'&&url.pathname==='/api/search')return send(response,200,JSON.stringify(await searchAndStore(await readJson(request))));
+ if(request.method==='POST'&&url.pathname==='/api/search')return send(response,200,JSON.stringify(await searchAndStore(await readJson(request),undefined,{catalogProvider,search})));
  if(request.method!=='GET')return send(response,405,JSON.stringify({error:'METHOD_NOT_ALLOWED'}));
  const files={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js'},file=files[url.pathname];if(!file)return send(response,404,'Nie znaleziono','text/plain; charset=utf-8');
  const body=await readFile(join(appDirectory,file));return send(response,200,body,contentTypes[extname(file)]||'application/octet-stream');
