@@ -1,0 +1,16 @@
+{
+  "kind": "synthetic",
+  "source": "OLX",
+  "host": "www.olx.pl",
+  "searchQuery": "Warcraft",
+  "category": "Warcraft",
+  "capturedAt": null,
+  "sanitized": true,
+  "html": "<script type=\"application/ld+json\">{\"offers\":{\"offers\":[{\"name\":\"Warcraft Dzien smoka książka\",\"price\":\"25\",\"priceCurrency\":\"PLN\",\"url\":\"https://www.olx.pl/d/oferta/warcraft-CID751-IDabc.html\"}]}}</script>",
+  "expected": [
+    {
+      "url": "https://www.olx.pl/d/oferta/warcraft-CID751-IDabc.html",
+      "price": 2500
+    }
+  ]
+}
