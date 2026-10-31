@@ -284,8 +284,8 @@ function catalogRows() {
 
 function validCoverIsbn(value) {
   const isbn=String(value || '').replace(/[^0-9Xx]/g,'').toUpperCase();
-  if (/^\\d{13}$/.test(isbn)) return [...isbn].reduce((sum,d,i)=>sum+Number(d)*(i%2?3:1),0)%10===0 ? isbn : null;
-  if (/^\\d{9}[0-9X]$/.test(isbn)) return [...isbn].reduce((sum,d,i)=>sum+(10-i)*(d==='X'?10:Number(d)),0)%11===0 ? isbn : null;
+  if (/^\d{13}$/.test(isbn)) return [...isbn].reduce((sum,d,i)=>sum+Number(d)*(i%2?3:1),0)%10===0 ? isbn : null;
+  if (/^\d{9}[0-9X]$/.test(isbn)) return [...isbn].reduce((sum,d,i)=>sum+(10-i)*(d==='X'?10:Number(d)),0)%11===0 ? isbn : null;
   return null;
 }
 function coverPreviewMarkup(identifiers=[]) {
