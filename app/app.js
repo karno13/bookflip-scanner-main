@@ -82,7 +82,7 @@ function fillSourceFilters() {
 async function loadHistory() {
   state.history = await json('/api/history');
   $('#offersNavCount').textContent = `${allOffers().length} zapisanych`;
-  $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
+  $('#reviewNavCount').textContent = `${state.catalogPages.jobs.total} pozycji`;
   renderReview(); renderCatalog(); renderOffers(); renderScannerOffers();
 }
 
@@ -296,7 +296,7 @@ function filteredReviewOffers() {
 
 function renderReview() {
   if (!state.history) return; const rows = filteredReviewOffers();
-  $('#reviewCount').textContent = `${rows.length} oczekujacych`; $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
+  $('#reviewCount').textContent = `${rows.length} z ${state.catalogPages.jobs.total} oczekujących`; $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
   if (state.selectedReviewId && !rows.some(row => row.id === state.selectedReviewId)) state.selectedReviewId = null;
   $('#reviewList').innerHTML = rows.length ? rows.map(job => { const offer = job.offer; return `<button class="review-item ${job.id === state.selectedReviewId ? 'active' : ''}" type="button" data-review-id="${escapeHtml(job.id)}"><span class="book-spine" aria-hidden="true">▤</span><span><strong>${escapeHtml(offer.title)}</strong><small>${escapeHtml(offer.source)} - ${offer.observedIsbn ? `ISBN ${escapeHtml(offer.observedIsbn)}` : 'brak ISBN'}</small><small>${escapeHtml(job.status)}${job.lastError ? ` - ${escapeHtml(job.lastError)}` : ''}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`; }).join('') : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
   $$('[data-review-id]').forEach(button => button.addEventListener('click', async () => { state.selectedReviewId = button.dataset.reviewId; state.reviewDetail = null; renderReview(); const job = state.reviewJobs.find(row => row.id === state.selectedReviewId); if (job) { try { state.reviewDetail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`); renderReviewDetail(); } catch (error) { toast(error.message); } } })); renderReviewDetail();
