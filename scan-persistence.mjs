@@ -22,14 +22,17 @@ export async function persistScannedOffers({
   lastSeenAt:applied.history.offers[ids[index]]?.lastSeenAt
  }));
  if(sqliteFirst&&!catalogStore)throw Error('SQLITE_FIRST_REQUIRES_CATALOG');
- let ingest=null;
+ let ingest=null,catalogError=null;
  if(sqliteFirst){
   // Synchronous, transactional SQLite ingest; reject on failure before JSON write.
   ingest=catalogStore.ingestOffers(observations,searchedAt);
   await saveHistory(applied.history);
  }else{
   await saveHistory(applied.history);
-  if(catalogStore)ingest=catalogStore.ingestOffers(observations,searchedAt);
+  if(catalogStore){
+   try{ingest=catalogStore.ingestOffers(observations,searchedAt)}
+   catch(error){catalogError=/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR';}
+  }
  }
- return{applied,ids,ingest};
+ return{applied,ids,ingest,catalogError};
 }
