@@ -2,7 +2,11 @@
 export const normalizeSearch=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/ł/g,'l').replace(/[^a-z0-9]+/g,' ').trim();
 const families=[['Warhammer','Warhammer 40,000','WH40K','Warhammer 40K'],['Herezja Horusa','Horus Heresy'],['Warcraft','World of Warcraft'],['Forgotten Realms','Zapomniane Krainy']];
 export function searchAliases(title){const key=normalizeSearch(title);return families.find(g=>g.some(t=>normalizeSearch(t)===key))?.filter(t=>normalizeSearch(t)!==key)||[];}
-export function queryText(task){return String(task.searchQuery|| (task.mode==='watchlist'?task.title:task.category==='Warcraft'?'Warcraft':'Warhammer')).trim();}
+export function queryText(task){
+ const category=String(task.category||'').trim();
+ const fallback=normalizeSearch(category).startsWith('warhammer')?'Warhammer':category;
+ return String(task.searchQuery||(task.mode==='watchlist'?task.title:fallback||task.title||'')).trim();
+}
 export function matchesSearch(task,title){
  const text=normalizeSearch(title),terms=[task.title,task.searchQuery,...(task.aliases||[]),...searchAliases(task.title)].filter(Boolean);
  const match=terms.some(term=>{const tokens=normalizeSearch(term).split(' ').filter(Boolean);return tokens.length&&tokens.every(t=>(' '+text+' ').includes(' '+t+' '));});
@@ -17,14 +21,19 @@ export function matchesTopic(task,title){
    ['Warhammer','Warhammer 40,000','WH40K','Warhammer 40K','Horus','Horus Heresy','Herezja Horusa']
   :[];
  const terms=[task.searchQuery,task.title,...(task.aliases||[]),...categoryTerms];
- if(!terms.some(Boolean))terms.push(task.category||'Warhammer');
+ if(!terms.some(Boolean))terms.push(task.category||'');
  return matchesSearch({title:'',searchQuery:'',aliases:terms},title);
 }
 export function excludesProduct(title){
  const n=normalizeSearch(title);
+ // Reject unambiguous non-print formats regardless of other book words.
  if(/\b(ebook|e book|epub|mobi|audiobook|audio book|stl|gra pc|gra ps5|gra ps4|gra komputerowa)\b/.test(n))return true;
  const book=/\b(ksiazka|ksiazki|ksiazek|book|books|powiesc|novel|tom|tomy|omnibus|codex|kodeks|podrecznik)\b/.test(n);
- return !book&&/\b(figurka|figurki|figurek|statuetka|miniatures?|miniatura|model|modele|unpainted|sprue|wypraski|ramki|bits|dvd|cd|karty|karta|deck|booster|foil|mtg|magic the gathering|naklejki|zakladka|bookmark|cosplay|bolter|pistol|dice|kosci|kostki|armia|army|pojazd|piechota|terminators?|custodian|jetbike|farba|paint|colour|teren|tereny|sceneria|plansza|puzzle|gra|game|pc|ps2|ps3|ps4|ps5|xbox|gold|czasu gry|konto|funko|casio|zegarek|watch|gpu|geforce|rtx|neverwinter nights|demon stone|adventures in the forgotten realms)\b/.test(n);
+ if(book)return false;
+ // Only strongly indicative product phrases; common words such as "gra",
+ // "game", "model", "army", "gold" or "watch" can be book titles.
+ return /\b(figurka|figurki|figurek|statuetka|miniatures?|miniatura|unpainted|sprue|wypraski|bits|booster|foil|naklejki|zakladka|bookmark|cosplay|pistol|dice|kosci|kostki|jetbike|farba|paint|gpu|geforce|rtx|funko|casio|zegarek|xbox|ps2|ps3|ps4|ps5)\b/.test(n)
+  || /\b(magic the gathering|czas[u]? gry|konto do gry|karty kolekcjonerskie|gra planszowa|gra komputerowa|model do sklejania|zestaw figurek|gra na pc|gra na xbox)\b/.test(n);
 }
 export function expandSearchTopics(topics){
  const seen=new Set(),out=[];

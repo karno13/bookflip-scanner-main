@@ -44,3 +44,18 @@ test('zmiana kolejności tych samych ofert zmienia fingerprint strony',()=>{
  const one={title:'Warhammer książka',url:'/items/12345',price:{amount:'20',currencyCode:'PLN'}},two={...one,url:'/items/12346'};
  assert.notEqual(vintedPageInfo(rsc([one,two]),{...task('Vinted'),paginationVersion:1,page:1}).digest,vintedPageInfo(rsc([two,one]),{...task('Vinted'),paginationVersion:1,page:1}).digest);
 });
+
+test('generic book titles are retained on Allegro discovery without mandatory book words',()=>{
+ for(const source of ['Allegro','Allegro Lokalnie']){
+  const task={source,mode:'discovery',category:'Diuna',title:'Diuna',searchQuery:'Diuna'};
+  assert.equal(acceptsBook(task,'Diuna Frank Herbert'),true);
+  assert.equal(acceptsBook({...task,title:'Gra o tron',searchQuery:'Gra o tron',category:'Fantasy'},'Gra o tron George R. R. Martin'),true);
+  assert.equal(acceptsBook({...task,title:'Gra Endera',searchQuery:'Gra Endera',category:'Science fiction'},'Gra Endera Orson Scott Card'),true);
+ }
+});
+test('Polish metadata overrides English words in a title but explicit English edition is rejected',()=>{
+ assert.equal(isPolishBook('Władca Pierścieni The Fellowship of the Ring',{language:'pl'}),true);
+ assert.equal(isPolishBook('Władca Pierścieni The Fellowship of the Ring'),true);
+ assert.equal(isPolishBook('Władca Pierścieni The Fellowship of the Ring',{language:'en'}),false);
+ assert.equal(isPolishBook('Władca Pierścieni wydanie angielskie',{language:'pl'}),false);
+});
