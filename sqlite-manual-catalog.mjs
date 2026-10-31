@@ -34,7 +34,7 @@ function ensureBook(repo,book,at){
 // mirror checkpoint; the JSON write follows and is durably acknowledged.
 export async function persistManualCatalogAction({
  catalogStore,history,action,input,saveHistory=saveOfferHistory,
- recover=true,loadHistory
+ recover=false,loadHistory
 }){
  if(!catalogStore?.repository)required('SQLITE_MANUAL_REQUIRES_CATALOG');
  if(recover)await recoverPendingMirrors({repository:catalogStore.repository,...(loadHistory?{loadHistory}:{})});
