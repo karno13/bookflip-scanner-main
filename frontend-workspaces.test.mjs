@@ -45,7 +45,7 @@ test('review catalog picker filters by typed title or ISBN before selection', ()
 
 test('catalog loads beyond the first SQLite page without silent JSON substitution', () => {
   assert.match(script, /async function loadCatalogPage\(kind,\{reset=false\}=\{\}\)/);
-  assert.match(script, /offset=\$\{offset\}/);
+  assert.match(script, /new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
   assert.match(script, /INCOMPLETE_CATALOG_PAGE/);
   assert.match(script, /data-load-catalog-kind/);
   assert.match(script, /catalogPageSize = 250/);
@@ -181,4 +181,12 @@ test('price evidence shares one numeric validator with edition summary', () => {
   assert.match(script, /const stats = priceStats\(observations\.map\(item => item\.price\)\)/);
   assert.match(script, /Number\.isFinite\(value\) && value >= 0/);
   assert.doesNotMatch(script, /const first = prices\.length/);
+});
+
+test('catalog search sends debounced SQLite queries beyond loaded pages',()=>{
+ for(const name of ['works','jobs','offers'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+name+"'\\)"));
+ assert.match(script,/params\.set\('query',query\)/);
+ assert.match(script,/catalogAbortControllers\.get\(kind\)\?\.abort\(\)/);
+ assert.match(script,/new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
+ assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query\}/);
 });
