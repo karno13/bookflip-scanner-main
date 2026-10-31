@@ -15,6 +15,7 @@ import {importJsonV2Data} from './import-json-v2-to-sqlite.mjs';
 import {analyzedOffers,bookHistory,bookStatistics} from './price-analysis.mjs';
 import {persistScannedOffers} from './scan-persistence.mjs';
 import {sqliteHistoryModel} from './sqlite-history-read.mjs';
+import {recoverPendingMirrors} from './scan-mirror-recovery.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
 const contentTypes={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
@@ -107,6 +108,7 @@ async function searchAndStore(input,onProgress=()=>{}){
  const catalogStore=getProductionCatalog();
  const sqliteFirst=String(process.env.BOOKFLIP_SQLITE_FIRST??'0')==='1';
  const {applied,ids,ingest,catalogError}=await withHistoryWriteLock(async()=>{
+  if(sqliteFirst)await recoverPendingMirrors({repository:catalogStore?.repository});
   const fresh=await loadOfferHistory();
   return persistScannedOffers({
    history:fresh,offers:result.offers,searchedAt:result.searchedAt,
