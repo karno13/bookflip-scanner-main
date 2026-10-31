@@ -117,7 +117,8 @@ test('mobile repairs keep scanner filters usable and catalog avoids cramped head
 
 test('edition price statistics reflect saved asking prices without projecting ROI', () => {
   assert.match(script, /function offerPriceSummary\(offers = \[\]\)/);
-  assert.match(script, /prices\.length % 2/);
+  assert.match(script, /function priceStats\(prices\)/);
+  assert.match(script, /sorted\.length % 2/);
   assert.match(script, /offerPriceSummaryMarkup\(row\.offers\)/);
   assert.match(script, /Nie są to ceny sprzedaży ani prognoza zysku/);
   assert.match(styles, /\.edition-price-summary/);
@@ -170,4 +171,11 @@ test('manual refresh never announces success after SQLite load or status failure
   assert.match(script, /catalogDataOk\.value !== true/);
   assert.match(script, /Nie wszystkie dane odświeżono/);
   assert.match(script, /finally \{ button\.disabled = false; \}/);
+});
+
+test('price evidence shares one numeric validator with edition summary', () => {
+  assert.match(script, /return priceStats\(offers\.map\(item => item\.currentPrice\)\)/);
+  assert.match(script, /const stats = priceStats\(observations\.map\(item => item\.price\)\)/);
+  assert.match(script, /Number\.isFinite\(value\) && value >= 0/);
+  assert.doesNotMatch(script, /const first = prices\.length/);
 });
