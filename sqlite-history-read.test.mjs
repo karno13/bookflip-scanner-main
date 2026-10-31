@@ -40,3 +40,22 @@ test('only active SQLite edition assignment sets legacy bookId',()=>{
   assert.equal(bookHistory(updated,id).offers.length,1);
  }finally{catalog.close();}
 });
+
+test('scan summary is committed with offers and restored through SQLite history',()=>{
+ const c=createProductionCatalog({databasePath:':memory:'});
+ try{
+  const at='2026-10-31T20:00:00.000Z';
+  const summary={at,found:1,newOffers:1,priceChanges:0,errors:[]};
+  c.ingestOffers([{source:'Vinted',url:'https://www.vinted.pl/items/876-book',title:'Book',price:1900}],at,{scanSummary:summary});
+  assert.deepEqual(sqliteHistoryModel(c.repository).lastScan,summary);
+  assert.equal(c.repository.database.prepare('SELECT count(*) AS n FROM scan_runs').get().n,1);
+ }finally{c.close();}
+});
+test('invalid summary timestamp rolls back offer changes and scanner metadata',()=>{
+ const c=createProductionCatalog({databasePath:':memory:'});
+ try{
+  assert.throws(()=>c.ingestOffers([{source:'Vinted',url:'https://www.vinted.pl/items/877-book',title:'Book',price:1900}],'2026-10-31T20:00:00.000Z',{scanSummary:{at:'2026-10-30T20:00:00.000Z'}}),/INVALID_SCAN_SUMMARY_TIME/);
+  assert.equal(c.repository.database.prepare('SELECT count(*) AS n FROM offers').get().n,0);
+  assert.equal(c.repository.database.prepare('SELECT count(*) AS n FROM scan_runs').get().n,0);
+ }finally{c.close();}
+});
