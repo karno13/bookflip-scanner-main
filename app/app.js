@@ -25,7 +25,19 @@ function reviewOffers() { return state.reviewJobs; }
 function renderScannerOffers() {
   const mount = $('#scannerOfferList');
   if (!mount) return;
-  const offers = [...allOffers()].sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || ''))).slice(0, 5);
+  const all = [...allOffers()];
+  const sourceSelect = $('#scannerOfferSource');
+  const activeSource = sourceSelect.value;
+  const sources = [...new Set(all.map(item => item.source).filter(Boolean))].sort((a,b) => a.localeCompare(b,'pl'));
+  sourceSelect.innerHTML = '<option value="">Wszystkie źródła</option>' + sources.map(source => `<option value="${escapeHtml(source)}">${escapeHtml(source)}</option>`).join('');
+  sourceSelect.value = sources.includes(activeSource) ? activeSource : '';
+  const needle = $('#scannerOfferSearch').value.trim().toLocaleLowerCase('pl');
+  const filtered = all.filter(item =>
+    (!sourceSelect.value || item.source === sourceSelect.value) &&
+    (!needle || `${item.title || item.originalTitle || ''} ${item.source || ''} ${item.observedIsbn || item.isbn || ''}`.toLocaleLowerCase('pl').includes(needle))
+  ).sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')));
+  const offers = filtered.slice(0, 12);
+  $('#scannerOfferCount').textContent = `Pokazano ${offers.length} z ${filtered.length} pasujących ofert`;
   $('#scannerDiscoverSummary').textContent = state.catalog?.enabled === false
     ? 'Oferty z lokalnego JSON. Nie są to wyniki bieżącego skanu.'
     : 'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
@@ -33,7 +45,7 @@ function renderScannerOffers() {
     const title = item.title || item.originalTitle || 'Tytuł nieznany';
     const isbn = item.observedIsbn || item.isbn || 'ISBN nieznany';
     return `<button class="scanner-offer-row" type="button" data-scanner-offer-id="${escapeHtml(item.id)}"><span class="book-spine" aria-hidden="true">▤</span><span class="scanner-offer-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(isbn)}</small><small>${escapeHtml(date(item.lastSeenAt))}</small></span><span class="scanner-offer-price">${money(item.currentPrice)}</span></button>`;
-  }).join('') : '<div class="empty-detail"><p>Brak zapisanych ofert. Uruchom skan, aby zapełnić tę sekcję.</p></div>';
+  }).join('') : '<div class="empty-detail"><p>Brak ofert zgodnych z filtrami albo baza jest pusta.</p></div>';
   mount.querySelectorAll('[data-scanner-offer-id]').forEach(button => button.addEventListener('click', () => openOfferDrawer(button.dataset.scannerOfferId)));
 }
 
@@ -354,6 +366,8 @@ async function submitCatalog(event) {
 
 $('.nav-item').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 $('#scannerBrowseOffers').addEventListener('click', () => showView('offers'));
+$('#scannerOfferSearch').addEventListener('input', renderScannerOffers);
+$('#scannerOfferSource').addEventListener('change', renderScannerOffers);
 $('#refreshView').addEventListener('click', () => Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]).then(() => toast('Dane odswiezone.')));
 $('#toggleSources').addEventListener('click', () => { const boxes = $$('#sourceGrid input'); const all = boxes.length && boxes.every(box => box.checked); boxes.forEach(box => { box.checked = !all; }); });
 $('#startSearch').addEventListener('click', startSearch); $('#goToOffers').addEventListener('click', () => showView('offers'));
