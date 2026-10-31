@@ -1,3 +1,4 @@
+import {isDeepStrictEqual} from 'node:util';
 import {loadOfferHistory,saveOfferHistory} from './offer-history.mjs';
 
 // Called under the same local history-write lock as the next scan.
@@ -13,9 +14,17 @@ export async function recoverPendingMirrors({
    repository.database.prepare("UPDATE scan_json_mirror_outbox SET status='conflict' WHERE id=?").run(row.id);
    throw Error('JSON_MIRROR_RECOVERY_CONFLICT');
   }
-  // Equal timestamps can arise if the JSON mirror was saved but its
-  // completion mark was interrupted. In that case replay is idempotent.
-  await saveHistory(desired);
+  // Equal timestamps are not proof of equal content: another manual edit
+  // could have been saved in the same millisecond.
+  if(current.updatedAt!=null && String(current.updatedAt)===String(desired.updatedAt||'')){
+   if(!isDeepStrictEqual(current,desired)){
+    repository.database.prepare("UPDATE scan_json_mirror_outbox SET status='conflict' WHERE id=?").run(row.id);
+    throw Error('JSON_MIRROR_RECOVERY_CONFLICT');
+   }
+   // Already written: only the SQLite acknowledgement was interrupted.
+  }else{
+   await saveHistory(desired);
+  }
   repository.database.prepare("UPDATE scan_json_mirror_outbox SET status='completed',completed_at=? WHERE id=?").run(new Date().toISOString(),row.id);
   recovered++;
  }
