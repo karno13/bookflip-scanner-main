@@ -6,7 +6,7 @@ import {analyzedOffers} from './price-analysis.mjs';
 
 export function storageMode(env=process.env){
  const mode=String(env.BOOKFLIP_STORAGE||'sqlite').toLowerCase();
- if(!['sqlite','json'].includes(mode))throw Error('INVALID_STORAGE_MODE');
+ if(mode!=='sqlite')throw Error('SQLITE_ONLY_STORAGE_MODE');
  return mode;
 }
 

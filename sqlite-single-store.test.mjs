@@ -8,8 +8,8 @@ const first='2026-10-31T12:00:00.000Z',second='2026-10-31T13:00:00.000Z';
 const offer={source:'Vinted',url:'https://www.vinted.pl/items/123-test',title:'Diuna Frank Herbert',price:2500};
 test('SQLite is the only default active storage mode',()=>{
  assert.equal(storageMode({}),'sqlite');
- assert.equal(storageMode({BOOKFLIP_STORAGE:'json'}),'json');
- assert.throws(()=>storageMode({BOOKFLIP_STORAGE:'unknown'}),/INVALID_STORAGE_MODE/);
+ assert.throws(()=>storageMode({BOOKFLIP_STORAGE:'json'}),/SQLITE_ONLY_STORAGE_MODE/);
+ assert.throws(()=>storageMode({BOOKFLIP_STORAGE:'unknown'}),/SQLITE_ONLY_STORAGE_MODE/);
 });
 test('fresh SQLite scan, repeated scan and price change are durable without JSON',()=>{
  const c=createProductionCatalog({databasePath:':memory:'});

@@ -20,7 +20,7 @@ test('scanner state is module-owned and navigation does not recreate it', () => 
   assert.match(script, /readSearchStream/);
 });
 
-test('frontend uses local JSON compatibility and SQLite catalog APIs', () => {
+test('frontend uses SQLite catalog APIs', () => {
   for (const endpoint of ['/api/sources', '/api/history', '/api/catalog/status', '/api/catalog/works', '/api/identification-jobs', '/api/offers', '/api/catalog/lookup-preview', '/api/catalog/lookup-confirm', '/api/catalog', '/api/search?stream=1']) assert.ok(script.includes(endpoint));
   assert.match(script, /id="markNotBook"/);
   assert.match(script, /decideReview\('not_book'\)/);
@@ -51,7 +51,7 @@ test('catalog loads beyond the first SQLite page without silent JSON substitutio
   assert.match(script, /catalogPageSize = 250/);
   assert.doesNotMatch(script, /CATALOG_PAGE_LIMIT_EXCEEDED/);
   assert.match(script, /CATALOG_CHANGED_DURING_PAGINATION/);
-  assert.match(script, /state\.catalog\?\.enabled === false \? \(state\.history\?\.offers \|\| \[\]\) : state\.sqliteOffers/);
+  assert.match(script, /function allOffers\(\) \{ return state\.sqliteOffers; \}/);
   assert.doesNotMatch(script, /state\.sqliteOffers\.length \? state\.sqliteOffers :/);
   assert.match(script, /Nie udało się wczytać katalogu SQLite/);
 });

@@ -8,7 +8,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SqliteCatalogRepository} from './sqlite-catalog-repository.mjs';
 import {importJsonV2Data,importJsonV2File} from './import-json-v2-to-sqlite.mjs';
-import {legacySyncSlice} from './local-app.mjs';
+import {legacySyncSlice} from './import-json-v2-to-sqlite.mjs';
 
 const at='2026-10-30T10:00:00.000Z',isbn='9780306406157';
 const fixture={version:2,updatedAt:at,books:{

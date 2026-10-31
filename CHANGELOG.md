@@ -13,6 +13,6 @@ BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track 
 - Added cross-platform syntax checks and editor defaults (PR #44).
 - Extended SQLite-backed global searching and bounded large-list DOM rendering (PR #45–46).
 
-**Compatibility:** `BOOKFLIP_STORAGE=json` remains available for old data. Fresh installations use SQLite. No automatic data deletion or import is performed.
+**Runtime:** After PR #49 the local HTTP server is SQLite-only; historical JSON import/parity CLI tools remain available. No automatic data deletion or import is performed.
 
-**Known limitations:** marketplace parsers still need sanitized, confirmed real-world page fixtures; legacy JSON compatibility code remains until dependency audit; page filters and sorting beyond the server-side text query need complete backend pagination coverage.
+**Known limitations:** marketplace parsers still need sanitized, confirmed real-world page fixtures; historical JSON import and migration test code remains archived in the repository; page filters and sorting beyond the server-side text query need complete backend pagination coverage.

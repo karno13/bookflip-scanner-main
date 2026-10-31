@@ -25,7 +25,7 @@ Aplikacja pobiera dostępne źródła z backendu; nie wszystkie adaptery są zaw
 
 ## Dane i prywatność
 
-- `scan-results/local-offer-history.json`: lokalna historia ofert / kompatybilność starszych danych.
+- `scan-results/local-offer-history.json`: wyłącznie archiwalny format z dawnych instalacji; serwer już go nie używa.
 - `scan-results/bookflip-catalog.sqlite`: lokalny katalog SQLite (domyślna ścieżka).
 - `scan-results/local-app.log`: lokalny dziennik diagnostyczny.
 - Folder `scan-results/` i pliki SQLite WAL są ignorowane przez Git. **Nie dodawaj prawdziwych baz, historii skanów, ciasteczek ani sekretów do repozytorium**.

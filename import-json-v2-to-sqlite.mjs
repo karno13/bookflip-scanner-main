@@ -65,3 +65,15 @@ export function importJsonV2File({sourcePath,databasePath,reportPath=null,snapsh
 
 function cliArguments(args){const result={};for(let index=0;index<args.length;index+=2){const key=args[index]?.replace(/^--/,'');if(!key||!args[index+1])throw Error('INVALID_IMPORT_ARGUMENTS');result[key]=args[index+1];}return result;}
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const args=cliArguments(process.argv.slice(2)),report=importJsonV2File({sourcePath:args.source,databasePath:args.database,reportPath:args.report,snapshotPath:args.snapshot});console.log(JSON.stringify(report,null,2));}catch(error){console.error(error.message);process.exitCode=1;}}
+
+/** Historical JSON-to-SQLite tool only; not used by the HTTP application. */
+export function legacySyncSlice(history,{bookId,offerId}={}){
+ const books=Object.create(null),offers=Object.create(null);
+ if(bookId&&history.books?.[bookId])books[bookId]=history.books[bookId];
+ if(offerId&&history.offers?.[offerId]){
+  offers[offerId]=history.offers[offerId];
+  const linkedBookId=offers[offerId].bookId;
+  if(linkedBookId&&history.books?.[linkedBookId])books[linkedBookId]=history.books[linkedBookId];
+ }
+ return{version:2,books,offers,priceHistory:[],updatedAt:history.updatedAt};
+}

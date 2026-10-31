@@ -22,7 +22,7 @@ async function json(url, options) { const response = await fetch(url, options); 
 function selectedSources() { return $$('#sourceGrid input:checked').map(input => input.value); }
 function readQueries() { return [...new Set($('#queries').value.split(/\n|,/).map(value => value.trim()).filter(Boolean))].slice(0, 10); }
 function bookFor(id) { return (state.history?.books || []).find(row => row.book.id === id)?.book || null; }
-function allOffers() { return state.catalog?.enabled === false ? (state.history?.offers || []) : state.sqliteOffers; }
+function allOffers() { return state.sqliteOffers; }
 function reviewOffers() { return state.reviewJobs; }
 function renderScannerOffers() {
   const mount = $('#scannerOfferList');
@@ -40,9 +40,7 @@ function renderScannerOffers() {
   ).sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')));
   const offers = filtered.slice(0, 12);
   $('#scannerOfferCount').textContent = `Pokazano ${offers.length} z ${filtered.length} pasujących ofert`;
-  $('#scannerDiscoverSummary').textContent = state.catalog?.enabled === false
-    ? 'Oferty z lokalnego JSON. Nie są to wyniki bieżącego skanu.'
-    : 'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
+  $('#scannerDiscoverSummary').textContent = 'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
   mount.innerHTML = offers.length ? offers.map(item => {
     const title = item.title || item.originalTitle || 'Tytuł nieznany';
     const isbn = item.observedIsbn || item.isbn || 'ISBN nieznany';
@@ -513,7 +511,7 @@ async function openOfferDrawer(id) {
 function renderSettings() { if (!state.catalog) loadCatalogStatus(); }
 async function runDiagnostics() {
   const button = $('#runDiagnostics'); button.disabled = true; $('#diagnosticResults').innerHTML = '<div class="diagnostic-result"><strong>Trwa test...</strong><small>Lokalne endpointy</small></div>';
-  const checks = [['Zrodla', '/api/sources'], ['Historia JSON', '/api/history'], ['Katalog SQLite', '/api/catalog/status']];
+  const checks = [['Zrodla', '/api/sources'], ['Historia SQLite', '/api/history'], ['Katalog SQLite', '/api/catalog/status']];
   const results = await Promise.all(checks.map(async ([name, url]) => { const started = performance.now(); try { const response = await fetch(url); return {name, ok: response.ok, ms: Math.round(performance.now() - started), code: response.status}; } catch { return {name, ok: false, ms: Math.round(performance.now() - started), code: 'ERR'}; } }));
   $('#diagnosticResults').innerHTML = results.map(result => `<div class="diagnostic-result"><strong>${escapeHtml(result.name)} - ${result.ok ? 'OK' : 'BLAD'}</strong><small>${result.code} / ${result.ms} ms</small></div>`).join(''); button.disabled = false;
 }
