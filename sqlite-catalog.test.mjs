@@ -8,6 +8,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SqliteCatalogRepository} from './sqlite-catalog-repository.mjs';
 import {importJsonV2Data,importJsonV2File} from './import-json-v2-to-sqlite.mjs';
+import {legacySyncSlice} from './local-app.mjs';
 
 const at='2026-10-30T10:00:00.000Z',isbn='9780306406157';
 const fixture={version:2,updatedAt:at,books:{
@@ -83,4 +84,32 @@ test('file importer reads a snapshot, writes a report and never changes the sour
  const {directory,database}=workspace();t.after(()=>rmSync(directory,{recursive:true,force:true,maxRetries:3,retryDelay:25}));const source=join(directory,'history.json'),snapshot=join(directory,'snapshot.json'),reportPath=join(directory,'report.json');writeFileSync(source,JSON.stringify(fixture,null,2));
  const hash=()=>createHash('sha256').update(readFileSync(source)).digest('hex'),before=hash(),report=importJsonV2File({sourcePath:source,databasePath:database,snapshotPath:snapshot,reportPath});
  assert.equal(hash(),before);assert.ok(existsSync(snapshot));assert.ok(existsSync(reportPath));assert.equal(report.after.offers,3);assert.equal(JSON.parse(readFileSync(reportPath,'utf8')).after.offer_price_history,4);
+});
+
+test('legacy manual actions sync only the selected offer and its book',t=>{
+ const slice=legacySyncSlice(fixture,{offerId:'Example:https://example.test/manual'});
+ assert.deepEqual(Object.keys(slice.offers),['Example:https://example.test/manual']);
+ assert.deepEqual(Object.keys(slice.books),['book:manual']);
+ assert.deepEqual(slice.priceHistory,[]);
+ assert.equal(slice.version,2);
+ const onlyBook=legacySyncSlice(fixture,{bookId:'book:manual'});
+ assert.equal(Object.keys(onlyBook.offers).length,0);
+ assert.deepEqual(Object.keys(onlyBook.books),['book:manual']);
+});
+
+test('manual legacy sync does not overwrite authoritative SQLite price or seen count',t=>{
+ const repo=repository(t);
+ const first=importJsonV2Data(fixture,repo);
+ assert.equal(first.source.offers,3);
+ const target='Example:https://example.test/manual';
+ repo.database.prepare('UPDATE offers SET current_price=?,seen_count=?,original_title=? WHERE id=?').run(7250,14,'Aktualna nazwa SQLite',target);
+ const slice=legacySyncSlice(fixture,{offerId:target});
+ const result=importJsonV2Data(slice,repo,{preserveExistingOffers:true});
+ const saved=repo.database.prepare('SELECT current_price,seen_count,original_title FROM offers WHERE id=?').get(target);
+ assert.equal(saved.current_price,7250);
+ assert.equal(saved.seen_count,14);
+ assert.equal(saved.original_title,'Aktualna nazwa SQLite');
+ assert.equal(result.source.offers,1);
+ assert.equal(result.source.priceHistory,0);
+ assert.equal(repo.database.prepare('SELECT COUNT(*) AS count FROM offers').get().count,3);
 });
