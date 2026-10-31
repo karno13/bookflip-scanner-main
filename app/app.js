@@ -23,6 +23,22 @@ function bookFor(id) { return (state.history?.books || []).find(row => row.book.
 function allOffers() { return state.catalog?.enabled === false ? (state.history?.offers || []) : state.sqliteOffers; }
 function reviewOffers() { return state.reviewJobs; }
 
+function renderScannerOffers() {
+  const mount = $('#scannerOfferList');
+  if (!mount) return;
+  const offers = [...allOffers()].sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || ''))).slice(0, 5);
+  $('#scannerDiscoverSummary').textContent = state.catalog?.enabled === false
+    ? 'Oferty z lokalnego JSON. Nie są to wyniki bieżącego skanu.'
+    : 'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
+  mount.innerHTML = offers.length ? offers.map(item => {
+    const title = item.title || item.originalTitle || 'Tytuł nieznany';
+    const isbn = item.observedIsbn || item.isbn || 'ISBN nieznany';
+    return `<button class="scanner-offer-row" type="button" data-scanner-offer-id="${escapeHtml(item.id)}"><span class="book-spine" aria-hidden="true">▤</span><span class="scanner-offer-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(isbn)}</small><small>${escapeHtml(date(item.lastSeenAt))}</small></span><span class="scanner-offer-price">${money(item.currentPrice)}</span></button>`;
+  }).join('') : '<div class="empty-detail"><p>Brak zapisanych ofert. Uruchom skan, aby zapełnić tę sekcję.</p></div>';
+  mount.querySelectorAll('[data-scanner-offer-id]').forEach(button => button.addEventListener('click', () => openOfferDrawer(button.dataset.scannerOfferId)));
+}
+
+
 function showView(name) {
   if (!['scanner', 'review', 'catalog', 'offers', 'settings'].includes(name)) name = 'scanner';
   state.activeView = name;
@@ -33,6 +49,7 @@ function showView(name) {
   if (name === 'review') renderReview();
   if (name === 'catalog') renderCatalog();
   if (name === 'offers') renderOffers();
+  if (name === 'scanner') renderScannerOffers();
   if (name === 'settings') renderSettings();
 }
 
@@ -53,7 +70,7 @@ async function loadHistory() {
   state.history = await json('/api/history');
   $('#offersNavCount').textContent = `${allOffers().length} zapisanych`;
   $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
-  renderReview(); renderCatalog(); renderOffers();
+  renderReview(); renderCatalog(); renderOffers(); renderScannerOffers();
 }
 
 // API pages are limited to 250 rows. Read subsequent pages rather than silently
@@ -313,7 +330,8 @@ async function submitCatalog(event) {
   const data = await json('/api/catalog', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title, isbn})}); state.history = data.catalog; $('#catalogDialog').close(); event.target.reset(); await loadHistory(); renderCatalog(); toast('Reczny rekord katalogowy zostal zapisany.');
 }
 
-$$('.nav-item').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
+$('.nav-item').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
+$('#scannerBrowseOffers').addEventListener('click', () => showView('offers'));
 $('#refreshView').addEventListener('click', () => Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]).then(() => toast('Dane odswiezone.')));
 $('#toggleSources').addEventListener('click', () => { const boxes = $$('#sourceGrid input'); const all = boxes.length && boxes.every(box => box.checked); boxes.forEach(box => { box.checked = !all; }); });
 $('#startSearch').addEventListener('click', startSearch); $('#goToOffers').addEventListener('click', () => showView('offers'));

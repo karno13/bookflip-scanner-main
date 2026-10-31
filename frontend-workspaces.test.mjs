@@ -63,3 +63,14 @@ test('book-centric UI exposes comparison and mobile offers without external imag
   assert.match(styles, /\.mobile-offer/);
   assert.match(styles, /\.book-spine/);
 });
+
+
+test('scanner previews persisted offers separately from scan-session metrics', () => {
+  assert.match(html, /id="scannerOfferList"/);
+  assert.match(html, /id="scannerBrowseOffers"/);
+  assert.match(script, /function renderScannerOffers\(\)/);
+  assert.match(script, /Nie są to wyniki bieżącego skanu/);
+  assert.match(script, /data-scanner-offer-id/);
+  assert.match(script, /openOfferDrawer\(button\.dataset\.scannerOfferId\)/);
+  assert.match(styles, /\.scanner-offer-row/);
+});
