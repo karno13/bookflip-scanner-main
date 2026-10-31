@@ -2,7 +2,11 @@
 export const normalizeSearch=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/ł/g,'l').replace(/[^a-z0-9]+/g,' ').trim();
 const families=[['Warhammer','Warhammer 40,000','WH40K','Warhammer 40K'],['Herezja Horusa','Horus Heresy'],['Warcraft','World of Warcraft'],['Forgotten Realms','Zapomniane Krainy']];
 export function searchAliases(title){const key=normalizeSearch(title);return families.find(g=>g.some(t=>normalizeSearch(t)===key))?.filter(t=>normalizeSearch(t)!==key)||[];}
-export function queryText(task){return String(task.searchQuery|| (task.mode==='watchlist'?task.title:task.category||task.title||'')).trim();}
+export function queryText(task){
+ const category=String(task.category||'').trim();
+ const fallback=normalizeSearch(category).startsWith('warhammer')?'Warhammer':category;
+ return String(task.searchQuery||(task.mode==='watchlist'?task.title:fallback||task.title||'')).trim();
+}
 export function matchesSearch(task,title){
  const text=normalizeSearch(title),terms=[task.title,task.searchQuery,...(task.aliases||[]),...searchAliases(task.title)].filter(Boolean);
  const match=terms.some(term=>{const tokens=normalizeSearch(term).split(' ').filter(Boolean);return tokens.length&&tokens.every(t=>(' '+text+' ').includes(' '+t+' '));});
