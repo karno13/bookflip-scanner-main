@@ -6,6 +6,7 @@ const state = {
   catalogWorks: [], reviewJobs: [], sqliteOffers: [], reviewDetail: null, catalogMode: 'manual', catalogPreview: null,
   scan: {running: false, startedAt: null, timer: null, total: 0, completed: 0, rows: new Map(), result: null, fingerprint: null, lastStart: 0},
   selectedReviewId: null, selectedCatalogId: null, offerPage: 1, pageSize: 25,
+  catalogPages: {works:{total:0,offset:0},jobs:{total:0,offset:0},offers:{total:0,offset:0}},
 };
 
 const savedSearch = JSON.parse(localStorage.getItem('bookflip-search') || 'null');
@@ -87,39 +88,86 @@ async function loadHistory() {
 
 // API pages are limited to 250 rows. Read subsequent pages rather than silently
 // hiding catalog records after the first page. A larger dataset needs server-side UX.
-async function loadCatalogPages(endpoint, maxPages = 40) {
-  const limit = 250;
-  const items = [];
-  let expected = null;
-  for (let page = 0; page < maxPages; page++) {
-    const separator = endpoint.includes('?') ? '&' : '?';
-    const data = await json(`${endpoint}${separator}limit=${limit}&offset=${page * limit}`);
-    if (!Array.isArray(data.items) || !Number.isSafeInteger(data.total) || data.total < 0) throw Error('INVALID_CATALOG_PAGE');
-    if (expected === null) expected = data.total;
-    if (data.total !== expected) throw Error('CATALOG_CHANGED_DURING_PAGINATION');
-    items.push(...data.items);
-    if (items.length >= expected) return { items, total: expected };
-    if (data.items.length === 0) throw Error('INCOMPLETE_CATALOG_PAGE');
+const catalogSources = {
+  works: {endpoint:'/api/catalog/works',stateKey:'catalogWorks',view:'catalog'},
+  jobs: {endpoint:'/api/identification-jobs',stateKey:'reviewJobs',view:'review'},
+  offers: {endpoint:'/api/offers',stateKey:'sqliteOffers',view:'offers'},
+};
+const catalogPageSize = 250;
+const loadingCatalogPages = new Set();
+
+// Fetch one page at a time. A large catalog must not block the UI by
+// attempting to download every row on startup.
+async function loadCatalogPage(kind,{reset=false}={}){
+  const source=catalogSources[kind];
+  if(!source || loadingCatalogPages.has(kind))return false;
+  const page=state.catalogPages[kind];
+  if(!reset && page.offset>=page.total)return false;
+  loadingCatalogPages.add(kind);
+  updateCatalogLoadControls();
+  try {
+    const offset=reset?0:page.offset;
+    const data=await json(`${source.endpoint}?limit=${catalogPageSize}&offset=${offset}`);
+    if(!Array.isArray(data.items)||!Number.isSafeInteger(data.total)||data.total<0||data.items.length>catalogPageSize)throw Error('INVALID_CATALOG_PAGE');
+    if(!reset&&data.total!==page.total)throw Error('CATALOG_CHANGED_DURING_PAGINATION');
+    if(data.items.length===0 && offset<data.total)throw Error('INCOMPLETE_CATALOG_PAGE');
+    if(reset)state[source.stateKey]=data.items;
+    else state[source.stateKey]=[...state[source.stateKey],...data.items];
+    state.catalogPages[kind]={total:data.total,offset:offset+data.items.length};
+    updateCatalogLoadControls();
+    return true;
+  }finally{
+    loadingCatalogPages.delete(kind);
+    updateCatalogLoadControls();
   }
-  throw Error('CATALOG_PAGE_LIMIT_EXCEEDED');
 }
 
-async function loadCatalogData() {
+function updateCatalogLoadControls(){
+  for(const [kind,source] of Object.entries(catalogSources)){
+    const view=document.querySelector('#view-'+source.view);
+    if(!view)continue;
+    let control=view.querySelector('[data-load-catalog-kind="'+kind+'"]');
+    if(!control){
+      control=document.createElement('button');
+      control.type='button';
+      control.className='button-secondary catalog-load-more';
+      control.dataset.loadCatalogKind=kind;
+      view.append(control);
+      control.addEventListener('click',async()=>{
+        control.disabled=true;
+        try {
+          if(await loadCatalogPage(kind)){
+            if(kind==='works')renderCatalog();
+            if(kind==='jobs')renderReview();
+            if(kind==='offers'){renderOffers();renderScannerOffers();}
+          }
+        }catch(error){toast('Nie udało się pobrać kolejnej strony: '+error.message);}
+        finally{updateCatalogLoadControls();}
+      });
+    }
+    const page=state.catalogPages[kind],busy=loadingCatalogPages.has(kind);
+    control.hidden=page.offset>=page.total;
+    control.disabled=busy;
+    control.textContent=busy?'Wczytywanie...':`Pokaż kolejne (wczytano ${page.offset} z ${page.total})`;
+  }
+}
+
+async function loadCatalogData(){
   try {
-    const [works, jobs, offers] = await Promise.all([
-      loadCatalogPages('/api/catalog/works'),
-      loadCatalogPages('/api/identification-jobs'),
-      loadCatalogPages('/api/offers'),
+    const loaded=await Promise.all([
+      loadCatalogPage('works',{reset:true}),
+      loadCatalogPage('jobs',{reset:true}),
+      loadCatalogPage('offers',{reset:true}),
     ]);
-    state.catalogWorks = works.items; state.reviewJobs = jobs.items; state.sqliteOffers = offers.items;
-    $('#offersNavCount').textContent = `${offers.total} zapisanych`;
-    $('#reviewNavCount').textContent = `${jobs.total} pozycji`;
-    renderReview(); renderCatalog(); renderOffers(); renderScannerOffers();
+    if(loaded.some(value=>value!==true))throw Error('CATALOG_PAGE_LOAD_IN_PROGRESS');
+    state.offerPage=1;
+    $('#offersNavCount').textContent = `${state.catalogPages.offers.total} zapisanych`;
+    $('#reviewNavCount').textContent = `${state.catalogPages.jobs.total} pozycji`;
+    renderReview();renderCatalog();renderOffers();renderScannerOffers();
+    updateCatalogLoadControls();
     return true;
-  } catch (error) {
-    // Preserve the previous successful snapshot. Never silently replace
-    // an unavailable SQLite catalog with unrelated JSON history.
-    $('#databaseStatus').textContent = 'SQLite: błąd odczytu katalogu';
+  }catch(error){
+    $('#databaseStatus').textContent='SQLite: błąd odczytu katalogu';
     toast(`Nie udało się wczytać katalogu SQLite: ${error.message}`);
     return false;
   }
@@ -341,7 +389,7 @@ function filteredOffers() {
 
 function renderOffers() {
   if (!state.history) return; const rows = filteredOffers(), pages = Math.max(1, Math.ceil(rows.length / state.pageSize)); state.offerPage = Math.min(state.offerPage, pages); const start = (state.offerPage - 1) * state.pageSize, pageRows = rows.slice(start, start + state.pageSize);
-  $('#offerTotal').textContent = `${rows.length} ofert`;
+  $('#offerTotal').textContent = `${rows.length} pasujących z ${state.catalogPages.offers.offset} wczytanych (${state.catalogPages.offers.total} łącznie)`;
   const mobile = $('#offersMobileList');
   if (mobile) {
     mobile.innerHTML = pageRows.map(item => {
