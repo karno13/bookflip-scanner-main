@@ -166,7 +166,7 @@ test('covers use ISBN checksum and show neutral spine until real image loads', (
 
 test('manual refresh never announces success after SQLite load or status failure', () => {
   const compact=script.replace(/\s+/g,'');
-  for(const expression of ['asyncfunctionloadCatalogData()','returnfalse;','Promise.allSettled([loadHistory(),loadCatalogStatus(),loadCatalogData()])','catalogResult.value!==true','catalogDataOk.value!==true','Nie wszystkiedaneodświeżono'.replace(/\s+/g,''),'finally{button.disabled=false;}'])assert.ok(compact.includes(expression),expression);
+  for(const expression of ['asyncfunctionloadCatalogData()','returnfalse;','Promise.allSettled([loadHistory(),loadCatalogStatus(),loadCatalogData(),])','catalogResult.value!==true','catalogDataOk.value!==true','Nie wszystkiedaneodświeżono'.replace(/\s+/g,''),'finally{button.disabled=false;}'])assert.ok(compact.includes(expression),expression);
 });
 
 test('price evidence shares one numeric validator with edition summary', () => {
@@ -178,7 +178,7 @@ test('price evidence shares one numeric validator with edition summary', () => {
 test('catalog search sends debounced SQLite queries beyond loaded pages', () => {
   const compact=script.replace(/\s+/g,'');
   for(const kind of ['works','jobs','offers'])assert.ok(compact.includes("scheduleGlobalCatalogSearch('"+kind+"')"));
-  for(const expression of ['for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)','catalogAbortControllers.get(kind)?.abort()','newURLSearchParams({limit:String(catalogPageSize),offset:String(offset)})','state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query,filters}'])assert.ok(compact.includes(expression),expression);
+  for(const expression of ['for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)','catalogAbortControllers.get(kind)?.abort()','newURLSearchParams({limit:String(catalogPageSize),offset:String(offset)})','state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query,filters,}'])assert.ok(compact.includes(expression),expression);
 });
 
 test('review and catalog DOM rendering is bounded despite loading many SQLite pages', () => {
