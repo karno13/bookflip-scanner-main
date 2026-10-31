@@ -44,9 +44,12 @@ test('review catalog picker filters by typed title or ISBN before selection', ()
 
 
 test('catalog loads beyond the first SQLite page without silent JSON substitution', () => {
-  assert.match(script, /async function loadCatalogPages\(endpoint, maxPages = 40\)/);
+  assert.match(script, /async function loadCatalogPage\(kind,\{reset=false\}=\{\}\)/);
   assert.match(script, /offset=\$\{page \* limit\}/);
   assert.match(script, /INCOMPLETE_CATALOG_PAGE/);
+  assert.match(script, /data-load-catalog-kind/);
+  assert.match(script, /catalogPageSize = 250/);
+  assert.doesNotMatch(script, /CATALOG_PAGE_LIMIT_EXCEEDED/);
   assert.match(script, /CATALOG_CHANGED_DURING_PAGINATION/);
   assert.match(script, /state\.catalog\?\.enabled === false \? \(state\.history\?\.offers \|\| \[\]\) : state\.sqliteOffers/);
   assert.doesNotMatch(script, /state\.sqliteOffers\.length \? state\.sqliteOffers :/);
