@@ -1,0 +1,48 @@
+name: Publish BookFlip safe demo
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'styles.css'
+      - '.nojekyll'
+      - '.github/workflows/publish-demo.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: bookflip-pages-publish
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout demo branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate static-only demo
+        shell: bash
+        run: |
+          test -s index.html
+          test -s styles.css
+          test -s app.js
+          ! grep -E 'fetch\(|XMLHttpRequest|localStorage\.setItem' app.js
+          mkdir -p public
+          cp index.html styles.css app.js .nojekyll public/
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload demo
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
