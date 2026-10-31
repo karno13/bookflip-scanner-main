@@ -185,7 +185,7 @@ test('price evidence shares one numeric validator with edition summary', () => {
 
 test('catalog search sends debounced SQLite queries beyond loaded pages',()=>{
  for(const name of ['works','jobs','offers'])assert.match(script,new RegExp("scheduleGlobalCatalogSearch\\('"+name+"'\\)"));
- assert.match(script,/params\.set\('query',query\)/);
+ assert.match(script,/for\(const \[key,value\] of Object\.entries\(filters\)\)if\(value\)params\.set\(key,value\)/);
  assert.match(script,/catalogAbortControllers\.get\(kind\)\?\.abort\(\)/);
  assert.match(script,/new URLSearchParams\(\{limit:String\(catalogPageSize\),offset:String\(offset\)\}\)/);
  assert.match(script,/state\.catalogPages\[kind\]=\{total:data\.total,offset:offset\+data\.items\.length,query,filters\}/);
