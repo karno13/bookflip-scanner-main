@@ -68,11 +68,21 @@ export async function withHistoryWriteLock(work){
   try{return await work();}finally{release();}
 }
 
+let runningCatalogResolution=null;
+function scheduleCatalogResolution(catalogStore){
+ if(runningCatalogResolution)return;
+ runningCatalogResolution=new Promise(resolve=>setImmediate(resolve))
+   .then(()=>catalogStore.processQueued())
+   .then(result=>recordProgress({type:'catalog_resolution',processed:result.processed,failed:result.failed||0}))
+   .catch(error=>recordProgress({type:'catalog_resolution_error',code:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'}))
+   .finally(()=>{runningCatalogResolution=null;});
+}
+
 async function searchAndStore(input,onProgress=()=>{}){
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
  const applied=await withHistoryWriteLock(async()=>{const fresh=await loadOfferHistory(),next=applyScanToHistory(fresh,result.offers,result.searchedAt,detailCache,{errors});await saveOfferHistory(next.history);return next;});const ids=result.offers.map(offer=>{const preferred=sourceOfferId(offer.source,offer.url,offerExternalId(offer)),legacy=sourceOfferId(offer.source,offer.url);return applied.history.offers[preferred]?preferred:legacy;}),offers=analyzedOffers(applied.history,ids).map(offer=>({...offer,title:offer.originalTitle}));
  let catalog=null;const catalogStore=getProductionCatalog();
- if(catalogStore){try{const observations=result.offers.map((offer,index)=>({...offer,seenCount:applied.history.offers[ids[index]]?.seenCount,firstSeenAt:applied.history.offers[ids[index]]?.firstSeenAt,lastSeenAt:applied.history.offers[ids[index]]?.lastSeenAt}));const ingest=catalogStore.ingestOffers(observations,result.searchedAt);let resolution=null;if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')resolution=await catalogStore.processQueued();catalog={ingest,resolution};}catch(error){catalog={error:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'};}}
+ if(catalogStore){try{const observations=result.offers.map((offer,index)=>({...offer,seenCount:applied.history.offers[ids[index]]?.seenCount,firstSeenAt:applied.history.offers[ids[index]]?.firstSeenAt,lastSeenAt:applied.history.offers[ids[index]]?.lastSeenAt}));const ingest=catalogStore.ingestOffers(observations,result.searchedAt);if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalogStore);catalog={ingest,resolution:{status:'queued'}};}catch(error){catalog={error:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'};}}
  return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan,...(catalog?{catalog}:{})};
 }
 
