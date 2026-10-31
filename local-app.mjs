@@ -17,6 +17,7 @@ import {persistScannedOffers} from './scan-persistence.mjs';
 import {sqliteHistoryModel} from './sqlite-history-read.mjs';
 import {recoverPendingMirrors} from './scan-mirror-recovery.mjs';
 import {persistManualCatalogAction} from './sqlite-manual-catalog.mjs';
+import {storageMode,createSqliteBook,linkSqliteOffer,persistSqliteScan} from './sqlite-single-store.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
 const contentTypes={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
@@ -77,7 +78,7 @@ function syncHistoryToCatalog(history,selection){
 
 function recordProgress(event){const safe={at:new Date().toISOString(),...event};void appendFile(logPath,JSON.stringify(safe)+'\n').catch(()=>{});return safe;}
 function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){response.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://covers.openlibrary.org; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});}
-export async function readHistoryForUi({catalog=getProductionCatalog(),sqliteRead=process.env.BOOKFLIP_SQLITE_HISTORY_READ==='1'}={}){
+export async function readHistoryForUi({catalog=getProductionCatalog(),sqliteRead=storageMode()==='sqlite'||process.env.BOOKFLIP_SQLITE_HISTORY_READ==='1'}={}){
  if(sqliteRead){
   if(!catalog)throw Error('SQLITE_HISTORY_REQUIRES_CATALOG');
   return sqliteHistoryModel(catalog.repository);
@@ -105,6 +106,17 @@ function scheduleCatalogResolution(catalogStore){
 }
 
 async function searchAndStore(input,onProgress=()=>{}){
+ if(storageMode()==='sqlite'){
+  const catalog=getProductionCatalog();
+  if(!catalog)throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
+  // Catalog reads and all writes occur under one lock. No JSON history is
+  // loaded or written by the active SQLite-only scanning path.
+  const result=await searchOffers(input,{onProgress,detailCache:new Map()});
+  const errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
+  const saved=await withHistoryWriteLock(async()=>persistSqliteScan(catalog,{offers:result.offers,searchedAt:result.searchedAt,errors}));
+  if(String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0')scheduleCatalogResolution(catalog);
+  return{...result,offers:saved.offers,summary:{...result.summary,...saved.summary},history:saved.history,lastScan:saved.lastScan,catalog:{ingest:saved.ingest,resolution:{status:'queued'}}};
+ }
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'}));
  const catalogStore=getProductionCatalog();
  const sqliteFirst=String(process.env.BOOKFLIP_SQLITE_FIRST??'0')==='1';
@@ -156,6 +168,11 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='GET'&&url.pathname==='/api/book'){const history=await readHistoryForUi(),data=bookHistory(history,url.searchParams.get('id'));return data?send(response,200,JSON.stringify(data)):send(response,404,JSON.stringify({error:'BOOK_NOT_FOUND'}));}
  if(request.method==='POST'&&url.pathname==='/api/catalog'){
  const input=await readJson(request);
+ if(storageMode()==='sqlite'){
+  const catalog=getProductionCatalog();if(!catalog)throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
+  const created=await withHistoryWriteLock(async()=>createSqliteBook(catalog,input));
+  return send(response,created.created?201:200,JSON.stringify({book:created.book,catalog:historySnapshot(sqliteHistoryModel(catalog.repository)),catalogSync:{mode:'sqlite'}}));
+ }
  const created=await withHistoryWriteLock(async()=>{
   if(process.env.BOOKFLIP_SQLITE_MANUAL_WRITE==='1'){
    const catalog=getProductionCatalog();
@@ -183,6 +200,11 @@ export function createLocalAppServer(){return createServer(async(request,respons
  if(request.method==='POST'&&url.pathname==='/api/catalog/lookup-confirm'){const catalog=getProductionCatalog();if(!catalog)return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));const result=await catalog.resolveIsbn((await readJson(request)).isbn);return send(response,['created_edition','created_work_and_edition','matched_existing'].includes(result.decision)?200:409,JSON.stringify(result));}
  if(request.method==='POST'&&url.pathname==='/api/catalog/link'){
  const input=await readJson(request);
+ if(storageMode()==='sqlite'){
+  const catalog=getProductionCatalog();if(!catalog)throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
+  const result=await withHistoryWriteLock(async()=>linkSqliteOffer(catalog,input));
+  return send(response,200,JSON.stringify(historySnapshot(result)));
+ }
  const snapshot=await withHistoryWriteLock(async()=>{
   if(process.env.BOOKFLIP_SQLITE_MANUAL_WRITE==='1'){
    const catalog=getProductionCatalog();

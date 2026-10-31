@@ -102,3 +102,13 @@ npm run rehearse:history -- --json ".\\scan-results\\local-offer-history.json" -
 Ścieżka `--output` **nie może istnieć** przed uruchomieniem. Program tworzy tam kopię JSON i spójny snapshot SQLite z użyciem funkcji backup SQLite (uwzględnia zatwierdzone dane WAL). Następnie uruchamia import historii **wyłącznie na kopii bazy**, porównuje stan przed i po oraz generuje plik `migration-rehearsal-report.json`. Oryginalne pliki są otwierane tylko do odczytu.
 
 Wynik nie jest automatyczną zgodą na wyłączenie JSON. Sprawdź `before`, `after`, `import.conflicts` i kopie próbnych danych; w szczególności przypisania ISBN, ręczne decyzje oraz różnice historii cen. Kod wyjścia: `0` — brak wykrytych blokujących różnic w zakresie raportu, `1` — rozbieżności, `2` — błąd narzędzia. Nie wskazuj jako `--output` folderu zawierającego oryginalne dane i nie usuwaj plików oryginalnych po wykonaniu próby.
+
+## Uruchomienie projektu od zera: jeden magazyn SQLite
+
+**Od tego etapu domyślny tryb aplikacji to `BOOKFLIP_STORAGE=sqlite`.** Skanowanie, wyświetlanie historii, tworzenie ręcznych książek i przypisywanie ofert operują bezpośrednio na pliku `scan-results/bookflip-catalog.sqlite`. Nowe skany nie zapisują pliku JSON. Podsumowanie skanu jest utrwalane w tabeli `scan_runs`, a ceny w `offer_price_history`.
+
+Dla starej instalacji z danymi JSON dostępne jest jawne `BOOKFLIP_STORAGE=json` (tylko zgodność), lecz aplikacja nie wykonuje automatycznej migracji tych danych. Aby zachować istniejącą historię, należy najpierw użyć `npm run rehearse:history` i zweryfikować raport.
+
+W nowym trybie dane o książkach bez aktywnego, potwierdzonego przypisania ISBN nie są automatycznie łączone na podstawie samego tytułu; kolejka weryfikacji pozostaje źródłem prawdy o niepewnych wydaniach.
+
+Nie należy jednocześnie uruchamiać dwóch instancji BookFlip na tej samej bazie. Tryb JSON pozostaje tylko na potrzeby kompatybilności i nie jest domyślną ścieżką zapisu.
