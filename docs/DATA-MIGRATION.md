@@ -112,3 +112,11 @@ Dla starej instalacji z danymi JSON dostępne jest jawne `BOOKFLIP_STORAGE=json`
 W nowym trybie dane o książkach bez aktywnego, potwierdzonego przypisania ISBN nie są automatycznie łączone na podstawie samego tytułu; kolejka weryfikacji pozostaje źródłem prawdy o niepewnych wydaniach.
 
 Nie należy jednocześnie uruchamiać dwóch instancji BookFlip na tej samej bazie. Tryb JSON pozostaje tylko na potrzeby kompatybilności i nie jest domyślną ścieżką zapisu.
+
+## Automatyczne wznowienie identyfikacji ISBN
+
+Podczas normalnego uruchomienia `npm start` BookFlip uruchamia worker identyfikacji zadań już zapisanych w SQLite: wykonuje pierwszą partię po otwarciu lokalnego serwera, a potem sprawdza zadania w regularnych odstępach (domyślnie co 30 sekund). Nie trzeba uruchamiać kolejnego skanu, aby obsłużyć gotowe zadania o statusie `queued`, `retry_wait` z upłyniętym `run_after` albo `running` z wygasłą dzierżawą.
+
+Wyłącznik `BOOKFLIP_CATALOG_AUTO_RESOLVE=0` wyłącza planowanie automatyczne; `BOOKFLIP_IDENTIFICATION_POLL_MS` ustawia interwał od 1000 do 3600000 ms. Przetwarzanie jednej partii pozostaje ograniczone przez istniejący `BOOKFLIP_CATALOG_BATCH` (domyślnie 5). Powtórne tyknięcia planisty nie uruchamiają równoległego workera; skany korzystają z tej samej blokady uruchamiania.
+
+Zadania wymagające ręcznej kontroli (`review_required`) i trwałe błędy (`failed`) nie są automatycznie wznawiane bez decyzji użytkownika. Ponowienie po błędzie tymczasowym respektuje zapisany w SQLite termin `run_after`; limity zapytań do BN/Open Library pozostają aktywne.

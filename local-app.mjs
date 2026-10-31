@@ -18,6 +18,7 @@ import {sqliteHistoryModel} from './sqlite-history-read.mjs';
 import {recoverPendingMirrors} from './scan-mirror-recovery.mjs';
 import {persistManualCatalogAction} from './sqlite-manual-catalog.mjs';
 import {storageMode,createSqliteBook,linkSqliteOffer,persistSqliteScan} from './sqlite-single-store.mjs';
+import {createIdentificationScheduler} from './identification-scheduler.mjs';
 
 const appDirectory=fileURLToPath(new URL('./app/',import.meta.url));
 const contentTypes={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};
@@ -97,12 +98,13 @@ export async function withHistoryWriteLock(work){
 
 let runningCatalogResolution=null;
 function scheduleCatalogResolution(catalogStore){
- if(runningCatalogResolution)return;
+ if(runningCatalogResolution)return runningCatalogResolution;
  runningCatalogResolution=new Promise(resolve=>setImmediate(resolve))
    .then(()=>catalogStore.processQueued())
-   .then(result=>recordProgress({type:'catalog_resolution',processed:result.processed,failed:result.failed||0}))
-   .catch(error=>recordProgress({type:'catalog_resolution_error',code:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'}))
+   .then(result=>{recordProgress({type:'catalog_resolution',processed:result.processed,failed:result.failed||0});return result;})
+   .catch(error=>{recordProgress({type:'catalog_resolution_error',code:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'});return null;})
    .finally(()=>{runningCatalogResolution=null;});
+ return runningCatalogResolution;
 }
 
 async function searchAndStore(input,onProgress=()=>{}){
@@ -232,5 +234,27 @@ export function createLocalAppServer(){return createServer(async(request,respons
  }catch(error){send(response,error.statusCode||500,JSON.stringify({error:/^[A-Z0-9_]+$/.test(error.message)?error.message:'LOCAL_APP_ERROR'}));}});}
 
 function openLocalApp(url){if(process.platform==='win32'&&!process.argv.includes('--no-open'))spawn('cmd.exe',['/c','start','',url],{detached:true,stdio:'ignore',windowsHide:true}).unref();}
-async function main(){const port=Number(process.env.BOOKFLIP_LOCAL_PORT||4317);if(!Number.isInteger(port)||port<1024||port>65535)throw Error('INVALID_PORT');const url=`http://127.0.0.1:${port}`,server=createLocalAppServer();server.on('error',error=>{if(error.code==='EADDRINUSE'){console.log(`BookFlip Scanner już działa pod adresem ${url}`);openLocalApp(url);process.exitCode=0;return;}console.error(error.message);process.exitCode=1;});server.listen(port,'127.0.0.1',()=>{console.log(`BookFlip Scanner działa: ${url}`);openLocalApp(url);});}
+async function main(){
+ const port=Number(process.env.BOOKFLIP_LOCAL_PORT||4317);
+ if(!Number.isInteger(port)||port<1024||port>65535)throw Error('INVALID_PORT');
+ const url=`http://127.0.0.1:${port}`,server=createLocalAppServer();
+ const enabled=String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE??'1')!=='0';
+ const catalog=enabled?getProductionCatalog():null;
+ const intervalMs=Number(process.env.BOOKFLIP_IDENTIFICATION_POLL_MS??30_000);
+ const scheduler=catalog?createIdentificationScheduler({
+  runBatch:()=>scheduleCatalogResolution(catalog),
+  intervalMs,
+  onError:error=>recordProgress({type:'catalog_scheduler_error',code:/^[A-Z0-9_]+$/.test(error?.message)?error.message:'CATALOG_INTEGRATION_ERROR'})
+ }):null;
+ server.on('close',()=>{void scheduler?.stop()});
+ server.on('error',error=>{
+  if(error.code==='EADDRINUSE'){console.log(`BookFlip Scanner już działa pod adresem ${url}`);openLocalApp(url);process.exitCode=0;return;}
+  console.error(error.message);process.exitCode=1;
+ });
+ server.listen(port,'127.0.0.1',()=>{
+  scheduler?.start();
+  console.log(`BookFlip Scanner działa: ${url}`);
+  openLocalApp(url);
+ });
+}
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(error=>{console.error(error.message);process.exitCode=1;});
