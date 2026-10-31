@@ -134,9 +134,11 @@ async function loadCatalogStatus() {
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled ? 'Baza lokalna jest dostepna.' : 'Integracja katalogu jest wylaczona.';
     $('#settingsDatabaseStats').innerHTML = Object.entries(counts).slice(0, 8).map(([key, value]) => `<span><b>${escapeHtml(key.replaceAll('_', ' '))}</b><small>${value}</small></span>`).join('');
     $('#connectionDot').classList.add('online'); $('#connectionLabel').textContent = 'Aplikacja online';
+    return true;
   } catch {
     state.catalog = null; $('#databaseStatus').textContent = 'SQLite: niedostepny'; $('#settingsDatabaseCopy').textContent = 'Nie udalo sie odczytac statusu bazy.';
     $('#connectionDot').classList.remove('online'); $('#connectionLabel').textContent = 'Blad polaczenia';
+    return false;
   }
 }
 
@@ -438,7 +440,7 @@ $('#refreshView').addEventListener('click', async () => {
   try {
     const [historyResult, catalogResult, catalogDataOk] = await Promise.allSettled([loadHistory(), loadCatalogStatus(), loadCatalogData()]);
     const errors = [historyResult, catalogResult].filter(result => result.status === 'rejected');
-    if (errors.length || catalogDataOk.status !== 'fulfilled' || catalogDataOk.value !== true) {
+    if (errors.length || catalogResult.value !== true || catalogDataOk.status !== 'fulfilled' || catalogDataOk.value !== true) {
       toast('Nie wszystkie dane odświeżono. Sprawdź stan katalogu SQLite.');
       return;
     }
