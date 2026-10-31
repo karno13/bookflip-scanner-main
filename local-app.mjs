@@ -50,14 +50,14 @@ async function scanAllPages(task,scanner,onProgress=()=>{},waiter=wait){const of
 async function filterVintedPolishOffers(offers,languageReader,onProgress=()=>{},cache=new Map(),waiter=wait){offers=[...new Map(offers.map(offer=>[offer.url,offer])).values()];const accepted=[];let checked=0,unknown=0,cached=0,diagnostic=null;for(const offer of offers){let detail=cache.get(offer.url);if(detail)cached++;else{const read=await retryRead(()=>languageReader(offer.url),{onProgress,waiter,context:{scope:'vinted-language',item:checked+1,total:offers.length}});if(read.error){diagnostic=errorDiagnostic(read.error);break;}detail=read.value;cache.set(offer.url,detail);}checked++;if(/^(?:pl|pol|polish|polski|język polski)$/i.test(String(detail.language||'')))accepted.push({...offer,language:'Polski',...(detail.isbn?{isbn:detail.isbn,isbnEvidence:'Vinted — szczegóły oferty'}:{})});else if(!detail.language)unknown++;onProgress({type:'language-progress',checked,total:offers.length,accepted:accepted.length,unknown,cached});}return{offers:accepted,diagnostic};}
 
 async function readJson(request){let size=0,text='';for await(const chunk of request){size+=chunk.length;if(size>32768)throw Object.assign(Error('REQUEST_TOO_LARGE'),{statusCode:413});text+=chunk;}try{return JSON.parse(text||'{}');}catch{throw Object.assign(Error('INVALID_JSON'),{statusCode:400});}}
-function send(response,status,body,type='application/json; charset=utf-8'){response.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});response.end(body);}
+function send(response,status,body,type='application/json; charset=utf-8'){response.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://covers.openlibrary.org; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});response.end(body);}
 const logPath=join(process.cwd(),'scan-results','local-app.log');
 let productionCatalog=null;
 function getProductionCatalog(){if(!productionCatalogEnabled())return null;if(!productionCatalog)productionCatalog=createProductionCatalog();return productionCatalog;}
 function syncHistoryToCatalog(history){const catalog=getProductionCatalog();return catalog?importJsonV2Data(history,catalog.repository):null;}
 
 function recordProgress(event){const safe={at:new Date().toISOString(),...event};void appendFile(logPath,JSON.stringify(safe)+'\n').catch(()=>{});return safe;}
-function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){response.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});}
+function streamHeaders(response,type='application/x-ndjson; charset=utf-8'){response.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://covers.openlibrary.org; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});}
 function historySnapshot(history){return{updatedAt:history.updatedAt,lastScan:history.lastScan,books:Object.values(history.books).map(book=>bookStatistics(history,book.id)).filter(Boolean).sort((a,b)=>String(b.book.lastSeenAt).localeCompare(String(a.book.lastSeenAt))),offers:analyzedOffers(history).sort((a,b)=>String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)))};}
 async function searchAndStore(input,onProgress=()=>{}){
  const history=await loadOfferHistory(),detailCache=new Map(Object.entries(history.details||{}).filter(([,detail])=>detail?.language||detail?.isbn)),result=await searchOffers(input,{onProgress,detailCache}),errors=result.results.filter(row=>row.status!=='ok').map(row=>({source:row.source,query:row.query,code:row.diagnostic?.code||'SOURCE_REQUEST_FAILED'})),applied=applyScanToHistory(history,result.offers,result.searchedAt,detailCache,{errors});
@@ -67,7 +67,28 @@ async function searchAndStore(input,onProgress=()=>{}){
  return{...result,offers,summary:{...result.summary,newOffers:applied.summary.new,priceChanges:applied.summary.priceChanges},history:applied.summary,lastScan:applied.history.lastScan,...(catalog?{catalog}:{})};
 }
 
+function validateLocalRequest(request) {
+  const expectedPort=String(request.socket.localPort || 4317);
+  const allowedHosts=new Set([`127.0.0.1:${expectedPort}`,`localhost:${expectedPort}`]);
+  const host=String(request.headers.host||'').toLowerCase();
+  if(!allowedHosts.has(host))return {status:403,error:'INVALID_HOST'};
+  const origin=request.headers.origin;
+  if(origin){
+    let parsed;
+    try{parsed=new URL(origin);}catch{return {status:403,error:'INVALID_ORIGIN'};}
+    if(parsed.protocol!=='http:' || !allowedHosts.has(parsed.host.toLowerCase()))return {status:403,error:'INVALID_ORIGIN'};
+  }
+  if(['POST','PUT','PATCH','DELETE'].includes(request.method)){
+    if(!origin)return {status:403,error:'ORIGIN_REQUIRED'};
+    const type=String(request.headers['content-type']||'').split(';',1)[0].trim().toLowerCase();
+    if(type!=='application/json')return {status:415,error:'JSON_REQUIRED'};
+  }
+  return null;
+}
+
 export function createLocalAppServer(){return createServer(async(request,response)=>{try{
+ const rejected=validateLocalRequest(request);
+ if(rejected)return send(response,rejected.status,JSON.stringify({error:rejected.error}));
  const url=new URL(request.url||'/','http://127.0.0.1');
  if(request.method==='GET'&&url.pathname==='/api/sources')return send(response,200,JSON.stringify({sources:Object.keys(localSourceHosts)}));
  if(request.method==='GET'&&url.pathname==='/api/history'){const history=await loadOfferHistory();return send(response,200,JSON.stringify(historySnapshot(history)));}
