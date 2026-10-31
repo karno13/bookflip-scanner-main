@@ -73,3 +73,13 @@ test('scanner previews persisted offers separately from scan-session metrics', (
   assert.match(script, /openOfferDrawer\(button\.dataset\.scannerOfferId\)/);
   assert.match(styles, /\.scanner-offer-row/);
 });
+
+test('review compares observed ISBN against candidate edition and warns on conflicts', () => {
+  assert.match(script, /function normalizedIsbn\(value\)/);
+  assert.match(script, /function reviewCandidateMarkup\(offer, suggested\)/);
+  assert.match(script, /RÓŻNE ISBN — sprawdź wydanie/);
+  assert.match(script, /Konflikt ISBN — wybierz wydanie ręcznie/);
+  assert.match(script, /input\.dataset\.editionId = ''/);
+  assert.match(styles, /\.verification-conflict/);
+  assert.match(styles, /\.verification-match/);
+});
