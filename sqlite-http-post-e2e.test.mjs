@@ -12,13 +12,16 @@ test('HTTP POST scan, ISBN resolution, manual assignment and restart use SQLite 
  const db=join(dir,'catalog.sqlite'),legacy=join(dir,'local-offer-history.json');
  let catalog=createProductionCatalog({databasePath:db,fetcher:async()=>{throw Error('NETWORK_NOT_EXPECTED')}});
  let currentServer=null,scans=0;
- const scan=(input,options)=>searchOffers(input,{...options,
-  now:()=>new Date(scans===0?'2026-10-30T12:00:00.000Z':'2026-10-31T12:00:00.000Z'),
-  scanner:async()=>({offers:[
-   {title:'Example scanned book',url:'https://www.empik.com/example,p1,ksiazka-p',price:scans++===0?2500:2000},
-  ],pagination:{state:'end'}}),
-  retryWait:async()=>{}
- });
+ const scan=(input,options)=>{
+  const run=scans++;
+  return searchOffers(input,{...options,
+   now:()=>new Date(run===0?'2026-10-30T12:00:00.000Z':'2026-10-31T12:00:00.000Z'),
+   scanner:async()=>({offers:[
+    {title:'Example scanned book',url:'https://www.empik.com/example,p1,ksiazka-p',price:run===0?2500:2000},
+   ],pagination:{state:'end'}}),
+   retryWait:async()=>{}
+  });
+ };
  async function start(search){
   const server=createLocalAppServer({catalogProvider:()=>catalog,search});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});
