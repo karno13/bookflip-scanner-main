@@ -1,0 +1,5 @@
+node_modules/
+scan-results/
+coverage/
+fixtures/
+package-lock.json
