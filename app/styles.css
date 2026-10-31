@@ -154,3 +154,17 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 .cover-preview.has-cover>.book-spine{display:none}.cover-preview.has-cover>.cover-preview-image{opacity:1}
 .edition-identity{display:flex;gap:16px;align-items:flex-start;margin:16px 0}.edition-identity .cover-preview{width:72px;height:104px}.edition-identity .cover-preview>.book-spine{font-size:32px}.edition-identity>div{min-width:0;flex:1}.edition-identity h3{font:700 23px Georgia,serif;margin:0 0 7px}
 @media(max-width:760px){.catalog-book-title .cover-preview{width:33px;height:48px}.edition-identity .cover-preview{width:56px;height:81px}.edition-identity h3{font-size:20px}}
+
+/* Incremental SQLite catalog loading: explicit continuation, not a 10k-row cap. */
+.catalog-load-more {
+  display: block;
+  margin: 1rem auto 1.5rem;
+  padding: .65rem 1.2rem;
+  border: 1px solid var(--border, #c7c7c7);
+  border-radius: .5rem;
+  background: var(--surface, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+.catalog-load-more[hidden] { display: none; }
+.catalog-load-more:disabled { opacity: .65; cursor: progress; }
