@@ -73,7 +73,7 @@ export function getCatalogEdition(repository, editionId) {
 
 export function listCatalogOffers(repository, options = {}) {
   const { database } = repository, { limit, offset, query } = page(options), conditions = [], params = [], status = String(options.status ?? ''), source = String(options.source ?? '');
-  if (query) { conditions.push('(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!')'); params.push(likeLiteral(query), likeLiteral(query)); }
+  if (query) { conditions.push("(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!')"); params.push(likeLiteral(query), likeLiteral(query)); }
   if (source) { conditions.push('o.source=?'); params.push(source); }
   if (status === 'matched') conditions.push('m.id IS NOT NULL');
   if (status === 'review') conditions.push("j.status IN ('queued','running','retry_wait','review_required','failed')");
