@@ -89,3 +89,46 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 }
 @media(min-width:761px) and (max-width:1190px){.app-shell{grid-template-columns:218px minmax(0,1fr)}.sidebar{padding:23px 12px}.view{padding:23px 19px}.source-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.scanner-offer-list{grid-template-columns:1fr}.nav-item{gap:6px;padding:8px}.nav-item small{display:none}}
 @media(max-width:760px){.sidebar-collection{display:none}.nav-item .nav-glyph{display:none}.desktop-scanner-grid{display:block}}
+
+
+/* BookFlip 3.2 mobile repair: actual phone screenshots, 375–430px target. */
+@media(max-width:760px){
+ .view{padding:12px 12px 24px}
+ .view-heading{margin-bottom:12px}.view-heading h2{font-size:25px;line-height:1.15}
+ .scanner-heading{padding:15px 16px}.scanner-heading:after{font-size:73px;top:-8px}
+ .scanner-form-panel{padding:13px}
+ .scanner-form-panel #queries{min-height:78px;max-height:120px}
+ .source-header{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap}
+ .source-header>div{min-width:0;flex:1}
+ .source-header small{font-size:10px;line-height:1.35}
+ .source-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .source-option{min-width:0;min-height:43px;padding:9px 8px;font-size:12px;overflow-wrap:anywhere}
+ .scan-cta{width:100%;min-height:46px;font-size:16px}
+ .stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .stats-grid .metric{min-height:82px;padding:10px 11px;display:grid;grid-template-columns:25px 1fr;grid-template-rows:auto auto;align-items:center;gap:3px 8px}
+ .stats-grid .metric .metric-symbol{grid-column:1;grid-row:1;margin:0;width:23px;height:23px;font-size:19px}
+ .stats-grid .metric>span:not(.metric-symbol){grid-column:2;grid-row:1;font-size:11px;line-height:1.2}
+ .stats-grid .metric>strong{grid-column:1/-1;grid-row:2;font-size:24px;line-height:1.2}
+ .stats-grid .metric>small{display:none}
+ .scanner-discover .panel-heading{flex-wrap:wrap;gap:8px}.scanner-discover .panel-heading>div{min-width:0;flex:1}
+ .scanner-discover-toolbar{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:9px!important;padding:0 12px 12px!important;align-items:stretch!important}
+ .scanner-discover-toolbar label{display:flex!important;flex-direction:column!important;gap:5px!important;min-width:0!important;width:100%!important;font-size:11px}
+ .scanner-discover-toolbar input,.scanner-discover-toolbar select{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:42px!important;padding:8px 12px!important;border:1px solid var(--line)!important;border-radius:9px!important;background:#fffefa!important;color:var(--text)!important;font:inherit!important}
+ .scanner-discover-count{margin:0!important;padding:0!important;font-size:11px!important}
+ .catalog-table-header{display:none!important}
+ .catalog-row{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important;padding:12px!important}
+ .catalog-row>.catalog-book-title{grid-column:1/-1!important;min-width:0!important}
+ .catalog-row>span:nth-child(2){grid-column:1!important;font-size:11px;color:var(--muted)}
+ .catalog-row>span:nth-child(2):before{content:"Wydania: ";font-weight:700}
+ .catalog-row>span:nth-child(3){grid-column:1!important;font-size:11px;color:var(--muted)}
+ .catalog-row>span:nth-child(3):before{content:"Oferty: ";font-weight:700}
+ .catalog-row>span:nth-child(4){grid-column:2!important;grid-row:2/4;justify-self:end;align-self:center}
+ .catalog-book-copy strong{font-size:14px!important;white-space:normal!important}
+ .catalog-book-copy small{font-size:11px!important}
+ .catalog-book-title .book-spine{height:48px!important;width:33px!important}
+ .review-list{max-height:270px}
+ .review-item{gap:10px;padding:12px}
+ .review-item .book-spine{width:28px;height:38px}
+ .detail-panel{overflow-wrap:anywhere}
+}
+@media(max-width:400px){.source-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-row{padding:10px!important}.stats-grid .metric{min-height:76px}}
