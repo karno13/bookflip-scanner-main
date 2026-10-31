@@ -234,7 +234,10 @@ function renderReviewDetail() {
     input.dataset.editionId = suggested.edition.id;
     input.setAttribute('aria-expanded', 'false');
     $('#reviewBookOptions').innerHTML = '';
-    $('#approveReview').disabled = false;
+    const proposedIsbn = normalizedIsbn(offer.observedIsbn);
+    const editionIsbns = suggested.edition.identifiers.filter(item => String(item.scheme).startsWith('isbn')).map(item => normalizedIsbn(item.value));
+    $('#approveReview').disabled = Boolean(proposedIsbn && editionIsbns.length && !editionIsbns.includes(proposedIsbn));
+    if ($('#approveReview').disabled) { input.dataset.editionId = ''; input.value = ''; input.placeholder = 'Konflikt ISBN — wybierz wydanie ręcznie'; }
   }
   $('#approveReview').addEventListener('click', approveReview);
   $('#markNotBook').addEventListener('click', () => decideReview('not_book'));
