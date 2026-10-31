@@ -58,3 +58,18 @@ test('review rejection keeps the offer and records an immutable decision', () =>
     assert.throws(() => repository.database.prepare('DELETE FROM review_decisions').run(), /REVIEW_DECISIONS_IMMUTABLE/);
   } finally { repository.close(); }
 });
+
+test('catalog LIKE search treats % and _ as text, not wildcards',()=>{
+ const {repository}=fixture();
+ try{
+  assert.equal(listCatalogWorks(repository,{query:'%'}).total,0);
+  assert.equal(listCatalogWorks(repository,{query:'_'}).total,0);
+  assert.equal(listCatalogOffers(repository,{query:'%'}).total,0);
+  assert.equal(listCatalogOffers(repository,{query:'_'}).total,0);
+  assert.equal(listCatalogWorks(repository,{query:'sol'}).total,1);
+  assert.equal(listCatalogOffers(repository,{query:'solar'}).total,1);
+  repository.createWork({id:'special',title:'100% Warszawa_42',verificationStatus:'manual'});
+  assert.equal(listCatalogWorks(repository,{query:'%'}).total,1);
+  assert.equal(listCatalogWorks(repository,{query:'_42'}).total,1);
+ }finally{repository.close();}
+});

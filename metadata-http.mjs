@@ -36,7 +36,7 @@ export function parseRetryAfter(value, now = Date.now()) {
 }
 
 function temporaryNetworkError(error) {
-  return ['AbortError', 'TimeoutError'].includes(error?.name) || error instanceof TypeError;
+  return ['AbortError', 'TimeoutError'].includes(error?.name) || (error instanceof TypeError && (/(?:fetch failed|network error|failed to fetch|socket hang up|connection reset)/i.test(String(error.message||'')) || ['ECONNRESET','ETIMEDOUT','EAI_AGAIN','ENOTFOUND','ECONNREFUSED'].includes(String(error?.cause?.code||error?.code||''))));
 }
 
 function errorDetails(error) { return { name: error?.name ?? 'Error', message: error?.message ?? String(error) }; }

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const json = (value, fallback = null) => { try { return value == null ? fallback : JSON.parse(value); } catch { return fallback; } };
 const number = (value, fallback, min, max) => Number.isInteger(Number(value)) ? Math.min(max, Math.max(min, Number(value))) : fallback;
+const likeLiteral = value => `%${String(value).replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')}%`;
 const stableId = (prefix, ...values) => `${prefix}_${createHash('sha256').update(JSON.stringify(values)).digest('hex').slice(0, 32)}`;
 const page = (options = {}) => ({ limit: number(options.limit, 100, 1, 250), offset: number(options.offset, 0, 0, 1_000_000), query: String(options.query ?? '').trim().toLowerCase() });
 
@@ -25,9 +26,9 @@ function offer(row) {
 }
 
 export function listCatalogWorks(repository, options = {}) {
-  const { database } = repository, { limit, offset, query } = page(options), like = `%${query}%`;
-  const where = query ? `WHERE lower(w.title) LIKE ? OR lower(w.authors_json) LIKE ? OR EXISTS (
-    SELECT 1 FROM editions se JOIN edition_identifiers si ON si.edition_id=se.id WHERE se.work_id=w.id AND lower(si.normalized_value) LIKE ?)` : '';
+  const { database } = repository, { limit, offset, query } = page(options), like = likeLiteral(query);
+  const where = query ? `WHERE lower(w.title) LIKE ? ESCAPE '!' OR lower(w.authors_json) LIKE ? ESCAPE '!' OR EXISTS (
+    SELECT 1 FROM editions se JOIN edition_identifiers si ON si.edition_id=se.id WHERE se.work_id=w.id AND lower(si.normalized_value) LIKE ? ESCAPE '!')` : '';
   const params = query ? [like, like, like] : [];
   const total = Number(database.prepare(`SELECT count(*) AS count FROM works w ${where}`).get(...params).count);
   const works = database.prepare(`SELECT w.*,
@@ -72,7 +73,7 @@ export function getCatalogEdition(repository, editionId) {
 
 export function listCatalogOffers(repository, options = {}) {
   const { database } = repository, { limit, offset, query } = page(options), conditions = [], params = [], status = String(options.status ?? ''), source = String(options.source ?? '');
-  if (query) { conditions.push('(lower(o.original_title) LIKE ? OR lower(o.observed_isbn) LIKE ?)'); params.push(`%${query}%`, `%${query}%`); }
+  if (query) { conditions.push("(lower(o.original_title) LIKE ? ESCAPE '!' OR lower(o.observed_isbn) LIKE ? ESCAPE '!')"); params.push(likeLiteral(query), likeLiteral(query)); }
   if (source) { conditions.push('o.source=?'); params.push(source); }
   if (status === 'matched') conditions.push('m.id IS NOT NULL');
   if (status === 'review') conditions.push("j.status IN ('queued','running','retry_wait','review_required','failed')");
