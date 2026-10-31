@@ -1,1 +1,18 @@
+# BookFlip local runtime state — never commit user scans or SQLite data.
 scan-results/
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Local development and secrets.
+.env
+.env.*
+!.env.example
+node_modules/
+coverage/
+.DS_Store
+Thumbs.db
+*.log
