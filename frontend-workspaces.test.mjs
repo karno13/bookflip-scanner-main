@@ -93,3 +93,15 @@ test('scanner saved-offer search and source filter are separated from scan count
   assert.match(script, /scannerOfferSearch'\)\.addEventListener\('input', renderScannerOffers\)/);
   assert.match(styles, /\.scanner-discover-toolbar/);
 });
+
+
+test('desktop workspace preserves functional scanner controls and adds editorial shell', () => {
+  assert.match(html, /class="sidebar-collection"/);
+  assert.match(html, /class="desktop-scanner-grid"/);
+  assert.match(html, /id="sourceGrid"/);
+  assert.match(html, /id="startSearch"/);
+  assert.match(html, /id="scanProgressPanel"/);
+  assert.match(html, /id="scannerOfferList"/);
+  assert.match(styles, /\.scanner-offer-list\{display:grid;grid-template-columns:repeat\(2/);
+  assert.match(styles, /@media\(min-width:761px\)/);
+});
