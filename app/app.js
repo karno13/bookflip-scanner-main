@@ -40,9 +40,7 @@ function renderScannerOffers() {
   ).sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')));
   const offers = filtered.slice(0, 12);
   $('#scannerOfferCount').textContent = `Pokazano ${offers.length} z ${filtered.length} pasujących ofert`;
-  $('#scannerDiscoverSummary').textContent = state.catalog?.enabled === false
-    ? 'Oferty z lokalnego JSON. Nie są to wyniki bieżącego skanu.'
-    : 'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
+  $('#scannerDiscoverSummary').textContent = 'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
   mount.innerHTML = offers.length ? offers.map(item => {
     const title = item.title || item.originalTitle || 'Tytuł nieznany';
     const isbn = item.observedIsbn || item.isbn || 'ISBN nieznany';
