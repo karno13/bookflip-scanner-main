@@ -4,6 +4,8 @@ BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track 
 
 ## 2026-10-31 — SQLite-first catalogue
 
+- Retired the obsolete JSON scan mirror/outbox recovery modules after the SQLite-only HTTP cutover (PR #50). Historical SQLite migration files remain immutable.
+
 - SQLite became the default store for offers, prices, manual catalogue actions and ISBN identification (PR #36).
 - Added background identification polling and retry after restart (PR #37).
 - Added offline end-to-end scanner and HTTP persistence regressions (PR #38 and #40).

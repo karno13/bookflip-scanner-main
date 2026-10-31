@@ -74,7 +74,7 @@ export function createProductionCatalog({
         classification: 'structured', autoAssignable: true, reviewRequired: false, observations: [],
       }, dryRun });
     },
-    ingestOffers(offers, observedAt = now(), {jsonMirror=null,scanSummary=null} = {}) {
+    ingestOffers(offers, observedAt = now(), {scanSummary=null} = {}) {
       const report = { offers: 0, evidence: 0, jobs: 0, skipped: 0 };
       const at = observedAt instanceof Date ? observedAt.toISOString() : String(observedAt);
       repository.transaction(() => {
@@ -127,18 +127,9 @@ export function createProductionCatalog({
           repository.database.prepare("INSERT OR REPLACE INTO scan_runs(scanned_at,summary_json,created_at) VALUES(?,?,?)")
             .run(at,JSON.stringify(scanSummary),at);
         }
-        if(jsonMirror){
-          if(typeof jsonMirror.id!=='string'||!jsonMirror.id||typeof jsonMirror.snapshot!=='object')throw Error('INVALID_SCAN_MIRROR');
-          repository.database.prepare(`INSERT INTO scan_json_mirror_outbox(id,snapshot_json,scanned_at,status,created_at)
-            VALUES(?,?,?,'pending',?)`).run(jsonMirror.id,JSON.stringify(jsonMirror.snapshot),at,at);
-        }
+
       });
       return report;
-    },
-    completeJsonMirror(id) {
-      const changed=repository.database.prepare("UPDATE scan_json_mirror_outbox SET status='completed',completed_at=? WHERE id=? AND status='pending'").run(now().toISOString(),id);
-      if(Number(changed.changes)!==1)throw Error('JSON_MIRROR_CHECKPOINT_MISSING');
-      repository.database.prepare("DELETE FROM scan_json_mirror_outbox WHERE status='completed' AND id<>?").run(id);
     },
     async processQueued(limit = Number(process.env.BOOKFLIP_CATALOG_BATCH ?? 5)) {
       return worker.processBatch(limit);
