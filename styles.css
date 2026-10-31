@@ -44,5 +44,32 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 }
 @media(max-width:400px){.source-grid{grid-template-columns:1fr 1fr}.view-heading h2{font-size:25px}.stats-grid .metric{padding:10px}.catalog-table-header,.catalog-row{grid-template-columns:minmax(0,1.5fr) 44px 42px 55px}}
 
+
+/* Book-centric components, designed without fabricated book-cover images. */
+.book-spine{display:grid;place-items:center;flex:none;width:39px;height:53px;background:linear-gradient(140deg,#173d32,#317256);border-radius:3px 8px 8px 3px;border-left:4px solid #bbaf81;color:#f5efe1;font:25px Georgia,serif;box-shadow:inset -4px 0 rgba(0,0,0,.12),2px 3px 6px rgba(22,49,38,.12)}
+.catalog-book-title{display:flex;align-items:center;gap:11px;min-width:0;text-align:left}.catalog-book-copy{min-width:0;display:flex;flex-direction:column;gap:3px}.catalog-book-copy strong{font-weight:700}.catalog-isbn{font-size:10px;color:#70827a}
+.review-item .book-spine{width:31px;height:42px;font-size:20px}.review-item-body{min-width:0;display:flex;flex:1;flex-direction:column;gap:4px}.review-reason{color:#956531}
+.offers-mobile-list{display:none}.mobile-offer{display:none}
+@media(max-width:760px){
+ .catalog-row{grid-template-columns:minmax(0,1fr) 38px 38px 56px;align-items:center;gap:5px}
+ .catalog-book-title{gap:8px}.catalog-book-title .book-spine{height:44px;width:31px;font-size:19px}
+ .catalog-book-copy strong{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;font-size:12px}
+ .catalog-book-copy small{font-size:10px}.catalog-book-copy .catalog-isbn{font-size:9px}
+ .catalog-table-header{grid-template-columns:minmax(0,1fr) 38px 38px 56px;gap:5px;font-size:10px}
+ .review-item{display:flex;align-items:center;gap:10px;text-align:left}.review-item strong{white-space:normal;line-height:1.3}
+ .offers-mobile-list{display:flex;flex-direction:column;gap:0}.offers-table-wrap{display:none}
+ .mobile-offer{display:flex;width:100%;gap:12px;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fffefb;padding:13px 12px;color:var(--text);font:inherit;cursor:pointer}
+ .mobile-offer:last-child{border-bottom:0}.mobile-offer:focus-visible{outline:3px solid #7fb899;outline-offset:-3px}
+ .mobile-offer .book-spine{width:36px;height:50px;font-size:23px}
+ .mobile-offer-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+ .mobile-offer-copy strong{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .mobile-offer-copy small{font-size:10px;color:var(--muted);line-height:1.35}
+ .mobile-offer-copy .mobile-offer-match{color:#2b7055}
+ .mobile-offer-price{flex:none;max-width:104px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;text-align:right}
+ .mobile-offer-price b{font-size:14px;color:#23694c;white-space:nowrap}
+ .mobile-offer-price small{font-size:10px;color:#8a6a30}
+ .offers-panel{padding:0}.pagination{padding:12px}
+}
+
 .demo-banner{position:relative;z-index:50;background:#f4edd1;color:#665018;text-align:center;padding:8px 12px;font:700 11px/1.4 "Segoe UI",sans-serif;letter-spacing:.8px}
-@media(max-width:760px){.demo-banner{font-size:10px}.sidebar{top:0}.topbar{top:57px}}
+@media(max-width:760px){.demo-banner{font-size:10px}}
