@@ -50,3 +50,11 @@ Raport `bookflip-history-parity-v2` dodatkowo porównuje **każdy zapisany w JSO
 Ręczne przypisanie `linkMode='manual'` z JSON wymaga aktywnego powiązania oferty w SQLite do wydania z tym samym `legacy_id` książki. Brak przypisania lub inne wydanie blokują przełączenie. Raport nie modyfikuje zapisanych powiązań ani cen.
 
 To nadal **bramka diagnostyczna**, a nie automatyczna migracja: status nie potwierdza kompletności pozostałych dowodów ISBN, historii decyzji recenzenta ani zgodności wszystkich danych bibliograficznych. Przed docelowym przełączeniem należy wykonać kopię plików i zweryfikować próbkę rzeczywistych danych lokalnych.
+
+## Eksperymentalny zapis skanu: SQLite przed JSON
+
+Wprowadzono przełącznik środowiskowy `BOOKFLIP_SQLITE_FIRST=1`. Bez niego obowiązuje zachowanie zgodności ze starszą wersją. Po ustawieniu przełącznika skan zapisuje rekordy najpierw w transakcyjnym katalogu SQLite, a następnie aktualizuje starszą historię JSON używaną przez część widoków.
+
+**Nie jest to jeszcze SQLite-only.** Awaria zapisu SQLite zatrzymuje operację przed aktualizacją JSON; awaria zapisu JSON po udanym zapisie SQLite pozostawia rozbieżność pomiędzy magazynami i jest zgłaszana jako błąd (bez ukrywania jej jako sukces). Nie należy automatycznie ponawiać nieudanego skanu, zanim nie sprawdzi się obu magazynów — ponowienie może zwiększyć licznik wykryć.
+
+Przełącznik pozostaje domyślnie wyłączony do czasu testów odzyskiwania, przełączenia odczytów oraz strategii odtwarzania niespójnych zapisów. Dla niezawodnej migracji wymagana jest transakcyjna ścieżka tylko w SQLite, nie stały podwójny zapis.
