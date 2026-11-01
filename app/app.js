@@ -1,3 +1,4 @@
+import { createSettingsView } from './views/settings.js';
 import { createScannerView } from './views/scanner.js';
 import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
 const $ = (selector) => document.querySelector(selector);
@@ -877,43 +878,7 @@ async function openOfferDrawer(id) {
   }
 }
 
-function renderSettings() {
-  if (!state.catalog) loadCatalogStatus();
-}
-async function runDiagnostics() {
-  const button = $('#runDiagnostics');
-  button.disabled = true;
-  $('#diagnosticResults').innerHTML =
-    '<div class="diagnostic-result"><strong>Trwa test...</strong><small>Lokalne endpointy</small></div>';
-  const checks = [
-    ['Zrodla', '/api/sources'],
-    ['Historia SQLite', '/api/history'],
-    ['Katalog SQLite', '/api/catalog/status'],
-  ];
-  const results = await Promise.all(
-    checks.map(async ([name, url]) => {
-      const started = performance.now();
-      try {
-        const response = await fetch(url);
-        return {
-          name,
-          ok: response.ok,
-          ms: Math.round(performance.now() - started),
-          code: response.status,
-        };
-      } catch {
-        return { name, ok: false, ms: Math.round(performance.now() - started), code: 'ERR' };
-      }
-    }),
-  );
-  $('#diagnosticResults').innerHTML = results
-    .map(
-      (result) =>
-        `<div class="diagnostic-result"><strong>${escapeHtml(result.name)} - ${result.ok ? 'OK' : 'BLAD'}</strong><small>${result.code} / ${result.ms} ms</small></div>`,
-    )
-    .join('');
-  button.disabled = false;
-}
+const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
 function setCatalogMode(mode) {
   state.catalogMode = mode;
