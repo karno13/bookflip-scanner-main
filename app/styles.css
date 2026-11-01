@@ -397,3 +397,10 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
   .book-detail-title { min-width: 0; gap: 10px; }
   .book-detail-title > div { min-width: 0; }
 }
+
+/* Full observation logs stay one tap away in the compact offer drawer. */
+.price-history-disclosure { margin-top: 10px; }
+.price-history-disclosure > summary { font-size: 13px; font-weight: 700; }
+.price-history-disclosure .price-list { padding: 3px 10px 10px; max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
+.price-history-disclosure .price-list > span { min-width: 0; }
+@media (max-width: 760px) { .price-history-disclosure .price-list { max-height: min(46vh, 340px); } }
