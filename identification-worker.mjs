@@ -141,17 +141,26 @@ export class IdentificationWorker {
   async processBatch(limit = 10) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000)
       throw new Error('INVALID_BATCH_LIMIT');
-    const items = [],
-      errors = [];
-    while (items.length + errors.length < limit) {
-      try {
-        const item = await this.processNext();
-        if (!item) break;
-        items.push(item);
-      } catch (error) {
-        errors.push(String(error.message ?? error));
+    const items = [], errors = [];
+    let reservations = 0;
+    const concurrency = Math.min(3, limit);
+    // Claiming and database writes stay synchronous/transactional; only
+    // network-bound metadata lookups overlap. Rate limiters still apply per source.
+    const work = Array.from({ length: concurrency }, async () => {
+      while (items.length + errors.length < limit) {
+        // Reserve a slot before yielding, so two lanes never exceed the batch limit.
+        const slot = reservations++;
+        if (slot >= limit) break;
+        try {
+          const item = await this.processNext();
+          if (!item) break;
+          items.push(item);
+        } catch (error) {
+          errors.push(String(error.message ?? error));
+        }
       }
-    }
+    });
+    await Promise.all(work);
     return { processed: items.length, failed: errors.length, errors, items };
   }
 
