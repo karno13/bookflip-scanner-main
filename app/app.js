@@ -376,7 +376,8 @@ async function loadCatalogStatus() {
       ['Gotowe do przetworzenia', identification.runnable ?? 0],
       ['Oczekujące na termin ponowienia', identification.waiting ?? 0],
       ...Object.entries(identification.statuses || {}),
-      ...Object.entries(identification.decisions || {}),
+      ...Object.entries(identification.decisions || {}).map(([key,value]) => ['Automatycznie: ' + (labels[key] || key),value]),
+      ...Object.entries(identification.manualDecisions || {}).map(([key,value]) => ['Ręcznie: ' + ({approved:'zatwierdzone',not_book:'nie-książka',requeued:'ponowione',proposal_rejected:'odrzucona propozycja'}[key] || key),value]),
       ...(identification.failureReasons || []).map((item) => [
         'Błąd: ' + item.code, item.count,
       ]),

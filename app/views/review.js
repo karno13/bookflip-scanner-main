@@ -71,10 +71,12 @@ function renderReview() {
       const job = state.reviewJobs.find((row) => row.id === state.selectedReviewId);
       if (job) {
         try {
-          state.reviewDetail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`);
+          const detail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`);
+          if (state.selectedReviewId !== job.id) return;
+          state.reviewDetail = detail;
           renderReviewDetail();
         } catch (error) {
-          toast(error.message);
+          if (state.selectedReviewId === job.id) toast(error.message);
         }
       }
     }),
@@ -128,6 +130,22 @@ function renderReviewDetail() {
     event.target.dataset.editionId = '';
     $('#approveReview').disabled = true;
     renderReviewBookChoices(event.target.value);
+    const query = event.target.value.trim();
+    const reviewId = state.selectedReviewId;
+    const requestId = ++reviewSearchRequest;
+    if (reviewSearchTimer) clearTimeout(reviewSearchTimer);
+    if (query.length < 2) return;
+    reviewSearchTimer = setTimeout(async () => {
+      try {
+        const found = await json('/api/catalog/works?' + new URLSearchParams({ query, limit: '50' }));
+        if (requestId !== reviewSearchRequest || state.selectedReviewId !== reviewId ||
+            $('#reviewBookSearch') !== event.target || event.target.value.trim() !== query) return;
+        renderReviewBookChoices(query, found.items || []);
+      } catch (error) {
+        if (requestId === reviewSearchRequest && state.selectedReviewId === reviewId)
+          toast('Nie udało się wyszukać w SQLite: ' + error.message);
+      }
+    }, 300);
   });
   $('#reviewBookSearch').addEventListener('focus', (event) =>
     renderReviewBookChoices(event.target.value),
@@ -222,12 +240,14 @@ function renderReviewDetail() {
   );
 }
 
-function renderReviewBookChoices(query = '') {
+let reviewSearchRequest = 0;
+let reviewSearchTimer = null;
+function renderReviewBookChoices(query = '', works = state.catalogWorks) {
   const list = $('#reviewBookOptions'),
     input = $('#reviewBookSearch');
   if (!list || !input) return;
   const needle = query.trim().toLocaleLowerCase('pl');
-  const editions = state.catalogWorks
+  const editions = works
     .flatMap((work) => work.editions.map((edition) => ({ work, edition })))
     .filter(
       ({ work, edition }) =>

@@ -182,6 +182,9 @@ export function createProductionCatalog({
           "SELECT json_extract(result_json, '$.decision') AS decision, count(*) AS count FROM identification_jobs WHERE status='completed' AND json_valid(result_json) GROUP BY decision",
         ).all().filter((row) => row.decision).map((row) => [row.decision, Number(row.count)]),
       );
+      const manualDecisions = Object.fromEntries(repository.database.prepare(
+        "SELECT action, count(*) AS count FROM review_decisions GROUP BY action",
+      ).all().map((row) => [row.action, Number(row.count)]));
       const nowIso = new Date().toISOString();
       const runnable = Number(repository.database.prepare(
         "SELECT count(*) AS count FROM identification_jobs WHERE (status='queued' OR status='retry_wait') AND (run_after IS NULL OR run_after<=?)",
@@ -200,7 +203,7 @@ export function createProductionCatalog({
       return {
         enabled: true,
         counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache },
-        identification: { statuses: identification, decisions, runnable, waiting, failureReasons },
+        identification: { statuses: identification, decisions, manualDecisions, runnable, waiting, failureReasons },
       };
     },
     close() {
