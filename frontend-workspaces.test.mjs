@@ -12,11 +12,11 @@ const offersScript = await readFile(new URL('./app/views/offers.js', import.meta
 const script = [shellScript, scannerScript, reviewScript, catalogScript, offersScript].join('\n');
 const styles = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
 
-test('desktop shell exposes exactly the five requested workspaces in order', () => {
+test('desktop shell exposes all six workspaces in order', () => {
   const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(
     (match) => match[1],
   );
-  assert.deepEqual(views, ['scanner', 'review', 'catalog', 'offers', 'settings']);
+  assert.deepEqual(views, ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']);
   assert.match(
     html,
     /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/,

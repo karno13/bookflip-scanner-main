@@ -15,6 +15,7 @@
         <button class="nav-item active" type="button" data-view="scanner"><span class="nav-glyph" aria-hidden="true">⌕</span><span>Skaner</span><small>Wyszukiwanie ofert</small></button>
         <button class="nav-item" type="button" data-view="review"><span class="nav-glyph" aria-hidden="true">◇</span><span>Do weryfikacji</span><small id="reviewNavCount">0 pozycji</small></button>
         <button class="nav-item" type="button" data-view="catalog"><span class="nav-glyph" aria-hidden="true">▤</span><span>Katalog</span><small>Dzieła i wydania</small></button>
+        <button class="nav-item" type="button" data-view="sets"><span class="nav-glyph" aria-hidden="true">▦</span><span>Zestawy</span><small>Wiele książek w ofercie</small></button>
         <button class="nav-item" type="button" data-view="offers"><span class="nav-glyph" aria-hidden="true">♢</span><span>Oferty</span><small id="offersNavCount">0 zapisanych</small></button>
         <button class="nav-item" type="button" data-view="settings"><span class="nav-glyph" aria-hidden="true">⚙</span><span>Ustawienia</span><small>Źródła i diagnostyka</small></button>
       </nav>
@@ -72,6 +73,25 @@
           <div class="stats-grid catalog-stats"><article class="metric"><span>Dzieła</span><strong id="catalogWorks">0</strong><small>SQLite</small></article><article class="metric"><span>Wydania</span><strong id="catalogEditions">0</strong><small>SQLite</small></article><article class="metric"><span>Ręczna weryfikacja</span><strong id="catalogIncomplete">0</strong><small>wymaga decyzji</small></article></div>
           <div class="filterbar"><label class="search-field"><span class="sr-only">Szukaj w katalogu</span><input id="catalogSearch" type="search" placeholder="Tytuł, autor lub ISBN"></label><select id="catalogSort" aria-label="Sortowanie katalogu"><option value="title">Tytuł A–Z</option><option value="offers">Najwiecej ofert</option><option value="recent">Ostatnio aktualizowane</option></select></div>
           <div class="catalog-layout"><div class="panel catalog-list-panel"><div class="catalog-table-header"><span>Dzielo</span><span>Wydania</span><span>Oferty</span><span>Status</span></div><div id="catalogList"></div></div><div class="detail-panel catalog-detail" id="catalogDetail"><div class="empty-detail"><h3>Wybierz rekord</h3><p>Zobacz wydania i historie cen bez opuszczania katalogu.</p></div></div></div>
+        </section>
+        <section class="view" id="view-sets" data-title="Zestawy" hidden>
+          <div class="view-heading"><div><h2>Zestawy książek</h2><p>Jedna oferta może zawierać kilka wydań. Cena pozostaje ceną całego zestawu.</p></div></div>
+          <div class="panel" style="padding:1rem;display:grid;gap:0.7rem">
+            <label class="field"><span>Znajdź ofertę do oznaczenia jako zestaw</span><input id="setOfferQuery" placeholder="Tytuł oferty, źródło lub ISBN"></label>
+            <button class="button secondary" type="button" id="setSearchOffers">Szukaj ofert</button>
+            <select id="setOfferSelect" aria-label="Wybierz ofertę"></select>
+            <button class="button primary" type="button" id="setMarkOffer">Oznacz ofertę jako zestaw</button>
+            <p id="setFeedback" role="status" aria-live="polite"></p>
+          </div>
+          <div class="panel" style="padding:1rem;margin-top:1rem;display:grid;gap:0.7rem">
+            <h3>Dodaj książki do zestawu</h3>
+            <label class="field"><span>Zestaw</span><select id="setCurrent" aria-label="Wybierz zestaw"></select></label>
+            <label class="field"><span>Szukaj książki w katalogu</span><input id="setEditionQuery" placeholder="Tytuł, autor lub ISBN"></label>
+            <button class="button secondary" type="button" id="setSearchEditions">Szukaj wydań</button>
+            <select id="setEditionSelect" aria-label="Wybierz wydanie"></select>
+            <button class="button primary" type="button" id="setAddEdition">Dodaj książkę do zestawu</button>
+            <div id="setMembers" aria-live="polite"></div>
+          </div>
         </section>
         <section class="view" id="view-offers" data-title="Oferty" hidden>
           <div class="view-heading"><div><p class="section-eyebrow">RYNEK KSIĄŻEK</p><h2>Wszystkie oferty</h2><p>Ogłoszenia zapisane przez lokalne skanery.</p></div><span class="state-badge neutral" id="offerTotal">0 ofert</span></div>

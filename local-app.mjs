@@ -1,3 +1,4 @@
+import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from './offer-sets.mjs';
 import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createServer } from 'node:http';
@@ -615,10 +616,36 @@ export function createLocalAppServer({
         const now = new Date().toISOString();
         const updated = repo.transaction(() => repo.database.prepare(
           mode === 'not_found'
-            ? "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status='completed' AND json_valid(result_json) AND json_extract(result_json,'$.decision')='not_found' AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual'))"
-            : "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status=? AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual'))",
+            ? "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status='completed' AND json_valid(result_json) AND json_extract(result_json,'$.decision')='not_found' AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual')) AND NOT EXISTS (SELECT 1 FROM offer_sets s WHERE s.offer_id=identification_jobs.offer_id)"
+            : "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status=? AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual')) AND NOT EXISTS (SELECT 1 FROM offer_sets s WHERE s.offer_id=identification_jobs.offer_id)",
         ).run(...(mode === 'not_found' ? [now] : [now, mode])).changes);
         return send(response, 200, JSON.stringify({ queued: Number(updated) }));
+      }
+      if (url.pathname === '/api/sets' && request.method === 'GET') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify({ items: listOfferSets(catalog.repository) }));
+      }
+      if (url.pathname === '/api/sets' && request.method === 'POST') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const input = await readJson(request);
+        if (typeof input?.offerId !== 'string' || !input.offerId.trim()) return send(response, 400, JSON.stringify({ error:'INVALID_OFFER_ID' }));
+        return send(response, 200, JSON.stringify(markOfferAsSet(catalog.repository, input.offerId)));
+      }
+      if (url.pathname.startsWith('/api/sets/') && ['POST','DELETE'].includes(request.method)) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const parts = url.pathname.split('/').map(decodeURIComponent);
+        if (parts.length === 4 && parts[3] === 'editions' && request.method === 'POST') {
+          const input = await readJson(request);
+          if (typeof input?.editionId !== 'string' || !input.editionId.trim()) return send(response, 400, JSON.stringify({ error:'INVALID_EDITION_ID' }));
+          return send(response, 200, JSON.stringify(updateSetEdition(catalog.repository, parts[2], input.editionId, true)));
+        }
+        if (parts.length === 5 && parts[3] === 'editions' && request.method === 'DELETE')
+          return send(response, 200, JSON.stringify(updateSetEdition(catalog.repository, parts[2], parts[4], false)));
+        if (parts.length === 3 && request.method === 'DELETE')
+          return send(response, 200, JSON.stringify(unmarkOfferSet(catalog.repository, parts[2])));
       }
       if (request.method === 'GET' && url.pathname === '/api/identification-jobs') {
         const catalog = getProductionCatalog();
@@ -748,6 +775,7 @@ export function createLocalAppServer({
           '/scan-stream.js': 'scan-stream.js',
           '/views/scanner.js': 'views/scanner.js',
           '/views/settings.js': 'views/settings.js',
+          '/views/sets.js': 'views/sets.js',
           '/views/review.js': 'views/review.js',
           '/views/catalog.js': 'views/catalog.js',
           '/views/offers.js': 'views/offers.js',
