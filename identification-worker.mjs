@@ -51,6 +51,7 @@ export class IdentificationWorker {
     now = () => new Date(),
     leaseMs = 60_000,
     retryDelayMs = 5 * 60_000,
+    maxAttempts = 5,
   } = {}) {
     if (!repository || !resolver) throw new TypeError('repository and resolver are required');
     this.repository = repository;
@@ -58,6 +59,7 @@ export class IdentificationWorker {
     this.now = now;
     this.leaseMs = leaseMs;
     this.retryDelayMs = retryDelayMs;
+    this.maxAttempts = maxAttempts;
   }
 
   claim() {
@@ -111,6 +113,8 @@ export class IdentificationWorker {
           String(error.code || error.cause?.code || ''),
         );
       const now = this.now();
+      const shouldRetry = retryable && Number(job.attempt_count) < this.maxAttempts;
+      const delay = Math.min(this.retryDelayMs * 2 ** Math.max(0, Number(job.attempt_count) - 1), 24 * 60 * 60_000);
       this.repository.database
         .prepare(
           `UPDATE identification_jobs
@@ -118,8 +122,8 @@ export class IdentificationWorker {
         WHERE id=? AND status='running' AND lease_token=?`,
         )
         .run(
-          retryable ? 'retry_wait' : 'failed',
-          retryable ? new Date(now.getTime() + this.retryDelayMs).toISOString() : null,
+          shouldRetry ? 'retry_wait' : 'failed',
+          shouldRetry ? new Date(now.getTime() + delay).toISOString() : null,
           String(error.message ?? error),
           now.toISOString(),
           job.id,
