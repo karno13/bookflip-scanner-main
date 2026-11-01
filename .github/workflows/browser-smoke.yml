@@ -1,0 +1,21 @@
+name: Browser smoke test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Playwright for isolated smoke test
+        run: npm install --no-save --no-package-lock playwright@1.55.1
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Check all five views and populated SQLite
+        run: node scripts/browser-smoke.mjs
