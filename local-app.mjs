@@ -655,9 +655,9 @@ export function createLocalAppServer({
         if (scanInFlight)
           return send(response, 409, JSON.stringify({ error: 'SCAN_ALREADY_RUNNING' }));
         scanInFlight = true;
-        currentScan = { status: 'running', startedAt: new Date().toISOString() };
-        await persistScanStatus(currentScan);
         try {
+          currentScan = { status: 'running', startedAt: new Date().toISOString() };
+          await persistScanStatus(currentScan);
           if (url.searchParams.get('stream') === '1') {
             streamHeaders(response);
             const emit = (event) => {
@@ -672,7 +672,7 @@ export function createLocalAppServer({
               currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
               await persistScanStatus(currentScan);
               if (!response.destroyed) response.write(JSON.stringify({ type: 'result', result }) + '\n');
-              response.end();
+              if (!response.destroyed) response.end();
             } catch (error) {
               currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
               await persistScanStatus(currentScan);
