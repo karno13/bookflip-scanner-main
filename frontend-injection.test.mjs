@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const shell = await readFile(new URL('./app/app.js', import.meta.url), 'utf8');
-const modules = ['review', 'catalog', 'offers'];
 
-test('all workspace constructors receive both DOM selector helpers', async () => {
-  for (const name of modules) {
-    const source = await readFile(new URL(`./app/views/${name}.js`, import.meta.url), 'utf8');
-    assert.match(source, /state, \$, \$\$, json/, name);
-    assert.match(shell, new RegExp(`const ${name}View = create${name[0].toUpperCase()+name.slice(1)}View\\(\\{ state, \\\$[, ]+\\$\\$, json`), name);
+test('every workspace receives both DOM selector helpers', async () => {
+  for (const name of ['review', 'catalog', 'offers']) {
+    const source = await readFile(new URL('./app/views/' + name + '.js', import.meta.url), 'utf8');
+    const title = name[0].toUpperCase() + name.slice(1);
+    assert.ok(source.includes('({ state, $, $$, json'), name + ' declaration');
+    assert.ok(shell.includes('const ' + name + 'View = create' + title + 'View({ state, $, $$, json'), name + ' injection');
   }
-  assert.doesNotMatch(shell, /state, \$, \$, json/);
+  assert.ok(!shell.includes('state, $, $, json'));
 });
