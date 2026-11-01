@@ -1,3 +1,4 @@
+import { json } from './core/api.js';
 import { escapeHtml, money, date, shortTime } from './core/formatters.js';
 import { createSettingsView } from './views/settings.js';
 import { createScannerView } from './views/scanner.js';
@@ -48,12 +49,6 @@ function toast(message) {
   node.textContent = message;
   $('#toastRegion').append(node);
   setTimeout(() => node.remove(), 4200);
-}
-async function json(url, options) {
-  const response = await fetch(url, options);
-  const data = await response.json();
-  if (!response.ok) throw Error(data.error || `HTTP_${response.status}`);
-  return data;
 }
 function selectedSources() {
   return $$('#sourceGrid input:checked').map((input) => input.value);
