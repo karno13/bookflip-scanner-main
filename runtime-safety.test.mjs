@@ -7,11 +7,11 @@ import { defaultHistoryPath } from './offer-history.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(root, name), 'utf8');
-test('default JSON history is anchored to app installation, not process.cwd()', () => {
+test('legacy history remains stable while catalog is stored in user data directory', () => {
   assert.equal(defaultHistoryPath, join(root, 'scan-results', 'local-offer-history.json'));
   assert.match(
     read('catalog-production.mjs'),
-    /fileURLToPath\(new URL\('\.\/scan-results\/bookflip-catalog\.sqlite'/,
+    /databasePath = defaultCatalogPath\(\)/,
   );
   assert.match(read('local-app.mjs'), /fileURLToPath\(new URL\('\.\/scan-results\/local-app\.log'/);
 });

@@ -1,10 +1,11 @@
+import { defaultCatalogPath } from '../catalog-data-location.mjs';
 import { backup, DatabaseSync } from 'node:sqlite';
 import { access, mkdir, rename, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const defaultSource = fileURLToPath(new URL('../scan-results/bookflip-catalog.sqlite', import.meta.url));
+const defaultSource = defaultCatalogPath();
 
 export async function backupCatalog({
   source = process.env.BOOKFLIP_CATALOG_DB || defaultSource,
