@@ -384,7 +384,7 @@ async function loadCatalogStatus() {
   }
 }
 
-const { startSearch } = createScannerView({
+const { startSearch, renderSourceRows } = createScannerView({
   state, $, escapeHtml, shortTime, readQueries, selectedSources, toast,
   loadHistory, loadCatalogStatus, loadCatalogData,
 });
@@ -587,6 +587,8 @@ async function restoreLastScanStatus() {
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderOffers, openOfferDrawer, openEditionDetail, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
 const catalogView = createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows });
 const offersView = createOffersView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderReview, openEditionDetail, renderReviewBookChoices, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
+
+const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
 Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
