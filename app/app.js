@@ -129,7 +129,7 @@ function showView(name) {
     view.hidden = view.id !== `view-${name}`;
     view.classList.toggle('active', !view.hidden);
   });
-  $('.nav-item').forEach((button) => {
+  $$('.nav-item').forEach((button) => {
     const active = button.dataset.view === name;
     button.classList.toggle('active', active);
     if (active) button.setAttribute('aria-current', 'page');
@@ -384,10 +384,12 @@ async function loadCatalogStatus() {
   }
 }
 
-const { startSearch } = createScannerView({
+const { startSearch, renderSourceRows } = createScannerView({
   state, $, escapeHtml, shortTime, readQueries, selectedSources, toast,
   loadHistory, loadCatalogStatus, loadCatalogData,
 });
+
+const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
 function filteredReviewOffers(...args) { return reviewView.filteredReviewOffers(...args); }
 function visibleCatalogRows(...args) { return reviewView.visibleCatalogRows(...args); }
@@ -490,7 +492,7 @@ async function submitCatalog(event) {
   toast('Reczny rekord katalogowy zostal zapisany.');
 }
 
-$('.nav-item').forEach((button) =>
+$$('.nav-item').forEach((button) =>
   button.addEventListener('click', () => showView(button.dataset.view)),
 );
 $('#scannerBrowseOffers').addEventListener('click', () => showView('offers'));

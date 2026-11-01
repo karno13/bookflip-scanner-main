@@ -134,7 +134,7 @@ async function openOfferDrawer(id) {
   }
 }
 
-const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
+
 
 
 return { filteredOffers, renderOffers, priceEvidenceMarkup, scenarioCalculatorMarkup, calculateScenario, openOfferDrawer };
