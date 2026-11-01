@@ -13,7 +13,8 @@ test('legacy history remains stable while catalog is stored in user data directo
     read('catalog-production.mjs'),
     /databasePath = defaultCatalogPath\(\)/,
   );
-  assert.match(read('local-app.mjs'), /fileURLToPath\(new URL\('\.\/scan-results\/local-app\.log'/);
+  assert.match(read('local-app.mjs'), /join\(runtimeDataDirectory, 'local-app\.log'\)/);
+  assert.match(read('local-app.mjs'), /mkdir\(runtimeDataDirectory, \{ recursive: true \}\)/);
 });
 test('manual connectivity workflows never auto-run or submit shop cart POST', () => {
   const source = read('.github/workflows/source-connectivity.yml');
