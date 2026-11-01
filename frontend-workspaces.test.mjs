@@ -139,7 +139,7 @@ test('edition price statistics reflect saved asking prices without projecting RO
 test('review requires explicit edition decision with bibliographic context', () => {
   assert.match(script, /Dopasowanie dotyczy konkretnego wydania/);
   assert.match(script, /Wybierz wydanie i zdecyduj/);
-  assert.match(script, /Zatwierdz przypisanie/);
+  assert.match(script, /Zatwierdź przypisanie/);
 });
 
 test('offer drawer reports price observations without treating them as sales', () => {
