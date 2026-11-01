@@ -371,7 +371,9 @@ export class CatalogResolver {
     // publisher, language and binding conflicts still require human review.
     const safeBnContext = bnPreferred &&
       isbnEvidence.classification === 'structured' &&
-      (context.matches.includes('title') || !context.context?.title) &&
+      (context.matches.includes('title') || !context.context?.title ||
+        text(context.context.title).split(' ').some((token) =>
+          token.length >= 5 && text(selected.record.title).split(' ').includes(token))) &&
       context.conflicts.every((item) => ['title', 'authors', 'publicationYear'].includes(item.field));
     if (!safeBnContext && (context.conflicts.length || !context.sufficient))
       return decision(
