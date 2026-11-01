@@ -1,3 +1,4 @@
+import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -35,7 +36,7 @@ const state = {
   visibleRows: { works: 100, jobs: 100 },
 };
 
-const savedSearch = JSON.parse(localStorage.getItem('bookflip-search') || 'null');
+const savedSearch = readSavedSearch(localStorage);
 $('#queries').value = savedSearch?.queries?.join('\n') || '';
 
 function escapeHtml(value) {
@@ -257,13 +258,7 @@ async function loadCatalogPage(kind, { reset = false } = {}) {
     const data = await response.json();
     if (!response.ok) throw Error(data.error || `HTTP_${response.status}`);
     if (controller.signal.aborted) return false;
-    if (
-      !Array.isArray(data.items) ||
-      !Number.isSafeInteger(data.total) ||
-      data.total < 0 ||
-      data.items.length > catalogPageSize
-    )
-      throw Error('INVALID_CATALOG_PAGE');
+    validateCatalogPage(data, catalogPageSize, offset);
     if (!reset && data.total !== page.total) throw Error('CATALOG_CHANGED_DURING_PAGINATION');
     if (data.items.length === 0 && offset < data.total) throw Error('INCOMPLETE_CATALOG_PAGE');
     if (reset) {
