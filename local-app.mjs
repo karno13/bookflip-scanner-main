@@ -775,6 +775,7 @@ export function createLocalAppServer({
           '/scan-stream.js': 'scan-stream.js',
           '/views/scanner.js': 'views/scanner.js',
           '/views/settings.js': 'views/settings.js',
+          '/views/sets.js': 'views/sets.js',
           '/views/review.js': 'views/review.js',
           '/views/catalog.js': 'views/catalog.js',
           '/views/offers.js': 'views/offers.js',
