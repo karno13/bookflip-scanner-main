@@ -174,3 +174,66 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 .skip-link:focus { transform: translateY(0); }
 :where(button, input, textarea, select, a):focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+
+/* Visual refinement: editorial book-first hierarchy, readable on touch screens.
+   Keep the existing HTML, theme colors, and data semantics intact. */
+:root {
+  --bookflip-focus: #236c53;
+  --bookflip-card-radius: 14px;
+}
+:where(.panel, .catalog-row, .mobile-offer, .modal) {
+  overflow-wrap: anywhere;
+}
+:where(.catalog-book-copy, .mobile-offer-copy, .edition-identity > div) {
+  min-width: 0;
+}
+:where(.mobile-offer-price, .edition-price-summary strong) {
+  font-variant-numeric: tabular-nums;
+}
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--bookflip-focus);
+  outline-offset: 3px;
+}
+@media (max-width: 760px) {
+  /* Each listing should feel like one self-contained book entry. */
+  .offers-mobile-list {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+    background: var(--bg);
+  }
+  .mobile-offer {
+    min-height: 84px;
+    padding: 15px 13px;
+    border: 1px solid var(--line);
+    border-radius: var(--bookflip-card-radius);
+    background: var(--surface);
+    box-shadow: 0 2px 10px rgb(17 45 42 / 4%);
+    align-items: flex-start;
+  }
+  .mobile-offer:last-child { border-bottom: 1px solid var(--line); }
+  .mobile-offer-copy { gap: 7px; }
+  .mobile-offer-copy strong { font-size: 15px; line-height: 1.42; }
+  .mobile-offer-copy small { font-size: 12px; line-height: 1.5; }
+  .mobile-offer-price { max-width: 116px; gap: 8px; }
+  .mobile-offer-price b { font-size: 16px; color: var(--text); }
+  .mobile-offer-price small { font-size: 11px; line-height: 1.4; }
+  .catalog-row {
+    border-radius: 0;
+    min-height: 105px;
+    row-gap: 12px !important;
+    padding: 16px !important;
+  }
+  .catalog-book-copy strong { font-size: 16px !important; line-height: 1.35; }
+  .catalog-book-copy small { font-size: 12px !important; line-height: 1.4; }
+  .pagination button { min-height: 44px; }
+  .scenario-fields input { min-height: 44px; font-size: 16px; }
+  .edition-identity h3 { line-height: 1.35; overflow-wrap: anywhere; }
+}
+@media (max-width: 420px) {
+  .mobile-offer { gap: 9px; padding: 13px 10px; }
+  .mobile-offer-price { max-width: 100px; }
+  .mobile-offer-price b { font-size: 14px; }
+  .mobile-offer-copy strong { font-size: 14px; }
+}
