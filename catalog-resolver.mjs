@@ -199,11 +199,11 @@ function externalWork(repository, record) {
   );
 }
 
-function mergeRecords(result) {
-  const all = [result.openLibrary, result.bn]
+function mergeRecords(result, preferBn = false) {
+  const all = (preferBn ? [result.bn, result.openLibrary] : [result.openLibrary, result.bn])
     .filter((entry) => entry.status === 'found')
     .flatMap((entry) => entry.records);
-  const primary = all.find((record) => record.source === 'open_library') ?? all[0];
+  const primary = all[0];
   if (!primary) return null;
   const merged = { ...primary };
   for (const record of all)
@@ -333,7 +333,16 @@ export class CatalogResolver {
       metadata.comparison ?? compareMetadataResults(metadata.bn, metadata.openLibrary);
     if ([metadata.bn?.status, metadata.openLibrary?.status].includes('temporary_error'))
       return decision('retry_pending', ['metadata_source_temporary_error'], proof);
-    if (comparison.status === 'conflict')
+    const bnRecords = metadata.bn?.status === 'found' ? metadata.bn.records || [] : [];
+    const isbnMatches = (record) => [record.isbn10, record.isbn13]
+      .flatMap((value) => value ? isbnKeys(value) : [])
+      .some((key) => isbnKeys(isbn).includes(key));
+    const bnPreferred = comparison.status === 'conflict' &&
+      bnRecords.length === 1 && isbnMatches(bnRecords[0]) &&
+      comparison.conflicts.every((item) =>
+        item.type === 'field_conflict' &&
+        ['title', 'authors', 'publicationYear'].includes(item.field));
+    if (comparison.status === 'conflict' && !bnPreferred)
       return decision(
         'review_required',
         ['metadata_sources_conflict'],
@@ -346,7 +355,7 @@ export class CatalogResolver {
     if (comparison.status === 'not_found')
       return decision('not_found', ['isbn_not_found_in_metadata_sources'], proof);
 
-    const selected = mergeRecords(metadata);
+    const selected = mergeRecords(metadata, bnPreferred);
     if (!selected) return decision('not_found', ['no_matching_metadata_record'], proof);
     const context =
       offerId || offer
