@@ -17,6 +17,7 @@ export function defaultCatalogPath(env = process.env, platform = process.platfor
 export function backupBeforeMigrations(path) {
   if (path === ':memory:' || !existsSync(path)) return null;
   const check = new DatabaseSync(path, { readOnly: true });
+  check.exec('PRAGMA busy_timeout=10000');
   let needsUpgrade;
   try {
     const exists = check.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get();

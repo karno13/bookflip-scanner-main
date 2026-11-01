@@ -1,7 +1,8 @@
+import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createServer } from 'node:http';
-import { readFile, appendFile, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { readFile, appendFile, writeFile, mkdir } from 'node:fs/promises';
+import { extname, join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -341,9 +342,11 @@ function send(response, status, body, type = 'application/json; charset=utf-8') 
   });
   response.end(body);
 }
-const logPath = fileURLToPath(new URL('./scan-results/local-app.log', import.meta.url));
-const scanStatusPath = fileURLToPath(new URL('./scan-results/scan-status.json', import.meta.url));
+const runtimeDataDirectory = dirname(defaultCatalogPath());
+const logPath = join(runtimeDataDirectory, 'local-app.log');
+const scanStatusPath = join(runtimeDataDirectory, 'scan-status.json');
 async function persistScanStatus(status) {
+  await mkdir(runtimeDataDirectory, { recursive: true });
   await writeFile(scanStatusPath, JSON.stringify(status));
 }
 async function readScanStatus() {
@@ -365,7 +368,9 @@ function getProductionCatalog() {
 // entire historical snapshot into a live SQLite catalog.
 function recordProgress(event) {
   const safe = { at: new Date().toISOString(), ...event };
-  void appendFile(logPath, JSON.stringify(safe) + '\n').catch(() => {});
+  void mkdir(runtimeDataDirectory, { recursive: true })
+    .then(() => appendFile(logPath, JSON.stringify(safe) + '\n'))
+    .catch(() => {});
   return safe;
 }
 function streamHeaders(response, type = 'application/x-ndjson; charset=utf-8') {
