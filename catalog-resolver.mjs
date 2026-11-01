@@ -269,6 +269,10 @@ export class CatalogResolver {
       ? this.repository.database.prepare('SELECT * FROM offers WHERE id=?').get(offerId)
       : null;
     const currentOffer = { ...(storedOffer ?? {}), ...(offer ?? {}) };
+    if (offerId && this.repository.database.prepare(
+      'SELECT offer_id FROM offer_sets WHERE offer_id=?',
+    ).get(offerId))
+      return decision('review_required', ['offer_is_set'], null);
     const isbnEvidence = canonicalEvidence(evidence) ?? this.evidenceForOffer(currentOffer);
     const proof = { isbn: isbnEvidence, metadataRecords: [] };
     const manual = activeMatch(this.repository, offerId);
