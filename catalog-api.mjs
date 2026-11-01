@@ -252,7 +252,11 @@ export function listCatalogOffers(repository, options = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const from = `FROM offers o LEFT JOIN offer_matches m ON m.offer_id=o.id AND m.status='active'
     LEFT JOIN editions e ON e.id=m.edition_id LEFT JOIN works w ON w.id=e.work_id
-    LEFT JOIN identification_jobs j ON j.offer_id=o.id AND j.job_type='identify_edition'`;
+    LEFT JOIN identification_jobs j ON j.id = (
+      SELECT j2.id FROM identification_jobs j2
+      WHERE j2.offer_id=o.id AND j2.job_type='identify_edition'
+      ORDER BY j2.created_at DESC,j2.id DESC LIMIT 1
+    )`;
   const total = Number(
     database.prepare(`SELECT count(DISTINCT o.id) AS count ${from} ${where}`).get(...params).count,
   );

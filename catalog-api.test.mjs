@@ -242,3 +242,36 @@ test('offer sorts and review filters work across the entire SQLite catalogue', (
     repository.close();
   }
 });
+
+test('offer pagination preserves unique offer identities and stable totals', () => {
+  const { repository } = fixture();
+  try {
+    for (let i = 0; i < 6; i++) {
+      repository.upsertOffer({
+        id: 'page-' + i,
+        source: 'fixture',
+        normalizedUrl: 'https://example.test/page/' + i,
+        originalTitle: 'Page ' + i,
+        currentPrice: 100 + i,
+        lastSeenAt: at.toISOString(),
+      });
+      repository.putIdentificationJob({
+        id: 'page-job-' + i,
+        offerId: 'page-' + i,
+        status: 'review_required',
+        at,
+      });
+    }
+    const first = listCatalogOffers(repository, { limit: 3, offset: 0 });
+    const second = listCatalogOffers(repository, { limit: 3, offset: 3 });
+    const third = listCatalogOffers(repository, { limit: 3, offset: 6 });
+    const ids = [...first.items, ...second.items, ...third.items].map((row) => row.id);
+    assert.equal(first.total, 7);
+    assert.equal(second.total, 7);
+    assert.equal(third.total, 7);
+    assert.equal(ids.length, 7);
+    assert.equal(new Set(ids).size, ids.length);
+  } finally {
+    repository.close();
+  }
+});

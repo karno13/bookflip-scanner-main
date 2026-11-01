@@ -93,9 +93,15 @@ export function linkSqliteOffer(catalog, { offerId, bookId } = {}) {
 }
 
 export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) {
-  const before = sqliteHistoryModel(catalog.repository),
-    at = String(searchedAt);
-  const previous = new Map(Object.values(before.offers).map((o) => [o.id, o.currentPrice]));
+  const at = String(searchedAt);
+  // Compare only identities and prices; rebuilding the entire history (including
+  // every price observation) before each scan grows with the lifetime of the catalog.
+  const previous = new Map(
+    catalog.repository.database
+      .prepare('SELECT id,current_price FROM offers')
+      .all()
+      .map((row) => [row.id, row.current_price]),
+  );
   const scanOffers = offers.filter(
     (offer) => offer?.source && offer?.url && Number.isSafeInteger(offer.price) && offer.price > 0,
   );
