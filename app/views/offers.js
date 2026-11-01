@@ -1,5 +1,5 @@
 // offers workspace, preserving existing behavior while isolating its implementation.
-export function createOffersView({ state, $, $, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats }) {
+export function createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats }) {
 function filteredOffers() {
   const query = $('#offerSearch').value.trim().toLocaleLowerCase('pl'),
     source = $('#offerSource').value,
