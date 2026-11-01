@@ -413,6 +413,7 @@ export async function withHistoryWriteLock(work) {
 let runningCatalogResolution = null;
 function scheduleCatalogResolution(catalogStore) {
   if (runningCatalogResolution) return runningCatalogResolution;
+  const startedAt = performance.now();
   runningCatalogResolution = new Promise((resolve) => setImmediate(resolve))
     .then(() => catalogStore.processQueued())
     .then((result) => {
@@ -420,6 +421,7 @@ function scheduleCatalogResolution(catalogStore) {
         type: 'catalog_resolution',
         processed: result.processed,
         failed: result.failed || 0,
+        durationMs: Math.round(performance.now() - startedAt),
       });
       return result;
     })
