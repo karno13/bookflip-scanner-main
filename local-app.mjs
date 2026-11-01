@@ -731,6 +731,7 @@ export function createLocalAppServer({
           '/views/catalog.js': 'views/catalog.js',
           '/views/offers.js': 'views/offers.js',
           '/core/formatters.js': 'core/formatters.js',
+          '/core/metadata-comparison.js': 'core/metadata-comparison.js',
           '/core/api.js': 'core/api.js',
         },
         file = files[url.pathname];
