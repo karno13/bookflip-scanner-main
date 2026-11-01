@@ -110,7 +110,7 @@ function renderReviewDetail() {
   const job = reviewOffers().find((row) => row.id === state.selectedReviewId);
   if (!job)
     return ($('#reviewDetail').innerHTML =
-      '<div class="empty-detail"><h3>Wybierz oferte</h3><p>Po lewej pojawia sie lista ofert wymagajacych decyzji.</p></div>');
+      '<div class="empty-detail"><h3>Wybierz ofertę</h3><p>Po lewej pojawia się lista ofert wymagajacych decyzji.</p></div>');
   const offer = state.reviewDetail || job.offer,
     evidence = state.reviewDetail?.evidence || [],
     result = job.result || {};
@@ -122,7 +122,7 @@ function renderReviewDetail() {
   const candidate = reviewCandidateMarkup(offer, suggested);
 
   $('#reviewDetail').innerHTML =
-    `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">${escapeHtml(job.status)}</span><h3>${escapeHtml(offer.title)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty i dowody</h4><details class="detail-disclosure"><summary>Jak sprawdzić dopasowanie?</summary><p class="inline-note">Dopasowanie dotyczy konkretnego wydania, nie tylko podobnego tytułu. Sprawdź ISBN i źródło przed zatwierdzeniem.</p></details><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>${escapeHtml(evidence.map((row) => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="inline-note">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Wybierz właściwe wydanie albo oznacz ofertę jako nie-książkę.')}</p></section><section class="detail-section"><h4>Sprawdź ISBN w lokalnym katalogu</h4><div class="isbn-check-row"><label class="field"><span>ISBN z oferty lub wpisany ręcznie</span><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 lub ISBN-13"></label><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">Sprawdź BN / Open Library</button></div><p id="reviewIsbnCheckResult" class="inline-note" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p></section><section class="detail-section review-comparison"><h4>Proponowane wydanie</h4><details class="detail-disclosure"><summary>O automatycznej propozycji</summary><p class="inline-note">Sprawdź porównanie przed zatwierdzeniem. Automatyczna propozycja nie jest ostateczną decyzją.</p></details>${candidate}</section><section class="detail-section"><h4>Wybierz wydanie i zdecyduj</h4><details class="detail-disclosure"><summary>Co zmieni ta decyzja?</summary><p class="inline-note">Decyzja zmieni przypisanie tej oferty w lokalnym katalogu. Nie zmienia dostępności ogłoszenia ani jego ceny.</p></details><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytul, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdz przypisanie</button>${result.editionId ? '<button class="button secondary" id="rejectProposal" type="button">Odrzuć propozycję</button>' : ''}<button class="button secondary" id="markNotBook" type="button">Oznacz jako nie-ksiazke</button><button class="button secondary" id="requeueReview" type="button">Ponow identyfikacje</button></div></section>`;
+    `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">${escapeHtml(job.status)}</span><h3>${escapeHtml(offer.title)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otwórz oryginalne ogłoszenie</a></section><section class="detail-section"><h4>Dane oferty i dowody</h4><details class="detail-disclosure"><summary>Jak sprawdzić dopasowanie?</summary><p class="inline-note">Dopasowanie dotyczy konkretnego wydania, nie tylko podobnego tytułu. Sprawdź ISBN i źródło przed zatwierdzeniem.</p></details><div class="detail-grid"><span><b>Źródło</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>${escapeHtml(evidence.map((row) => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="inline-note">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Wybierz właściwe wydanie albo oznacz ofertę jako nie-książkę.')}</p></section><section class="detail-section"><h4>Sprawdź ISBN w lokalnym katalogu</h4><div class="isbn-check-row"><label class="field"><span>ISBN z oferty lub wpisany ręcznie</span><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 lub ISBN-13"></label><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">Sprawdź BN / Open Library</button></div><p id="reviewIsbnCheckResult" class="inline-note" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p></section><section class="detail-section review-comparison"><h4>Proponowane wydanie</h4><details class="detail-disclosure"><summary>O automatycznej propozycji</summary><p class="inline-note">Sprawdź porównanie przed zatwierdzeniem. Automatyczna propozycja nie jest ostateczną decyzją.</p></details>${candidate}</section><section class="detail-section"><h4>Wybierz wydanie i zdecyduj</h4><details class="detail-disclosure"><summary>Co zmieni ta decyzja?</summary><p class="inline-note">Decyzja zmieni przypisanie tej oferty w lokalnym katalogu. Nie zmienia dostępności ogłoszenia ani jego ceny.</p></details><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytuł, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdź przypisanie</button>${result.editionId ? '<button class="button secondary" id="rejectProposal" type="button">Odrzuć propozycję</button>' : ''}<button class="button secondary" id="markNotBook" type="button">Oznacz jako nie-książkę</button><button class="button secondary" id="requeueReview" type="button">Ponów identyfikację</button></div></section>`;
   $('#approveReview').disabled = !$('#reviewBookSearch').dataset.editionId;
   $('#reviewBookSearch').addEventListener('input', (event) => {
     event.target.dataset.editionId = '';
@@ -244,7 +244,7 @@ function renderReviewBookChoices(query = '') {
             `<button type="button" role="option" data-review-edition-id="${escapeHtml(edition.id)}" data-review-book-title="${escapeHtml(work.title)}"><strong>${escapeHtml(work.title)}</strong><small>${escapeHtml(edition.identifiers.find((row) => row.scheme.startsWith('isbn'))?.value || 'Bez ISBN')} - ${escapeHtml(edition.publisher || 'wydawca nieznany')}</small></button>`,
         )
         .join('')
-    : '<p>Brak rekordow pasujacych do wpisanej frazy.</p>';
+    : '<p>Brak rekordów pasujących do wpisanej frazy.</p>';
   $$('[data-review-edition-id]').forEach((button) =>
     button.addEventListener('click', () => {
       input.value = button.dataset.reviewBookTitle;
@@ -263,20 +263,37 @@ async function approveReview() {
   await decideReview('approved', editionId);
 }
 
+let reviewDecisionPending = false;
 async function decideReview(action, editionId = null) {
   const jobId = state.selectedReviewId;
-  if (!jobId) return;
-  await json(`/api/identification-jobs/${encodeURIComponent(jobId)}/decision`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, editionId }),
-  });
-  state.selectedReviewId = null;
-  state.reviewDetail = null;
-  await loadCatalogData();
-  toast('Decyzja została zapisana w historii SQLite.');
+  if (!jobId || reviewDecisionPending) return;
+  reviewDecisionPending = true;
+  const buttons = ['approveReview', 'rejectProposal', 'markNotBook', 'requeueReview']
+    .map((id) => $('#' + id))
+    .filter(Boolean);
+  const disabledBefore = buttons.map((button) => button.disabled);
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    await json(`/api/identification-jobs/${encodeURIComponent(jobId)}/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, editionId }),
+    });
+    state.selectedReviewId = null;
+    state.reviewDetail = null;
+    const refreshed = await loadCatalogData();
+    toast(refreshed === false
+      ? 'Decyzja zapisana w SQLite, ale nie udało się odświeżyć widoku.'
+      : 'Decyzja została zapisana w historii SQLite.');
+  } catch (error) {
+    toast(`Nie udało się zapisać decyzji: ${error.message}`);
+  } finally {
+    reviewDecisionPending = false;
+    buttons.forEach((button, index) => {
+      if (button.isConnected) button.disabled = disabledBefore[index];
+    });
+  }
 }
-
 
 return { filteredReviewOffers, visibleCatalogRows, renderReview, normalizedIsbn, reviewCandidateMarkup, renderReviewDetail, renderReviewBookChoices, approveReview, decideReview };
 }
