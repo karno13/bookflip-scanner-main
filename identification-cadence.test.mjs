@@ -5,7 +5,7 @@ import { createIdentificationScheduler } from './identification-scheduler.mjs';
 
 test('local identification starts every five seconds by default', async () => {
   const script = await readFile(new URL('./local-app.mjs', import.meta.url), 'utf8');
-  assert.match(script, /BOOKFLIP_IDENTIFICATION_POLL_MS \\?\\? 5_000/);
+  assert.ok(script.includes('BOOKFLIP_IDENTIFICATION_POLL_MS ?? 5_000'));
 });
 
 test('frequent ticks do not overlap identification batches', async () => {
