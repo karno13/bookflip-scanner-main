@@ -122,7 +122,7 @@ function renderReviewDetail() {
   const candidate = reviewCandidateMarkup(offer, suggested);
 
   $('#reviewDetail').innerHTML =
-    `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">${escapeHtml(job.status)}</span><h3>${escapeHtml(offer.title)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty i dowody</h4><details class="detail-disclosure"><summary>Jak sprawdzić dopasowanie?</summary><p class="inline-note">Dopasowanie dotyczy konkretnego wydania, nie tylko podobnego tytułu. Sprawdź ISBN i źródło przed zatwierdzeniem.</p></details><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>${escapeHtml(evidence.map((row) => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="inline-note">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Wybierz właściwe wydanie albo oznacz ofertę jako nie-książkę.')}</p></section><section class="detail-section"><h4>Sprawdź ISBN w lokalnym katalogu</h4><div class="isbn-check-row"><label class="field"><span>ISBN z oferty lub wpisany ręcznie</span><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 lub ISBN-13"></label><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button></div><p id="reviewIsbnCheckResult" class="inline-note" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p></section><section class="detail-section review-comparison"><h4>Proponowane wydanie</h4><details class="detail-disclosure"><summary>O automatycznej propozycji</summary><p class="inline-note">Sprawdź porównanie przed zatwierdzeniem. Automatyczna propozycja nie jest ostateczną decyzją.</p></details>${candidate}</section><section class="detail-section"><h4>Wybierz wydanie i zdecyduj</h4><details class="detail-disclosure"><summary>Co zmieni ta decyzja?</summary><p class="inline-note">Decyzja zmieni przypisanie tej oferty w lokalnym katalogu. Nie zmienia dostępności ogłoszenia ani jego ceny.</p></details><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytul, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdz przypisanie</button>${result.editionId ? '<button class="button secondary" id="rejectProposal" type="button">Odrzuć propozycję</button>' : ''}<button class="button secondary" id="markNotBook" type="button">Oznacz jako nie-ksiazke</button><button class="button secondary" id="requeueReview" type="button">Ponow identyfikacje</button></div></section>`;
+    `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill warning">${escapeHtml(job.status)}</span><h3>${escapeHtml(offer.title)}</h3></div><strong>${money(offer.currentPrice)}</strong></div><a href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz oryginalne ogloszenie</a></section><section class="detail-section"><h4>Dane oferty i dowody</h4><details class="detail-disclosure"><summary>Jak sprawdzić dopasowanie?</summary><p class="inline-note">Dopasowanie dotyczy konkretnego wydania, nie tylko podobnego tytułu. Sprawdź ISBN i źródło przed zatwierdzeniem.</p></details><div class="detail-grid"><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'Nie wykryto')}</small></span><span><b>Klasyfikacja ISBN</b><small>${escapeHtml(evidence.map((row) => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="inline-note">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Wybierz właściwe wydanie albo oznacz ofertę jako nie-książkę.')}</p></section><section class="detail-section"><h4>Sprawdź ISBN w lokalnym katalogu</h4><div class="isbn-check-row"><label class="field"><span>ISBN z oferty lub wpisany ręcznie</span><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 lub ISBN-13"></label><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">Sprawdź BN / Open Library</button></div><p id="reviewIsbnCheckResult" class="inline-note" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p></section><section class="detail-section review-comparison"><h4>Proponowane wydanie</h4><details class="detail-disclosure"><summary>O automatycznej propozycji</summary><p class="inline-note">Sprawdź porównanie przed zatwierdzeniem. Automatyczna propozycja nie jest ostateczną decyzją.</p></details>${candidate}</section><section class="detail-section"><h4>Wybierz wydanie i zdecyduj</h4><details class="detail-disclosure"><summary>Co zmieni ta decyzja?</summary><p class="inline-note">Decyzja zmieni przypisanie tej oferty w lokalnym katalogu. Nie zmienia dostępności ogłoszenia ani jego ceny.</p></details><div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="true" autocomplete="off" placeholder="Wpisz tytul, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><div class="detail-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdz przypisanie</button>${result.editionId ? '<button class="button secondary" id="rejectProposal" type="button">Odrzuć propozycję</button>' : ''}<button class="button secondary" id="markNotBook" type="button">Oznacz jako nie-ksiazke</button><button class="button secondary" id="requeueReview" type="button">Ponow identyfikacje</button></div></section>`;
   $('#approveReview').disabled = !$('#reviewBookSearch').dataset.editionId;
   $('#reviewBookSearch').addEventListener('input', (event) => {
     event.target.dataset.editionId = '';
@@ -176,6 +176,40 @@ function renderReviewDetail() {
       result.textContent = error.message === 'INVALID_ISBN'
         ? 'Nieprawidłowy ISBN — sprawdź cyfry i sumę kontrolną.'
         : `Nie udało się sprawdzić ISBN: ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+  $('#reviewExternalIsbnButton').addEventListener('click', async () => {
+    const button = $('#reviewExternalIsbnButton');
+    const output = $('#reviewIsbnCheckResult');
+    const isbn = $('#reviewIsbnCheckInput').value.trim();
+    if (!isbn) {
+      output.textContent = 'Wpisz ISBN przed sprawdzeniem.';
+      return;
+    }
+    button.disabled = true;
+    output.textContent = 'Sprawdzanie metadanych Biblioteki Narodowej i Open Library…';
+    try {
+      const response = await json('/api/catalog/lookup-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isbn }),
+      });
+      if (state.selectedReviewId !== job.id) return;
+      const formatSource = (label, source) => {
+        const titles = (source?.records || []).slice(0, 3).map((record) => record.title || 'bez tytułu');
+        return label + ': ' + (titles.length ? titles.join('; ') : source?.status || 'brak wyników');
+      };
+      const comparison = response.comparison?.status || 'nieustalone';
+      output.textContent = [
+        formatSource('Biblioteka Narodowa', response.bn),
+        formatSource('Open Library', response.openLibrary),
+        'Porównanie: ' + comparison + '. Wynik ma charakter informacyjny; przypisanie wymaga osobnego zatwierdzenia.',
+      ].join(' | ');
+    } catch (error) {
+      if (state.selectedReviewId === job.id)
+        output.textContent = 'Nie udało się pobrać metadanych: ' + error.message;
     } finally {
       button.disabled = false;
     }
