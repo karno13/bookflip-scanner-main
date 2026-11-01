@@ -341,9 +341,10 @@ export class CatalogResolver {
     const isbnMatches = (record) => [record.isbn10, record.isbn13]
       .flatMap((value) => value ? isbnKeys(value) : [])
       .some((key) => isbnKeys(isbn).includes(key));
-    const bnPreferred = comparison.status === 'conflict' &&
-      bnRecords.length === 1 && isbnMatches(bnRecords[0]) &&
-      comparison.conflicts.every((item) =>
+    const bnPreferred = bnRecords.length === 1 && isbnMatches(bnRecords[0]) &&
+      (comparison.status === 'conflict' || comparison.status === 'single_source' ||
+        comparison.status === 'consistent') &&
+      (comparison.conflicts || []).every((item) =>
         item.type === 'field_conflict' &&
         ['title', 'authors', 'publicationYear'].includes(item.field));
     if (comparison.status === 'conflict' && !bnPreferred)
@@ -365,7 +366,12 @@ export class CatalogResolver {
       offerId || offer
         ? compareOfferContext(currentOffer, selected.record)
         : { matches: ['catalog_only'], conflicts: [], sufficient: true };
-    if (context.conflicts.length || !context.sufficient)
+    // A single BN record with an exact ISBN is stronger than a shortened marketplace
+    // title, an untranslated author credit or missing offer metadata. Explicit
+    // publisher, language and binding conflicts still require human review.
+    const safeBnContext = bnPreferred &&
+      context.conflicts.every((item) => ['title', 'authors', 'publicationYear'].includes(item.field));
+    if (!safeBnContext && (context.conflicts.length || !context.sufficient))
       return decision(
         'review_required',
         context.conflicts.length ? ['offer_metadata_conflict'] : ['insufficient_offer_context'],
