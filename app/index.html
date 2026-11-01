@@ -57,6 +57,11 @@
         </section>
         <section class="view" id="view-review" data-title="Do weryfikacji" hidden>
           <div class="view-heading"><div><p class="section-eyebrow">CENTRUM IDENTYFIKACJI</p><h2>Weryfikacja książek</h2><p>Oferty bez pewnego przypisania do katalogu.</p></div><span class="state-badge warning" id="reviewCount">0 oczekujących</span></div>
+          <div class="identification-progress" role="region" aria-label="Postęp identyfikacji" style="padding:1rem;margin:0 0 1rem;background:var(--surface,#f5f7f9);border-radius:12px">
+            <div style="display:flex;justify-content:space-between;gap:1rem"><strong>Postęp identyfikacji</strong><span id="identificationProgressLabel" aria-live="polite">Wczytywanie…</span></div>
+            <progress id="identificationProgressBar" max="100" value="0" style="width:100%;height:1rem;margin:.6rem 0" aria-label="Udział ukończonych zadań"></progress>
+            <small id="identificationProgressDetails">Oczekiwanie na dane SQLite…</small>
+          </div>
           <div class="filterbar">
             <label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="reviewSearch" type="search" placeholder="Szukaj po tytule, źródle lub ISBN"></label>
             <select id="reviewSource" aria-label="Źródło oferty"><option value="">Wszystkie źródła</option></select>

@@ -362,6 +362,15 @@ async function loadCatalogStatus() {
     $('#catalogWorks').textContent = counts.works || 0;
     $('#catalogEditions').textContent = counts.editions || 0;
     const statuses = state.catalog.identification?.statuses || {};
+    const total = Object.values(statuses).reduce((sum, count) => sum + Number(count || 0), 0);
+    const done = Number(statuses.completed || 0);
+    const percent = total ? Math.round(done / total * 100) : 0;
+    $('#identificationProgressBar').value = percent;
+    $('#identificationProgressLabel').textContent = total
+      ? `${percent}% · ${done} z ${total}` : 'Brak zadań';
+    $('#identificationProgressDetails').textContent =
+      `W kolejce: ${Number(statuses.queued || 0)} · Przetwarzane: ${Number(statuses.running || 0)} · Ponawiane: ${Number(statuses.retry_wait || 0)} · Do weryfikacji: ${Number(statuses.review_required || 0)} · Błędy: ${Number(statuses.failed || 0)}`;
+
     $('#catalogIncomplete').textContent = Number(statuses.review_required || 0);
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled
       ? 'Baza lokalna jest dostepna.'
@@ -621,3 +630,23 @@ Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData(
     toast(`Nie udało się wczytać aplikacji: ${error.message}`);
   },
 );
+
+let identificationRefreshBusy = false;
+let lastCatalogDataRefresh = 0;
+setInterval(async () => {
+  if (identificationRefreshBusy || document.hidden || state.scan.running) return;
+  identificationRefreshBusy = true;
+  try {
+    await loadCatalogStatus();
+    if (['review', 'catalog', 'offers', 'sets'].includes(state.activeView) &&
+      !(state.activeView === 'review' && state.selectedReviewId) &&
+      Date.now() - lastCatalogDataRefresh >= 12000) {
+      lastCatalogDataRefresh = Date.now();
+      await loadCatalogData();
+    }
+  } catch {
+    // Preserve current UI; manual refresh still reports connection failures.
+  } finally {
+    identificationRefreshBusy = false;
+  }
+}, 4000);
