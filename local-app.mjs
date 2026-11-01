@@ -1,3 +1,4 @@
+import { normalizeISBN } from './isbn-normalization.mjs';
 import { createServer } from 'node:http';
 import { readFile, appendFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
@@ -619,6 +620,18 @@ export function createLocalAppServer({
           200,
           JSON.stringify(decideIdentificationJob(catalog.repository, id, await readJson(request))),
         );
+      }
+      if (request.method === 'POST' && url.pathname === '/api/catalog/isbn-check') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const raw = (await readJson(request)).isbn;
+        const isbn = normalizeISBN(raw);
+        if (!isbn) return send(response, 400, JSON.stringify({ error: 'INVALID_ISBN' }));
+        const edition = catalog.repository.findEditionByISBN(isbn);
+        return send(response, 200, JSON.stringify({
+          isbn, found: Boolean(edition),
+          edition: edition ? { id: edition.id, title: edition.title, workId: edition.work_id, workTitle: edition.work_title } : null,
+        }));
       }
       if (request.method === 'POST' && url.pathname === '/api/catalog/lookup-preview') {
         const catalog = getProductionCatalog();
