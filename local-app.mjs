@@ -616,8 +616,8 @@ export function createLocalAppServer({
         const now = new Date().toISOString();
         const updated = repo.transaction(() => repo.database.prepare(
           mode === 'not_found'
-            ? "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status='completed' AND json_valid(result_json) AND json_extract(result_json,'$.decision')='not_found' AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual'))"
-            : "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status=? AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual'))",
+            ? "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status='completed' AND json_valid(result_json) AND json_extract(result_json,'$.decision')='not_found' AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual')) AND NOT EXISTS (SELECT 1 FROM offer_sets s WHERE s.offer_id=identification_jobs.offer_id)"
+            : "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status=? AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual')) AND NOT EXISTS (SELECT 1 FROM offer_sets s WHERE s.offer_id=identification_jobs.offer_id)",
         ).run(...(mode === 'not_found' ? [now] : [now, mode])).changes);
         return send(response, 200, JSON.stringify({ queued: Number(updated) }));
       }
