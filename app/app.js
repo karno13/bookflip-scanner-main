@@ -356,11 +356,11 @@ async function loadCatalogStatus() {
     state.catalog = await json('/api/catalog/status');
     const counts = state.catalog.counts || {};
     $('#databaseStatus').textContent =
-      `SQLite: ${counts.works || 0} dziel / ${counts.editions || 0} wydan`;
+      `SQLite: ${counts.works || 0} dzieł / ${counts.editions || 0} wydań`;
     $('#catalogWorks').textContent = counts.works || 0;
     $('#catalogEditions').textContent = counts.editions || 0;
-    $('#catalogIncomplete').textContent =
-      counts.identification_pending ?? counts.identification_jobs ?? 0;
+    const statuses = state.catalog.identification?.statuses || {};
+    $('#catalogIncomplete').textContent = Number(statuses.review_required || 0);
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled
       ? 'Baza lokalna jest dostepna.'
       : 'Integracja katalogu jest wylaczona.';
