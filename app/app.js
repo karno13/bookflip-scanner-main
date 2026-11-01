@@ -1205,8 +1205,32 @@ $$('[data-catalog-mode]').forEach((button) =>
 $('#catalogForm').addEventListener('submit', submitCatalog);
 $('#runDiagnostics').addEventListener('click', runDiagnostics);
 
+async function restoreLastScanStatus() {
+  try {
+    const status = await json('/api/scan/status');
+    if (state.scan.running) return;
+    if (status.status === 'running') {
+      $('#scanStateBadge').textContent = 'Skan trwa';
+      $('#scanStateBadge').className = 'state-badge warning';
+      $('#scanGuardMessage').textContent = 'Skan działa na serwerze. Nie uruchamiaj kolejnego.';
+    } else if (status.status === 'interrupted') {
+      $('#scanStateBadge').textContent = 'Skan przerwany';
+      $('#scanStateBadge').className = 'state-badge warning';
+      $('#scanGuardMessage').textContent = 'Poprzedni skan został przerwany przy zamknięciu serwera.';
+    } else if (status.status === 'completed') {
+      $('#scanStateBadge').textContent = 'Ostatni skan ukończony';
+      $('#scanStateBadge').className = 'state-badge neutral';
+    } else if (status.status === 'failed') {
+      $('#scanStateBadge').textContent = 'Ostatni skan nieudany';
+      $('#scanStateBadge').className = 'state-badge warning';
+    }
+  } catch {
+    // The scanner can still operate when the status endpoint is unavailable.
+  }
+}
+
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
-Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData()]).catch(
+Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
   (error) => {
     $('#connectionLabel').textContent = 'Blad polaczenia';
     toast(`Nie udalo sie wczytac aplikacji: ${error.message}`);
