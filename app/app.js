@@ -364,6 +364,21 @@ async function loadCatalogStatus() {
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled
       ? 'Baza lokalna jest dostepna.'
       : 'Integracja katalogu jest wylaczona.';
+    const identification = state.catalog.identification || {};
+    const labels = {
+      queued: 'W kolejce', running: 'Przetwarzane', retry_wait: 'Ponowna próba',
+      review_required: 'Wymaga decyzji', failed: 'Błędy', completed: 'Zakończone',
+      matched_existing: 'Przypisane do wydania', created_edition: 'Nowe wydania',
+      created_work_and_edition: 'Nowe dzieła i wydania',
+      not_found: 'Brak dopasowania',
+    };
+    const rows = [
+      ...Object.entries(identification.statuses || {}),
+      ...Object.entries(identification.decisions || {}),
+    ];
+    $('#identificationStats').innerHTML = rows.length
+      ? rows.map(([key, value]) => `<span><b>${escapeHtml(labels[key] || key)}</b><small>${Number(value)}</small></span>`).join('')
+      : '<span><small>Brak zadań identyfikacji.</small></span>';
     $('#settingsDatabaseStats').innerHTML = Object.entries(counts)
       .slice(0, 8)
       .map(

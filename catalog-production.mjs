@@ -172,9 +172,20 @@ export function createProductionCatalog({
           .prepare("SELECT count(*) AS count FROM identification_jobs WHERE status<>'completed'")
           .get().count,
       );
+      const identification = Object.fromEntries(
+        repository.database.prepare(
+          "SELECT status, count(*) AS count FROM identification_jobs GROUP BY status",
+        ).all().map((row) => [row.status, Number(row.count)]),
+      );
+      const decisions = Object.fromEntries(
+        repository.database.prepare(
+          "SELECT json_extract(result_json, '$.decision') AS decision, count(*) AS count FROM identification_jobs WHERE status='completed' AND json_valid(result_json) GROUP BY decision",
+        ).all().filter((row) => row.decision).map((row) => [row.decision, Number(row.count)]),
+      );
       return {
         enabled: true,
         counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache },
+        identification: { statuses: identification, decisions },
       };
     },
     close() {
