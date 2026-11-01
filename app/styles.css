@@ -415,3 +415,10 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
   .isbn-check-row .field { flex-basis: 100%; }
   .isbn-check-row button { width: 100%; }
 }
+
+/* Read-only bibliographic source comparison inside review details. */
+.metadata-comparison { overflow-x: auto; max-width: 100%; }
+.metadata-comparison table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.metadata-comparison th, .metadata-comparison td { padding: .55rem .65rem; text-align: left; border-bottom: 1px solid var(--border, #dce0e5); vertical-align: top; overflow-wrap: anywhere; }
+.metadata-comparison thead th { min-width: 9rem; }
+.metadata-comparison thead small { display: block; font-weight: normal; opacity: .75; margin-top: .25rem; }
