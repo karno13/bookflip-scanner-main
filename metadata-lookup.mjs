@@ -220,15 +220,21 @@ export function persistMetadataResults(
 }
 
 async function lookupWithCache(adapter, isbn, cache) {
+  const startedAt = performance.now();
   const cached = cache?.get(adapter.source, isbn);
   if (cached)
     return {
       ...cached.result,
       cache: { hit: true, fetchedAt: cached.fetchedAt, expiresAt: cached.expiresAt },
+      timing: { durationMs: Math.round(performance.now() - startedAt), cached: true },
     };
   const result = await adapter.lookup(isbn);
   const stored = cache?.set(adapter.source, isbn, result) ?? false;
-  return { ...result, cache: { hit: false, stored } };
+  return {
+    ...result,
+    cache: { hit: false, stored },
+    timing: { durationMs: Math.round(performance.now() - startedAt), cached: false },
+  };
 }
 
 export async function lookupISBN(
