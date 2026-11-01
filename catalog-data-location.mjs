@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
@@ -29,18 +30,11 @@ export function backupBeforeMigrations(path) {
   if (!needsUpgrade) return null;
   const backupScript = new URL('./scripts/backup-catalog.mjs', import.meta.url);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const { dirname, basename } = awaitPathHelpers();
   const destination = join(dirname(path), 'backups', basename(path, '.sqlite') + '-pre-migration-' + timestamp + '-' + process.pid + '.sqlite');
-  const result = spawnSync(process.execPath, [new URL(backupScript).pathname, destination], {
+  const result = spawnSync(process.execPath, [fileURLToPath(backupScript), destination], {
     env: { ...process.env, BOOKFLIP_CATALOG_DB: path }, encoding: 'utf8',
   });
   if (result.status !== 0) throw Error('PRE_MIGRATION_BACKUP_FAILED: ' + (result.stderr || result.error?.message || 'unknown'));
   return destination;
 }
 
-function awaitPathHelpers() {
-  return { dirname: (value) => value.substring(0, Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))) || '.', basename: (value, suffix) => {
-    const name = value.split(/[\\/]/).pop();
-    return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
-  }};
-}
