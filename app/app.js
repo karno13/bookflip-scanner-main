@@ -501,6 +501,24 @@ $$('.nav-item').forEach((button) =>
 $('#scannerBrowseOffers').addEventListener('click', () => showView('offers'));
 $('#scannerOfferSearch').addEventListener('input', renderScannerOffers);
 $('#scannerOfferSource').addEventListener('change', renderScannerOffers);
+$('#retryIdentification').addEventListener('click', async () => {
+  const button = $('#retryIdentification');
+  const mode = $('#retryMode').value;
+  if (!confirm('Ponowić identyfikację wybranej grupy? Ręczne przypisania zostaną zachowane.')) return;
+  button.disabled = true;
+  try {
+    const result = await json('/api/identification/retry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    toast('Dodano do kolejki: ' + result.queued);
+    await loadCatalogStatus();
+    await loadCatalogData();
+  } catch (error) {
+    toast('Nie udało się ponowić identyfikacji: ' + error.message);
+  } finally { button.disabled = false; }
+});
 $('#refreshView').addEventListener('click', async () => {
   const button = $('#refreshView');
   button.disabled = true;
