@@ -389,6 +389,8 @@ const { startSearch, renderSourceRows } = createScannerView({
   loadHistory, loadCatalogStatus, loadCatalogData,
 });
 
+const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
+
 function filteredReviewOffers(...args) { return reviewView.filteredReviewOffers(...args); }
 function visibleCatalogRows(...args) { return reviewView.visibleCatalogRows(...args); }
 function renderReview(...args) { return reviewView.renderReview(...args); }
@@ -587,8 +589,6 @@ async function restoreLastScanStatus() {
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderOffers, openOfferDrawer, openEditionDetail, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
 const catalogView = createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows });
 const offersView = createOffersView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderReview, openEditionDetail, renderReviewBookChoices, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
-
-const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
 Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
