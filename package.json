@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node local-app.mjs",
     "test": "node --test",
+    "backup": "node scripts/backup-catalog.mjs",
     "check:history": "node scripts/check-history-parity.mjs",
     "rehearse:history": "node scripts/rehearse-history-migration.mjs",
     "check:syntax": "node scripts/check-syntax.mjs",
