@@ -80,22 +80,37 @@
           <div class="catalog-layout"><div class="panel catalog-list-panel"><div class="catalog-table-header"><span>Dzielo</span><span>Wydania</span><span>Oferty</span><span>Status</span></div><div id="catalogList"></div></div><div class="detail-panel catalog-detail" id="catalogDetail"><div class="empty-detail"><h3>Wybierz rekord</h3><p>Zobacz wydania i historie cen bez opuszczania katalogu.</p></div></div></div>
         </section>
         <section class="view" id="view-sets" data-title="Zestawy" hidden>
-          <div class="view-heading"><div><h2>Zestawy książek</h2><p>Jedna oferta może zawierać kilka wydań. Cena pozostaje ceną całego zestawu.</p></div></div>
-          <div class="panel" style="padding:1rem;display:grid;gap:0.7rem">
-            <label class="field"><span>Znajdź ofertę do oznaczenia jako zestaw</span><input id="setOfferQuery" placeholder="Tytuł oferty, źródło lub ISBN"></label>
-            <button class="button secondary" type="button" id="setSearchOffers">Szukaj ofert</button>
-            <select id="setOfferSelect" aria-label="Wybierz ofertę"></select>
-            <button class="button primary" type="button" id="setMarkOffer">Oznacz ofertę jako zestaw</button>
-            <p id="setFeedback" role="status" aria-live="polite"></p>
-          </div>
-          <div class="panel" style="padding:1rem;margin-top:1rem;display:grid;gap:0.7rem">
-            <h3>Dodaj książki do zestawu</h3>
-            <label class="field"><span>Zestaw</span><select id="setCurrent" aria-label="Wybierz zestaw"></select></label>
-            <label class="field"><span>Szukaj książki w katalogu</span><input id="setEditionQuery" placeholder="Tytuł, autor lub ISBN"></label>
-            <button class="button secondary" type="button" id="setSearchEditions">Szukaj wydań</button>
-            <select id="setEditionSelect" aria-label="Wybierz wydanie"></select>
-            <button class="button primary" type="button" id="setAddEdition">Dodaj książkę do zestawu</button>
-            <div id="setMembers" aria-live="polite"></div>
+          <div class="view-heading sets-heading"><div><p class="section-eyebrow">OFERTY WIELOTOMOWE I PAKIETY</p><h2>Zestawy książek</h2><p>Każdy zestaw to jedna oferta z wieloma książkami. Cena dotyczy całego pakietu.</p></div><span id="setTotal" class="state-badge neutral">0 zestawów</span></div>
+          <div class="sets-workspace">
+            <aside class="panel sets-sidebar" aria-label="Lista zestawów">
+              <div class="sets-side-head"><div><h3>Twoje zestawy</h3><p>Wybierz zestaw do edycji</p></div></div>
+              <label class="field"><span class="sr-only">Filtruj zestawy</span><input id="setFilter" type="search" placeholder="Filtruj po tytule lub źródle"></label>
+              <div id="setList" class="sets-list" aria-live="polite"></div>
+              <details class="sets-new">
+                <summary>Utwórz zestaw z oferty</summary>
+                <p>Znajdź zapisaną ofertę i przekształć ją w zestaw.</p>
+                <label class="field"><span>Szukaj oferty</span><input id="setOfferQuery" type="search" placeholder="Tytuł, ISBN lub źródło"></label>
+                <button class="button secondary" type="button" id="setSearchOffers">Znajdź oferty</button>
+                <label class="field"><span>Dopasowane oferty</span><select id="setOfferSelect" aria-label="Wybierz ofertę"><option value="">Najpierw wyszukaj ofertę</option></select></label>
+                <button class="button primary" type="button" id="setMarkOffer">Oznacz jako zestaw</button>
+                <p id="setFeedback" role="status" aria-live="polite"></p>
+              </details>
+            </aside>
+            <div class="sets-main">
+              <section class="panel sets-summary">
+                <div class="sets-summary-head"><div><p class="section-eyebrow">WYBRANY ZESTAW</p><h3 id="setSelectedTitle">Wybierz zestaw z listy</h3><p id="setSelectedMeta">Zawartość zestawu pojawi się tutaj.</p></div><strong id="setSelectedCount" class="sets-count">0 książek</strong></div>
+                <select id="setCurrent" class="sr-only" aria-label="Wybrany zestaw"></select>
+                <div class="sets-members-heading"><h4>Książki w zestawie</h4><span id="setMemberHint">Dodaj wydania z katalogu poniżej</span></div>
+                <div id="setMembers" class="sets-members" aria-live="polite"></div>
+              </section>
+              <section class="panel sets-search-panel">
+                <div class="sets-search-head"><div><h3><span aria-hidden="true">＋</span> Dodaj książkę z katalogu</h3><p>Wyszukaj tytuł, autora lub ISBN. Kliknij „Dodaj” przy właściwym wydaniu.</p></div></div>
+                <div class="sets-search-bar"><label class="field"><span class="sr-only">Szukaj wydań</span><input id="setEditionQuery" type="search" placeholder="Np. Horus, Eisenhorn lub ISBN"></label><button class="button secondary" type="button" id="setSearchEditions">Szukaj</button></div>
+                <div id="setEditionResults" class="sets-results" aria-live="polite"><p>Wpisz co najmniej 2 znaki, aby wyszukać książki.</p></div>
+                <select id="setEditionSelect" class="sr-only" aria-label="Wybierz wydanie"></select>
+                <button id="setAddEdition" class="sr-only" type="button">Dodaj wybrane wydanie</button>
+              </section>
+            </div>
           </div>
         </section>
         <section class="view" id="view-offers" data-title="Oferty" hidden>
