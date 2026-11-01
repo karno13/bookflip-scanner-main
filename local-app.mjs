@@ -675,6 +675,8 @@ export function createLocalAppServer({
           '/index.html': 'index.html',
           '/styles.css': 'styles.css',
           '/app.js': 'app.js',
+          '/frontend-utils.js': 'frontend-utils.js',
+          '/scan-stream.js': 'scan-stream.js',
         },
         file = files[url.pathname];
       if (!file) return send(response, 404, 'Nie znaleziono', 'text/plain; charset=utf-8');

@@ -1,3 +1,5 @@
+import { readSearchStream } from './scan-stream.js';
+import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -35,7 +37,7 @@ const state = {
   visibleRows: { works: 100, jobs: 100 },
 };
 
-const savedSearch = JSON.parse(localStorage.getItem('bookflip-search') || 'null');
+const savedSearch = readSavedSearch(localStorage);
 $('#queries').value = savedSearch?.queries?.join('\n') || '';
 
 function escapeHtml(value) {
@@ -257,13 +259,7 @@ async function loadCatalogPage(kind, { reset = false } = {}) {
     const data = await response.json();
     if (!response.ok) throw Error(data.error || `HTTP_${response.status}`);
     if (controller.signal.aborted) return false;
-    if (
-      !Array.isArray(data.items) ||
-      !Number.isSafeInteger(data.total) ||
-      data.total < 0 ||
-      data.items.length > catalogPageSize
-    )
-      throw Error('INVALID_CATALOG_PAGE');
+    validateCatalogPage(data, catalogPageSize, offset);
     if (!reset && data.total !== page.total) throw Error('CATALOG_CHANGED_DURING_PAGINATION');
     if (data.items.length === 0 && offset < data.total) throw Error('INCOMPLETE_CATALOG_PAGE');
     if (reset) {
@@ -488,34 +484,6 @@ function updateProgress(event) {
   renderSourceRows();
 }
 
-async function readSearchStream(response) {
-  if (!response.body) throw Error('STREAM_UNAVAILABLE');
-  const reader = response.body.getReader(),
-    decoder = new TextDecoder();
-  let buffer = '',
-    result = null,
-    failure = null;
-  const consume = (line) => {
-    if (!line.trim()) return;
-    const data = JSON.parse(line);
-    if (data.type === 'progress') updateProgress(data.event);
-    if (data.type === 'result') result = data.result;
-    if (data.type === 'error') failure = data.error;
-  };
-  for (;;) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    buffer += decoder.decode(chunk.value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
-    lines.forEach(consume);
-  }
-  if (buffer.trim()) consume(buffer);
-  if (failure) throw Error(failure);
-  if (!result) throw Error('SEARCH_FAILED');
-  return result;
-}
-
 async function startSearch() {
   if (state.scan.running) return;
   const queries = readQueries(),
@@ -529,11 +497,15 @@ async function startSearch() {
   state.scan.fingerprint = fingerprint;
   state.scan.lastStart = Date.now();
   state.scan.startedAt = Date.now();
-  localStorage.setItem('bookflip-search', JSON.stringify({ queries, sources }));
+  try {
+    localStorage.setItem('bookflip-search', JSON.stringify({ queries, sources }));
+  } catch {
+    // Storage may be unavailable; scanning should still work.
+  }
   resetScanUi(queries, sources);
   $('#startSearch').disabled = true;
   $('#startSearch').textContent = 'Skanowanie...';
-  $('#scanGuardMessage').textContent = 'Mozesz zmieniac zakladki - skan bedzie kontynuowany.';
+  $('#scanGuardMessage').textContent = 'Możesz zmieniać zakładki. Nie zamykaj strony podczas skanowania.';
   state.scan.timer = setInterval(() => {
     $('#progressElapsed').textContent =
       `${Math.floor((Date.now() - state.scan.startedAt) / 1000)} s`;
@@ -545,7 +517,7 @@ async function startSearch() {
       body: JSON.stringify({ queries, sources }),
     });
     if (!response.ok) throw Error(`SEARCH_HTTP_${response.status}`);
-    state.scan.result = await readSearchStream(response);
+    state.scan.result = await readSearchStream(response, updateProgress);
     state.scan.completed = state.scan.total;
     $('#progressBar').style.width = '100%';
     $('#progressMessage').textContent = 'Skan zakonczony';
@@ -565,7 +537,7 @@ async function startSearch() {
     renderSourceRows();
     toast(`Skan zakonczony: ${summary.offers || 0} ofert.`);
   } catch (error) {
-    $('#progressMessage').textContent = 'Skan przerwany';
+    $('#progressMessage').textContent = 'Nie udało się potwierdzić zakończenia skanu';
     $('#progressDetail').textContent = error.message;
     $('#scanStateBadge').textContent = 'Blad';
     $('#scanStateBadge').className = 'state-badge warning';
