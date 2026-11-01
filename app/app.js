@@ -126,9 +126,12 @@ function showView(name) {
     view.hidden = view.id !== `view-${name}`;
     view.classList.toggle('active', !view.hidden);
   });
-  $$('.nav-item').forEach((button) =>
-    button.classList.toggle('active', button.dataset.view === name),
-  );
+  $('.nav-item').forEach((button) => {
+    const active = button.dataset.view === name;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
   $('#viewTitle').textContent = $(`#view-${name}`).dataset.title;
   history.replaceState(null, '', name === 'scanner' ? '/' : `/?view=${name}`);
   if (name === 'review') renderReview();
