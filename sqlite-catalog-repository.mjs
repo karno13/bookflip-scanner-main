@@ -1,3 +1,4 @@
+import { backupBeforeMigrations } from './catalog-data-location.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -42,6 +43,7 @@ export class SqliteCatalogRepository extends CatalogRepository {
     this.idFactory = idFactory;
     this.depth = 0;
     if (path !== ':memory:') mkdirSync(dirname(resolve(path)), { recursive: true });
+    backupBeforeMigrations(path);
     this.database = new DatabaseSync(path);
     const timeout = Math.max(0, Math.min(60000, Number(busyTimeout) || 0));
     this.database.exec('PRAGMA foreign_keys=ON');
