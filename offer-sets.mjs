@@ -17,6 +17,8 @@ export function markOfferAsSet(repository, offerId) {
     const db = repository.database;
     if (!db.prepare('SELECT id FROM offers WHERE id=?').get(offerId))
       throw Object.assign(Error('OFFER_NOT_FOUND'), { statusCode: 404 });
+    const busy = db.prepare("SELECT id FROM identification_jobs WHERE offer_id=? AND status='running'").get(offerId);
+    if (busy) throw Object.assign(Error('IDENTIFICATION_IN_PROGRESS'), { statusCode: 409 });
     const now = new Date().toISOString();
     db.prepare('INSERT INTO offer_sets(offer_id,created_at,updated_at) VALUES(?,?,?) ON CONFLICT(offer_id) DO UPDATE SET updated_at=excluded.updated_at').run(offerId, now, now);
     db.prepare("UPDATE offer_matches SET status='superseded',valid_to=? WHERE offer_id=? AND status='active'").run(now, offerId);
