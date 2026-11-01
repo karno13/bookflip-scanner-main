@@ -1,5 +1,5 @@
 // catalog workspace, preserving existing behavior while isolating its implementation.
-export function createCatalogView({ state, $, $, json, money, escapeHtml, visibleCatalogRows }) {
+export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows }) {
 function catalogRows() {
   const query = $('#catalogSearch').value.trim().toLocaleLowerCase('pl'),
     sort = $('#catalogSort').value;
