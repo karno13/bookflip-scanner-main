@@ -373,8 +373,13 @@ async function loadCatalogStatus() {
       not_found: 'Brak dopasowania',
     };
     const rows = [
+      ['Gotowe do przetworzenia', identification.runnable ?? 0],
+      ['Oczekujące na termin ponowienia', identification.waiting ?? 0],
       ...Object.entries(identification.statuses || {}),
       ...Object.entries(identification.decisions || {}),
+      ...(identification.failureReasons || []).map((item) => [
+        'Błąd: ' + item.code, item.count,
+      ]),
     ];
     $('#identificationStats').innerHTML = rows.length
       ? rows.map(([key, value]) => `<span><b>${escapeHtml(labels[key] || key)}</b><small>${Number(value)}</small></span>`).join('')
