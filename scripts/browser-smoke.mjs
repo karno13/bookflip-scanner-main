@@ -54,9 +54,18 @@ try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
+  const diagnostics = [];
+  page.on('pageerror', error => errors.push(error.stack || error.message));
+  page.on('console', msg => { if (msg.type() === 'error') diagnostics.push('console: ' + msg.text()); });
+  page.on('requestfailed', request => diagnostics.push('request failed: ' + request.url() + ' ' + request.failure()?.errorText));
+  page.on('response', response => { if (response.status() >= 400) diagnostics.push('HTTP ' + response.status() + ': ' + response.url()); });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => document.querySelector('#catalogWorks')?.textContent === '1', { timeout: 15000 });
+  try {
+    await page.waitForFunction(() => document.querySelector('#catalogWorks')?.textContent === '1', null, { timeout: 9000 });
+  } catch (error) {
+    const state = await page.evaluate(() => ({ catalog: document.querySelector('#catalogWorks')?.textContent, status: document.querySelector('#databaseStatus')?.textContent, connection: document.querySelector('#connectionLabel')?.textContent, toasts: document.querySelector('#toastRegion')?.textContent }));
+    throw new Error('Catalog boot smoke failed: ' + JSON.stringify({state, errors, diagnostics, logs, reason: error.message}));
+  }
   for (const view of ['scanner', 'review', 'catalog', 'offers', 'settings']) {
     await page.locator(`[data-view="${view}"]`).click();
     await assert.equal(await page.locator(`#view-${view}`).isVisible(), true, `view ${view}`);
