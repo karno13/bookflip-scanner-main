@@ -168,7 +168,7 @@ function fillSourceFilters() {
   for (const selector of ['#reviewSource', '#offerSource']) {
     const select = $(selector);
     const value = select.value;
-    select.innerHTML = `<option value="">Wszystkie zrodla</option>${options}`;
+    select.innerHTML = `<option value="">Wszystkie źródła</option>${options}`;
     select.value = value;
   }
 }
@@ -379,7 +379,7 @@ async function loadCatalogStatus() {
     $('#databaseStatus').textContent = 'SQLite: niedostepny';
     $('#settingsDatabaseCopy').textContent = 'Nie udalo sie odczytac statusu bazy.';
     $('#connectionDot').classList.remove('online');
-    $('#connectionLabel').textContent = 'Blad polaczenia';
+    $('#connectionLabel').textContent = 'Błąd połączenia';
     return false;
   }
 }
@@ -471,7 +471,7 @@ async function submitCatalog(event) {
   event.target.reset();
   await loadHistory();
   renderCatalog();
-  toast('Reczny rekord katalogowy zostal zapisany.');
+  toast('Ręczny rekord katalogowy zostal zapisany.');
 }
 
 $$('.nav-item').forEach((button) =>
@@ -575,7 +575,7 @@ const offersView = createOffersView({ state, $, $, json, money, date, escapeHtml
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
 Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
   (error) => {
-    $('#connectionLabel').textContent = 'Blad polaczenia';
-    toast(`Nie udalo sie wczytac aplikacji: ${error.message}`);
+    $('#connectionLabel').textContent = 'Błąd połączenia';
+    toast(`Nie udało się wczytać aplikacji: ${error.message}`);
   },
 );
