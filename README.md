@@ -68,3 +68,9 @@ Repozytorium zawiera także starszy skaner/runner kolejki GitHub Actions, używa
 ## Gotowość do wydania
 
 CI obejmuje testy offline, ale przed uznaniem aplikacji za gotową wymagany jest jeszcze test na Windows: uruchomienie przez CMD, skan wybranego źródła, zapis oferty i SQLite, identyfikacja wydania, zapis decyzji i odczyt analizy cen.
+
+## Kopia zapasowa SQLite
+
+Wykonaj `npm run backup`, aby utworzyć kopię bazy katalogu w katalogu `scan-results/backups/`.
+Możesz wskazać własną ścieżkę: `npm run backup -- C:\\BookFlip\\backup.sqlite`.
+Narzędzie używa API kopii SQLite (również w trybie WAL), sprawdza integralność kopii i nie nadpisuje istniejących plików. Po wykonaniu warto przetestować odtworzenie kopii na osobnej instalacji.
