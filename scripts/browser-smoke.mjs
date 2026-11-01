@@ -66,14 +66,14 @@ try {
     const state = await page.evaluate(() => ({ catalog: document.querySelector('#catalogWorks')?.textContent, status: document.querySelector('#databaseStatus')?.textContent, connection: document.querySelector('#connectionLabel')?.textContent, toasts: document.querySelector('#toastRegion')?.textContent }));
     throw new Error('Catalog boot smoke failed: ' + JSON.stringify({state, errors, diagnostics, logs, reason: error.message}));
   }
-  for (const view of ['scanner', 'review', 'catalog', 'offers', 'settings']) {
+  for (const view of ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']) {
     await page.locator(`[data-view="${view}"]`).click();
     await assert.equal(await page.locator(`#view-${view}`).isVisible(), true, `view ${view}`);
   }
   await page.locator('[data-view="review"]').click();
   await assert.equal(await page.locator('#reviewList .review-item').count() > 0, true, 'nonempty review');
   assert.deepEqual(errors, [], 'Unexpected frontend exceptions');
-  console.log('Browser smoke passed: all five views, nonempty SQLite, no JS page errors');
+  console.log('Browser smoke passed: all six views, nonempty SQLite, no JS page errors');
 } finally {
   if (browser) await browser.close();
   if (server) { server.kill(); await pause(250); }
