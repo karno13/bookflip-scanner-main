@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const html = await readFile(new URL('./app/index.html', import.meta.url), 'utf8');
-const script = await readFile(new URL('./app/app.js', import.meta.url), 'utf8');
+const shellScript = await readFile(new URL('./app/app.js', import.meta.url), 'utf8');
+const scannerScript = await readFile(new URL('./app/views/scanner.js', import.meta.url), 'utf8');
+// Static coverage spans the shell and the scanner module after refactoring.
+const script = [shellScript, scannerScript].join('\n');
 const styles = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
 
 test('desktop shell exposes exactly the five requested workspaces in order', () => {
