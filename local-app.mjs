@@ -769,7 +769,7 @@ async function main() {
     server = createLocalAppServer();
   const enabled = String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0';
   const catalog = enabled ? getProductionCatalog() : null;
-  const intervalMs = Number(process.env.BOOKFLIP_IDENTIFICATION_POLL_MS ?? 30_000);
+  const intervalMs = Number(process.env.BOOKFLIP_IDENTIFICATION_POLL_MS ?? 5_000);
   const scheduler = catalog
     ? createIdentificationScheduler({
         runBatch: () => scheduleCatalogResolution(catalog),
