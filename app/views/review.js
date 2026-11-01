@@ -71,10 +71,12 @@ function renderReview() {
       const job = state.reviewJobs.find((row) => row.id === state.selectedReviewId);
       if (job) {
         try {
-          state.reviewDetail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`);
+          const detail = await json(`/api/offers/${encodeURIComponent(job.offerId)}`);
+          if (state.selectedReviewId !== job.id) return;
+          state.reviewDetail = detail;
           renderReviewDetail();
         } catch (error) {
-          toast(error.message);
+          if (state.selectedReviewId === job.id) toast(error.message);
         }
       }
     }),
