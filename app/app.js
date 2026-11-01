@@ -1,3 +1,4 @@
+import { escapeHtml, money, date, shortTime } from './core/formatters.js';
 import { createSettingsView } from './views/settings.js';
 import { createScannerView } from './views/scanner.js';
 import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
@@ -41,25 +42,6 @@ const state = {
 const savedSearch = readSavedSearch(localStorage);
 $('#queries').value = savedSearch?.queries?.join('\n') || '';
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(
-    /[&<>"']/g,
-    (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
-  );
-}
-function money(value) {
-  return value == null
-    ? '-'
-    : new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(value / 100);
-}
-function date(value) {
-  return value ? new Date(value).toLocaleString('pl-PL') : '-';
-}
-function shortTime(value) {
-  return value
-    ? new Date(value).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
-    : '-';
-}
 function toast(message) {
   const node = document.createElement('div');
   node.className = 'toast';
