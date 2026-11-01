@@ -1,5 +1,5 @@
 // catalog workspace, preserving existing behavior while isolating its implementation.
-export function createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows }) {
+export function createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows, visibleCatalogRows }) {
 function catalogRows() {
   const query = $('#catalogSearch').value.trim().toLocaleLowerCase('pl'),
     sort = $('#catalogSort').value;

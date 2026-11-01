@@ -587,7 +587,7 @@ async function restoreLastScanStatus() {
 }
 
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderOffers, openOfferDrawer, openEditionDetail, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
-const catalogView = createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows });
+const catalogView = createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows, visibleCatalogRows });
 const offersView = createOffersView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderReview, openEditionDetail, renderReviewBookChoices, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
 
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
