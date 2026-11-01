@@ -409,9 +409,16 @@ export class CatalogResolver {
   }
 
   #matchExisting(edition, offer, offerId, isbnEvidence, proof, dryRun, precomputed = null) {
-    const context =
-      precomputed ?? compareOfferContext(offer, localRecord(this.repository, edition));
-    if (context.conflicts.length || !context.sufficient)
+    const catalogRecord = localRecord(this.repository, edition);
+    const context = precomputed ?? compareOfferContext(offer, catalogRecord);
+    const offerTokens = new Set(text(context.context?.title).split(' ').filter((word) => word.length >= 5));
+    const titleOverlap = text(catalogRecord.title).split(' ').some((word) => offerTokens.has(word));
+    const verifiedIsbn = isbnEvidence.autoAssignable &&
+      ['structured', 'labelled_description'].includes(isbnEvidence.classification) &&
+      this.repository.findEditionByISBN(isbnEvidence.isbn ?? isbnEvidence.candidateIsbn)?.id === edition.id;
+    const tolerableContext = verifiedIsbn && titleOverlap &&
+      context.conflicts.every((item) => ['title', 'publicationYear'].includes(item.field));
+    if (!tolerableContext && (context.conflicts.length || !context.sufficient))
       return decision(
         'review_required',
         context.conflicts.length ? ['offer_catalog_conflict'] : ['insufficient_offer_context'],

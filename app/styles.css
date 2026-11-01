@@ -422,3 +422,55 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 .metadata-comparison th, .metadata-comparison td { padding: .55rem .65rem; text-align: left; border-bottom: 1px solid var(--border, #dce0e5); vertical-align: top; overflow-wrap: anywhere; }
 .metadata-comparison thead th { min-width: 9rem; }
 .metadata-comparison thead small { display: block; font-weight: normal; opacity: .75; margin-top: .25rem; }
+
+/* Review and catalog polish: readable density and predictable panel proportions. */
+@media (min-width: 761px) {
+  .split-workspace, .catalog-layout {
+    grid-template-columns: minmax(295px, 36%) minmax(0, 1fr);
+    gap: 18px;
+  }
+  .review-list, .catalog-list-panel, .detail-panel { border-radius: 14px; }
+  .detail-panel { padding: 24px 26px; }
+}
+.identification-progress {
+  padding: 16px 19px !important;
+  margin-bottom: 17px !important;
+  border: 1px solid var(--line);
+  border-radius: 14px !important;
+  background: #fffefa !important;
+}
+.identification-progress > div { align-items: baseline; flex-wrap: wrap; }
+.identification-progress strong { font-size: 14px; }
+.identification-progress progress {
+  display: block;
+  appearance: none;
+  height: 10px !important;
+  border: 0;
+  border-radius: 99px;
+  overflow: hidden;
+  background: #e6ede8;
+}
+.identification-progress progress::-webkit-progress-bar { background: #e6ede8; border-radius: 99px; }
+.identification-progress progress::-webkit-progress-value { background: #247c5c; border-radius: 99px; }
+.identification-progress progress::-moz-progress-bar { background: #247c5c; border-radius: 99px; }
+#identificationProgressDetails { display: block; font-size: 12px; line-height: 1.7; color: var(--muted); }
+.review-list .review-item { padding: 14px 16px; gap: 12px; }
+.review-list .review-item strong { font-size: 12px; line-height: 1.45; }
+.review-list .review-item small { font-size: 11px; line-height: 1.5; }
+.detail-section { padding: 18px 0; }
+.detail-section h4 { font-size: 11px; margin-bottom: 12px; }
+.detail-grid b { font-size: 11px; }
+.detail-grid small { font-size: 11px; line-height: 1.55; }
+.detail-actions { gap: 10px; }
+.detail-actions .button { min-height: 42px; }
+.book-options { max-height: 225px; }
+.book-options strong { font-size: 12px; line-height: 1.45; }
+.book-options small { font-size: 11px; line-height: 1.5; }
+.inline-note { font-size: 12px; line-height: 1.55; }
+.catalog-layout .detail-panel { overflow-wrap: anywhere; }
+.catalog-layout .detail-panel :is(h3,h4,p,small,strong) { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .identification-progress { padding: 12px !important; }
+  .detail-panel { padding: 16px; }
+  .review-list .review-item strong { font-size: 12px; }
+}
