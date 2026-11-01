@@ -457,6 +457,10 @@ export function decideIdentificationJob(
       (action !== 'approved' || active.edition_id !== editionId)
     )
       throw Object.assign(Error('MANUAL_ASSIGNMENT_PROTECTED'), { statusCode: 409 });
+    if (action === 'not_book' && active)
+      repository.database.prepare(
+        "UPDATE offer_matches SET status='superseded',valid_to=? WHERE offer_id=? AND status='active'",
+      ).run(at, job.offer_id);
     if (action === 'approved') {
       if (
         !editionId ||
