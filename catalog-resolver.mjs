@@ -415,9 +415,7 @@ export class CatalogResolver {
     const titleOverlap = text(catalogRecord.title).split(' ').some((word) => offerTokens.has(word));
     const verifiedIsbn = isbnEvidence.autoAssignable &&
       ['structured', 'labelled_description'].includes(isbnEvidence.classification) &&
-      isbnKeys(isbnEvidence.isbn ?? isbnEvidence.candidateIsbn)
-        .some((key) => isbnKeys(edition.isbn13 ?? edition.isbn10 ?? isbnEvidence.isbn)
-          .includes(key));
+      this.repository.findEditionByISBN(isbnEvidence.isbn ?? isbnEvidence.candidateIsbn)?.id === edition.id;
     const tolerableContext = verifiedIsbn && titleOverlap &&
       context.conflicts.every((item) => ['title', 'publicationYear'].includes(item.field));
     if (!tolerableContext && (context.conflicts.length || !context.sufficient))
