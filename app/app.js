@@ -124,7 +124,7 @@ function renderScannerOffers() {
 }
 
 function showView(name) {
-  if (!['scanner', 'review', 'catalog', 'offers', 'settings'].includes(name)) name = 'scanner';
+  if (!['scanner', 'review', 'catalog', 'sets', 'offers', 'settings'].includes(name)) name = 'scanner';
   state.activeView = name;
   $$('.view').forEach((view) => {
     view.hidden = view.id !== `view-${name}`;
