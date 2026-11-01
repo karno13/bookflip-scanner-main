@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, appendFile } from 'node:fs/promises';
+import { readFile, appendFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -341,6 +341,19 @@ function send(response, status, body, type = 'application/json; charset=utf-8') 
   response.end(body);
 }
 const logPath = fileURLToPath(new URL('./scan-results/local-app.log', import.meta.url));
+const scanStatusPath = fileURLToPath(new URL('./scan-results/scan-status.json', import.meta.url));
+async function persistScanStatus(status) {
+  await writeFile(scanStatusPath, JSON.stringify(status));
+}
+async function readScanStatus() {
+  try {
+    const value = JSON.parse(await readFile(scanStatusPath, 'utf8'));
+    return value.status === 'running' ? { ...value, status: 'interrupted' } : value;
+  } catch (error) {
+    if (error.code === 'ENOENT') return { status: 'idle' };
+    return { status: 'unknown' };
+  }
+}
 let productionCatalog = null;
 function getProductionCatalog() {
   if (!productionCatalogEnabled()) return null;
@@ -487,12 +500,20 @@ export function createLocalAppServer({
   storageMode();
   const getProductionCatalog = catalogProvider;
   let scanInFlight = false;
+  let currentScan = null;
   const server = createServer(async (request, response) => {
     try {
       const rejected = validateLocalRequest(request);
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
+      if (request.method === 'GET' && url.pathname === '/api/scan/status')
+        return send(response, 200, JSON.stringify(currentScan || await readScanStatus()));
+      if (request.method === 'GET' && url.pathname === '/api/catalog/summary') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify(catalog.repository.counts()));
+      }
       if (request.method === 'GET' && url.pathname === '/api/sources')
         return send(response, 200, JSON.stringify({ sources: Object.keys(localSourceHosts) }));
       if (request.method === 'GET' && url.pathname === '/api/history') {
@@ -634,28 +655,34 @@ export function createLocalAppServer({
         if (scanInFlight)
           return send(response, 409, JSON.stringify({ error: 'SCAN_ALREADY_RUNNING' }));
         scanInFlight = true;
+        currentScan = { status: 'running', startedAt: new Date().toISOString() };
+        await persistScanStatus(currentScan);
         try {
           if (url.searchParams.get('stream') === '1') {
             streamHeaders(response);
             const emit = (event) => {
               const safe = recordProgress(event);
-              response.write(JSON.stringify({ type: 'progress', event: safe }) + '\n');
+              if (!response.destroyed) response.write(JSON.stringify({ type: 'progress', event: safe }) + '\n');
             };
             try {
               const result = await searchAndStore(await readJson(request), emit, {
                 catalogProvider,
                 search,
               });
-              response.write(JSON.stringify({ type: 'result', result }) + '\n');
+              currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
+              await persistScanStatus(currentScan);
+              if (!response.destroyed) response.write(JSON.stringify({ type: 'result', result }) + '\n');
               response.end();
             } catch (error) {
-              response.write(
+              currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
+              await persistScanStatus(currentScan);
+              if (!response.destroyed) response.write(
                 JSON.stringify({
                   type: 'error',
                   error: /^[A-Z0-9_]+$/.test(error.message) ? error.message : 'LOCAL_APP_ERROR',
                 }) + '\n',
               );
-              response.end();
+              if (!response.destroyed) response.end();
             }
             return;
           }
@@ -663,7 +690,13 @@ export function createLocalAppServer({
             catalogProvider,
             search,
           });
+          currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
+          await persistScanStatus(currentScan);
           return send(response, 200, JSON.stringify(result));
+        } catch (error) {
+          currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
+          await persistScanStatus(currentScan);
+          throw error;
         } finally {
           scanInFlight = false;
         }
