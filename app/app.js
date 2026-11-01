@@ -391,31 +391,13 @@ const { startSearch, renderSourceRows } = createScannerView({
 
 const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
-function filteredReviewOffers(...args) { return reviewView.filteredReviewOffers(...args); }
 function visibleCatalogRows(...args) { return reviewView.visibleCatalogRows(...args); }
 function renderReview(...args) { return reviewView.renderReview(...args); }
-function normalizedIsbn(...args) { return reviewView.normalizedIsbn(...args); }
-function reviewCandidateMarkup(...args) { return reviewView.reviewCandidateMarkup(...args); }
-function renderReviewDetail(...args) { return reviewView.renderReviewDetail(...args); }
-function renderReviewBookChoices(...args) { return reviewView.renderReviewBookChoices(...args); }
-function approveReview(...args) { return reviewView.approveReview(...args); }
-function decideReview(...args) { return reviewView.decideReview(...args); }
 
-function catalogRows(...args) { return catalogView.catalogRows(...args); }
-function validCoverIsbn(...args) { return catalogView.validCoverIsbn(...args); }
-function coverPreviewMarkup(...args) { return catalogView.coverPreviewMarkup(...args); }
 function renderCatalog(...args) { return catalogView.renderCatalog(...args); }
-function openCatalogDetail(...args) { return catalogView.openCatalogDetail(...args); }
 function priceStats(...args) { return catalogView.priceStats(...args); }
-function offerPriceSummary(...args) { return catalogView.offerPriceSummary(...args); }
-function offerPriceSummaryMarkup(...args) { return catalogView.offerPriceSummaryMarkup(...args); }
-function openEditionDetail(...args) { return catalogView.openEditionDetail(...args); }
 
-function filteredOffers(...args) { return offersView.filteredOffers(...args); }
 function renderOffers(...args) { return offersView.renderOffers(...args); }
-function priceEvidenceMarkup(...args) { return offersView.priceEvidenceMarkup(...args); }
-function scenarioCalculatorMarkup(...args) { return offersView.scenarioCalculatorMarkup(...args); }
-function calculateScenario(...args) { return offersView.calculateScenario(...args); }
 function openOfferDrawer(...args) { return offersView.openOfferDrawer(...args); }
 
 function setCatalogMode(mode) {
