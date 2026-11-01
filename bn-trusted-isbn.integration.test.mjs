@@ -25,6 +25,11 @@ test('trusted BN ISBN creates edition despite translation and year disagreement'
       source: 'test', normalizedUrl: 'https://example.test/offer',
       originalTitle: 'Era Mroku Herezja Horusa', observedIsbn: isbn,
     });
+    repo.putMetadataEvidence({
+      id: 'structured-isbn-evidence', offerId: offer.id, fieldName: 'isbn',
+      value: isbn, classification: 'structured', sourceType: 'scanner:test',
+      observedAt: new Date('2026-11-01T00:00:00Z'),
+    });
     const result = await new CatalogResolver({
       repository: repo,
       lookupMetadata: async () => ({
