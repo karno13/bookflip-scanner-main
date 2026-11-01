@@ -284,3 +284,99 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
   .mobile-offer-price b { font-size: 14px; }
   .mobile-offer-copy strong { font-size: 13px; }
 }
+
+
+/* BookFlip visual system: dense information, restrained editorial typography. */
+:root {
+  --bf-space-xs: 5px;
+  --bf-space-sm: 9px;
+  --bf-space-md: 14px;
+  --bf-radius-sm: 9px;
+  --bf-radius-md: 13px;
+  --bf-ink: #1b2b30;
+  --bf-subtle: #5e7079;
+}
+.view-heading h2, .panel-heading h3 { letter-spacing: -.025em; }
+.view-heading p, .panel-heading p { line-height: 1.45; }
+:where(.panel, .drawer, .modal) { color: var(--bf-ink); }
+:where(.panel, .catalog-row, .mobile-offer, .review-list) {
+  overflow-wrap: anywhere;
+}
+:where(.mobile-offer, .catalog-row, .scanner-offer-row, .review-list button) {
+  transition: background-color .15s ease, border-color .15s ease;
+}
+:where(.mobile-offer, .catalog-row, .scanner-offer-row):hover {
+  background-color: #f7faf8;
+}
+:where(.filterbar, .scanner-discover-toolbar, .pagination) {
+  min-width: 0;
+}
+:where(.filterbar input, .filterbar select, .search-field input) {
+  min-width: 0;
+}
+:where(.mobile-offer-price b, .scanner-offer-price, .edition-price-summary strong) {
+  font-variant-numeric: tabular-nums;
+}
+:where(.view-heading, .panel-heading, .catalog-book-title) {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  /* Filters remain visible, but no longer consume half of the first viewport. */
+  .view-heading { gap: 8px; margin-bottom: 12px; }
+  .view-heading h2 { font-size: clamp(23px, 6vw, 30px); line-height: 1.15; }
+  .view-heading p { font-size: 12px; line-height: 1.4; }
+  .filterbar {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 7px;
+    margin-bottom: 10px;
+  }
+  .filterbar .search-field { grid-column: 1 / -1; }
+  .filterbar input, .filterbar select {
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .offers-panel { border-radius: var(--bf-radius-md); }
+  .offers-mobile-list { padding: 6px; gap: 5px; }
+  .mobile-offer {
+    border-radius: var(--bf-radius-sm);
+    border-color: #e1e8e5;
+    background: #fff;
+  }
+  .mobile-offer-copy strong { letter-spacing: -.01em; }
+  .mobile-offer-price b { font-weight: 750; white-space: nowrap; }
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px;
+    font-size: 12px;
+  }
+  .pagination button { flex: 0 1 auto; min-width: 0; min-height: 44px; }
+  .catalog-row { border-color: #e2e8e5; }
+  .catalog-book-copy strong { letter-spacing: -.015em; }
+  .catalog-book-copy small { color: var(--bf-subtle); }
+  .edition-price-summary small { font-size: 11px; }
+  .edition-price-summary strong { font-size: 17px; }
+  .scenario-result { padding: 10px; line-height: 1.45; }
+  .review-list { line-height: 1.4; }
+  .drawer { overscroll-behavior: contain; }
+  .drawer-close { min-height: 44px; }
+}
+@media (max-width: 400px) {
+  .filterbar { gap: 6px; }
+  .filterbar select { font-size: 13px; }
+  .pagination { flex-wrap: wrap; }
+}
+@media (hover: none) {
+  :where(.mobile-offer, .catalog-row, .scanner-offer-row):hover {
+    background-color: inherit;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.mobile-offer, .catalog-row, .scanner-offer-row, .review-list button) {
+    transition: none;
+  }
+}
