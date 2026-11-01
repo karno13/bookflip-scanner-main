@@ -7,7 +7,7 @@ const offers = await readFile(new URL('./app/views/offers.js', import.meta.url),
 
 test('navigation uses querySelectorAll helper in both menu paths', () => {
   assert.equal(shell.split("$('.nav-item').forEach").length - 1, 2);
-  assert.ok(!shell.includes("$('.nav-item').forEach"));
+  assert.doesNotMatch(shell, /(?<!\$)\$\('\.nav-item'\)\.forEach/);
 });
 test('settings view is initialized before diagnostic listener', () => {
   const init = shell.indexOf('const { renderSettings, runDiagnostics } = createSettingsView(');
