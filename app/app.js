@@ -639,6 +639,7 @@ setInterval(async () => {
   try {
     await loadCatalogStatus();
     if (['review', 'catalog', 'offers', 'sets'].includes(state.activeView) &&
+      !(state.activeView === 'review' && state.selectedReviewId) &&
       Date.now() - lastCatalogDataRefresh >= 12000) {
       lastCatalogDataRefresh = Date.now();
       await loadCatalogData();
