@@ -31,7 +31,7 @@ test('review includes read-only external lookup and preserves approval flow', as
   const server = await readFile(new URL('./local-app.mjs', import.meta.url), 'utf8');
   assert.match(review, /reviewExternalIsbnButton/);
   assert.match(review, /\/api\/catalog\/lookup-preview/);
-  assert.match(review, /przypisanie wymaga osobnego zatwierdzenia/);
+  assert.match(review, /metadataComparisonMarkup/);
   assert.match(review, /approveReview/);
   assert.match(server, /durationMs: Math.round\(performance.now\(\) - startedAt\)/);
 });

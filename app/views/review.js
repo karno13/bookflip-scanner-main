@@ -1,3 +1,4 @@
+import { metadataComparisonMarkup } from '../core/metadata-comparison.js';
 // review workspace, preserving existing behavior while isolating its implementation.
 export function createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog }) {
 function filteredReviewOffers() {
@@ -215,16 +216,7 @@ function renderReviewDetail() {
         body: JSON.stringify({ isbn }),
       });
       if (state.selectedReviewId !== job.id) return;
-      const formatSource = (label, source) => {
-        const titles = (source?.records || []).slice(0, 3).map((record) => record.title || 'bez tytułu');
-        return label + ': ' + (titles.length ? titles.join('; ') : source?.status || 'brak wyników') + (source?.timing ? ` (${source.timing.durationMs} ms, ${source.timing.cached ? 'cache' : 'sieć'})` : '');
-      };
-      const comparison = response.comparison?.status || 'nieustalone';
-      output.textContent = [
-        formatSource('Biblioteka Narodowa', response.bn),
-        formatSource('Open Library', response.openLibrary),
-        'Porównanie: ' + comparison + '. Wynik ma charakter informacyjny; przypisanie wymaga osobnego zatwierdzenia.',
-      ].join(' | ');
+      output.innerHTML = metadataComparisonMarkup(response, escapeHtml);
     } catch (error) {
       if (state.selectedReviewId === job.id)
         output.textContent = 'Nie udało się pobrać metadanych: ' + error.message;
