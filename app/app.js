@@ -1,3 +1,4 @@
+import { createSetsView } from './views/sets.js';
 import { createReviewView } from './views/review.js';
 import { createCatalogView } from './views/catalog.js';
 import { createOffersView } from './views/offers.js';
@@ -142,6 +143,7 @@ function showView(name) {
   if (name === 'offers') renderOffers();
   if (name === 'scanner') renderScannerOffers();
   if (name === 'settings') renderSettings();
+  if (name === 'sets') void setsView.refreshSets().catch(error => toast(error.message));
 }
 
 async function loadSources() {
@@ -607,6 +609,7 @@ async function restoreLastScanStatus() {
   }
 }
 
+const setsView = createSetsView({ $, json, escapeHtml, toast });
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog });
 const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows });
 const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats });
