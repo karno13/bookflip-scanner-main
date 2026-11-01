@@ -168,7 +168,7 @@ function fillSourceFilters() {
   for (const selector of ['#reviewSource', '#offerSource']) {
     const select = $(selector);
     const value = select.value;
-    select.innerHTML = `<option value="">Wszystkie zrodla</option>${options}`;
+    select.innerHTML = `<option value="">Wszystkie źródła</option>${options}`;
     select.value = value;
   }
 }
@@ -379,7 +379,7 @@ async function loadCatalogStatus() {
     $('#databaseStatus').textContent = 'SQLite: niedostepny';
     $('#settingsDatabaseCopy').textContent = 'Nie udalo sie odczytac statusu bazy.';
     $('#connectionDot').classList.remove('online');
-    $('#connectionLabel').textContent = 'Blad polaczenia';
+    $('#connectionLabel').textContent = 'Błąd połączenia';
     return false;
   }
 }
@@ -391,31 +391,13 @@ const { startSearch, renderSourceRows } = createScannerView({
 
 const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
-function filteredReviewOffers(...args) { return reviewView.filteredReviewOffers(...args); }
 function visibleCatalogRows(...args) { return reviewView.visibleCatalogRows(...args); }
 function renderReview(...args) { return reviewView.renderReview(...args); }
-function normalizedIsbn(...args) { return reviewView.normalizedIsbn(...args); }
-function reviewCandidateMarkup(...args) { return reviewView.reviewCandidateMarkup(...args); }
-function renderReviewDetail(...args) { return reviewView.renderReviewDetail(...args); }
-function renderReviewBookChoices(...args) { return reviewView.renderReviewBookChoices(...args); }
-function approveReview(...args) { return reviewView.approveReview(...args); }
-function decideReview(...args) { return reviewView.decideReview(...args); }
 
-function catalogRows(...args) { return catalogView.catalogRows(...args); }
-function validCoverIsbn(...args) { return catalogView.validCoverIsbn(...args); }
-function coverPreviewMarkup(...args) { return catalogView.coverPreviewMarkup(...args); }
 function renderCatalog(...args) { return catalogView.renderCatalog(...args); }
-function openCatalogDetail(...args) { return catalogView.openCatalogDetail(...args); }
 function priceStats(...args) { return catalogView.priceStats(...args); }
-function offerPriceSummary(...args) { return catalogView.offerPriceSummary(...args); }
-function offerPriceSummaryMarkup(...args) { return catalogView.offerPriceSummaryMarkup(...args); }
-function openEditionDetail(...args) { return catalogView.openEditionDetail(...args); }
 
-function filteredOffers(...args) { return offersView.filteredOffers(...args); }
 function renderOffers(...args) { return offersView.renderOffers(...args); }
-function priceEvidenceMarkup(...args) { return offersView.priceEvidenceMarkup(...args); }
-function scenarioCalculatorMarkup(...args) { return offersView.scenarioCalculatorMarkup(...args); }
-function calculateScenario(...args) { return offersView.calculateScenario(...args); }
 function openOfferDrawer(...args) { return offersView.openOfferDrawer(...args); }
 
 function setCatalogMode(mode) {
@@ -489,7 +471,7 @@ async function submitCatalog(event) {
   event.target.reset();
   await loadHistory();
   renderCatalog();
-  toast('Reczny rekord katalogowy zostal zapisany.');
+  toast('Ręczny rekord katalogowy zostal zapisany.');
 }
 
 $$('.nav-item').forEach((button) =>
@@ -586,14 +568,14 @@ async function restoreLastScanStatus() {
   }
 }
 
-const reviewView = createReviewView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderOffers, openOfferDrawer, openEditionDetail, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
-const catalogView = createCatalogView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderReview, renderOffers, openOfferDrawer, renderReviewBookChoices, renderScannerOffers, loadCatalogPage, renderSourceRows, visibleCatalogRows });
-const offersView = createOffersView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderReview, openEditionDetail, renderReviewBookChoices, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows });
+const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog });
+const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows });
+const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats });
 
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
 Promise.all([loadSources(), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
   (error) => {
-    $('#connectionLabel').textContent = 'Blad polaczenia';
-    toast(`Nie udalo sie wczytac aplikacji: ${error.message}`);
+    $('#connectionLabel').textContent = 'Błąd połączenia';
+    toast(`Nie udało się wczytać aplikacji: ${error.message}`);
   },
 );

@@ -1,5 +1,5 @@
 // review workspace, preserving existing behavior while isolating its implementation.
-export function createReviewView({ state, $, $$, json, toast, money, date, shortTime, escapeHtml, reviewOffers, allOffers, bookFor, loadCatalogData, loadHistory, loadCatalogStatus, scheduleGlobalCatalogSearch, showView, renderCatalog, renderOffers, openOfferDrawer, openEditionDetail, catalogRows, priceStats, offerPriceSummary, offerPriceSummaryMarkup, renderScannerOffers, loadCatalogPage, renderSourceRows }) {
+export function createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog }) {
 function filteredReviewOffers() {
   const query = $('#reviewSearch').value.trim().toLocaleLowerCase('pl'),
     source = $('#reviewSource').value,
