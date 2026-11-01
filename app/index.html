@@ -7,10 +7,11 @@
   <link rel=stylesheet href=/styles.css>
 </head>
 <body>
+  <a class="skip-link" href="#mainContent">Przejdź do treści</a>
   <div class=app-shell>
     <aside class=sidebar>
       <div class=brand><span class="brand-mark" aria-hidden="true">▣</span><span class="brand-word">BookFlip <small>3.2</small></span></div><p class="sidebar-caption">BIBLIOTEKA · ANALIZA · OFERTY</p><div class="sidebar-collection"><span class="sidebar-collection-icon" aria-hidden="true">✦</span><span><b>Twoja biblioteka</b><small>Stanowisko pracy</small></span></div>
-      <nav class="nav-list">
+      <nav class="nav-list" aria-label="Główna nawigacja">
         <button class="nav-item active" type="button" data-view="scanner"><span class="nav-glyph" aria-hidden="true">⌕</span><span>Skaner</span><small>Wyszukiwanie ofert</small></button>
         <button class="nav-item" type="button" data-view="review"><span class="nav-glyph" aria-hidden="true">◇</span><span>Do weryfikacji</span><small id="reviewNavCount">0 pozycji</small></button>
         <button class="nav-item" type="button" data-view="catalog"><span class="nav-glyph" aria-hidden="true">▤</span><span>Katalog</span><small>Dzieła i wydania</small></button>
@@ -24,9 +25,9 @@
         <div><p class="topbar-kicker">BOOKFLIP <span class="topbar-divider">/</span> STANOWISKO ANALIZY OFERT</p><h1 id="viewTitle">Skaner</h1></div>
         <div class="topbar-status"><span id="databaseStatus">SQLite: sprawdzanie</span><button class="button secondary compact" type="button" id="refreshView">Odśwież</button></div>
       </header>
-      <main class=workspace>
+      <main class=workspace id="mainContent">
         <section class="view active" id="view-scanner" data-title="Skaner">
-          <div class="view-heading scanner-heading"><div><p class="section-eyebrow">ODKRYWAJ • PORÓWNUJ • IDENTYFIKUJ</p><h2>Skanuj oferty książek</h2><p>Wyszukaj tytuł, autora, ISBN lub serię w wybranych źródłach.</p></div><span class="state-badge neutral" id="scanStateBadge">Gotowy</span></div>
+          <div class="view-heading scanner-heading"><div><p class="section-eyebrow">ODKRYWAJ • PORÓWNUJ • IDENTYFIKUJ</p><h2>Skanuj oferty książek</h2><p>Wyszukaj tytuł, autora, ISBN lub serię w wybranych źródłach.</p></div><span class="state-badge neutral" id="scanStateBadge" role="status" aria-live="polite">Gotowy</span></div>
           <div class="desktop-scanner-grid"><div class="panel scanner-form-panel">
             <label class="field grow"><span>Frazy wyszukiwania</span><textarea id="queries" rows="3" placeholder="Jedna fraza w wierszu, np. Diuna, Frank Herbert lub ISBN" required></textarea><small>Maksymalnie 10 fraz.</small></label>
             <div class="source-header"><div><span class="field-label">Źródła skanowania</span><small>Tylko adaptery udostępnione przez lokalny backend</small></div><button class="link-button" id="toggleSources" type="button">Zaznacz wszystkie</button></div>
