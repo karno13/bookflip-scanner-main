@@ -712,6 +712,7 @@ export function createLocalAppServer({
           '/scan-stream.js': 'scan-stream.js',
           '/views/scanner.js': 'views/scanner.js',
           '/views/settings.js': 'views/settings.js',
+          '/core/formatters.js': 'core/formatters.js',
         },
         file = files[url.pathname];
       if (!file) return send(response, 404, 'Nie znaleziono', 'text/plain; charset=utf-8');
