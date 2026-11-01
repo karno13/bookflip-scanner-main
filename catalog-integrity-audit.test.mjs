@@ -12,7 +12,7 @@ test('not_book decision supersedes any active offer-to-edition match', () => {
     const offer = repo.upsertOffer({ source: 'test', normalizedUrl: 'https://example.test/book', originalTitle: 'Test', currentPrice: 1000 });
     const id = offer.id;
     repo.assignOfferToEdition(id, edition.id, { method: 'metadata', status: 'active' });
-    const job = repo.createIdentificationJob({ offerId: id, status: 'review_required' });
+    const job = repo.putIdentificationJob({ offerId: id, status: 'review_required' });
     decideIdentificationJob(repo, job.id, { action: 'not_book' });
     const active = repo.database.prepare("SELECT count(*) AS count FROM offer_matches WHERE offer_id=? AND status='active'").get(id).count;
     assert.equal(active, 0);
