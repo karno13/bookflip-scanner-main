@@ -237,3 +237,50 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
   .mobile-offer-price b { font-size: 14px; }
   .mobile-offer-copy strong { font-size: 14px; }
 }
+
+
+/* Compact mobile density — retains readable labels and 44px interactive targets. */
+@media (max-width: 760px) {
+  .offers-mobile-list { gap: 6px; padding: 6px; }
+  .mobile-offer {
+    min-height: 66px;
+    padding: 10px 11px;
+    gap: 8px;
+    border-radius: 10px;
+    box-shadow: none;
+    align-items: center;
+  }
+  .mobile-offer-copy { gap: 3px; }
+  .mobile-offer-copy strong { font-size: 14px; line-height: 1.3; }
+  .mobile-offer-copy small { font-size: 11px; line-height: 1.35; }
+  .mobile-offer-price { gap: 3px; max-width: 104px; }
+  .mobile-offer-price b { font-size: 15px; }
+  .mobile-offer-price small { font-size: 10px; }
+  .catalog-row {
+    min-height: 80px;
+    padding: 10px 12px !important;
+    row-gap: 6px !important;
+  }
+  .catalog-book-copy strong { font-size: 14px !important; }
+  .catalog-book-copy small { font-size: 11px !important; }
+  .catalog-book-title .cover-preview { width: 30px; height: 44px; }
+  .scanner-discover-toolbar { gap: 7px !important; padding-bottom: 8px !important; }
+  .scanner-discover-toolbar input, .scanner-discover-toolbar select { height: 44px !important; }
+  .panel-heading { gap: 7px; }
+  .stats-grid { gap: 6px; }
+  .stats-grid .metric { min-height: 76px; padding: 8px 10px; }
+  .stats-grid .metric > strong { font-size: 22px; }
+  .pagination { padding: 8px 10px; }
+  .pagination button { min-height: 44px; }
+  .edition-identity { gap: 10px; margin: 10px 0; }
+  .edition-identity .cover-preview { width: 46px; height: 68px; }
+  .edition-price-summary { gap: 6px; margin: 9px 0; }
+  .edition-price-summary > div { gap: 4px; padding: 9px; }
+  .scenario-calculator { padding: 10px; }
+  .scenario-fields { gap: 8px; }
+}
+@media (max-width: 400px) {
+  .mobile-offer-price { max-width: 92px; }
+  .mobile-offer-price b { font-size: 14px; }
+  .mobile-offer-copy strong { font-size: 13px; }
+}
