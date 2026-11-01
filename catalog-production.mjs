@@ -182,10 +182,25 @@ export function createProductionCatalog({
           "SELECT json_extract(result_json, '$.decision') AS decision, count(*) AS count FROM identification_jobs WHERE status='completed' AND json_valid(result_json) GROUP BY decision",
         ).all().filter((row) => row.decision).map((row) => [row.decision, Number(row.count)]),
       );
+      const nowIso = new Date().toISOString();
+      const runnable = Number(repository.database.prepare(
+        "SELECT count(*) AS count FROM identification_jobs WHERE (status='queued' OR status='retry_wait') AND (run_after IS NULL OR run_after<=?)",
+      ).get(nowIso).count);
+      const waiting = Number(repository.database.prepare(
+        "SELECT count(*) AS count FROM identification_jobs WHERE status='retry_wait' AND run_after>?",
+      ).get(nowIso).count);
+      const failureReasons = repository.database.prepare(
+        "SELECT last_error AS code, count(*) AS count FROM identification_jobs WHERE status='failed' GROUP BY last_error ORDER BY count DESC LIMIT 5",
+      ).all().map((row) => ({
+        // Never expose arbitrary exception messages in the diagnostics UI.
+        code: /^[A-Z][A-Z0-9_]{1,63}$/.test(String(row.code || ''))
+          ? row.code : 'OTHER_ERROR',
+        count: Number(row.count),
+      }));
       return {
         enabled: true,
         counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache },
-        identification: { statuses: identification, decisions },
+        identification: { statuses: identification, decisions, runnable, waiting, failureReasons },
       };
     },
     close() {
