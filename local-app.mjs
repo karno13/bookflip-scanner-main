@@ -604,6 +604,22 @@ export function createLocalAppServer({
           ? send(response, 200, JSON.stringify(data))
           : send(response, 404, JSON.stringify({ error: 'OFFER_NOT_FOUND' }));
       }
+      if (request.method === 'POST' && url.pathname === '/api/identification/retry') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const input = await readJson(request);
+        const mode = input?.mode;
+        if (!['failed', 'not_found', 'review_required'].includes(mode))
+          return send(response, 400, JSON.stringify({ error: 'INVALID_RETRY_MODE' }));
+        const repo = catalog.repository;
+        const now = new Date().toISOString();
+        const updated = repo.transaction(() => repo.database.prepare(
+          mode === 'not_found'
+            ? "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status='completed' AND json_valid(result_json) AND json_extract(result_json,'$.decision')='not_found' AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual'))"
+            : "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status=? AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual'))",
+        ).run(...(mode === 'not_found' ? [now] : [now, mode])).changes);
+        return send(response, 200, JSON.stringify({ queued: Number(updated) }));
+      }
       if (request.method === 'GET' && url.pathname === '/api/identification-jobs') {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
