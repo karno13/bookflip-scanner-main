@@ -168,3 +168,9 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 }
 .catalog-load-more[hidden] { display: none; }
 .catalog-load-more:disabled { opacity: .65; cursor: progress; }
+
+/* Keyboard navigation and motion preferences */
+.skip-link { position: fixed; z-index: 1000; top: 8px; left: 8px; padding: 12px 16px; background: white; color: #111; transform: translateY(-180%); }
+.skip-link:focus { transform: translateY(0); }
+:where(button, input, textarea, select, a):focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
