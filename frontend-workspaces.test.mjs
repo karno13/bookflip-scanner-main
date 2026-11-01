@@ -194,3 +194,9 @@ test('filter and sort controls query the full SQLite catalogue instead of only l
   for(const expression of ['functioncatalogFilters(kind)','for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)',"page.filters||{query:page.query||''}"])assert.ok(compact.includes(expression),expression);
   for(const kind of ['works','jobs','offers'])assert.ok(compact.includes("scheduleGlobalCatalogSearch('"+kind+"')"));
 });
+
+test('active navigation exposes current page to assistive technology', () => {
+  assert.match(script, /button\.setAttribute\('aria-current', 'page'\)/);
+  assert.match(script, /button\.removeAttribute\('aria-current'\)/);
+  assert.match(html, /class="nav-list" aria-label="Główna nawigacja"/);
+});
