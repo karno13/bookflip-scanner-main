@@ -31,3 +31,9 @@ test('obsolete UI audit assets and hosted-runner docs are not shipped', async ()
   // Keep migration reference documentation for historical JSON recovery.
   await access(new URL('./docs/archive/DATA-MIGRATION-LEGACY.md', import.meta.url));
 });
+
+test('unreachable hosted runner scripts are not shipped', async () => {
+  for (const path of ['run.mjs','process.mjs','continuation.mjs','enrich.mjs','page-cursor.mjs']) {
+    await assert.rejects(access(new URL('./' + path, import.meta.url)));
+  }
+});
