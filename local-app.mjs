@@ -567,7 +567,7 @@ export function createLocalAppServer({
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
         return send(response, 200, JSON.stringify({ items: listWorkSeries(catalog.repository) }));
       }
-      if (request.method === 'PUT' && /^\\/api\\/catalog\\/series\\/[^/]+$/.test(url.pathname)) {
+      if (request.method === 'PUT' && url.pathname.startsWith('/api/catalog/series/')) {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
         const id = decodeURIComponent(url.pathname.slice('/api/catalog/series/'.length));
