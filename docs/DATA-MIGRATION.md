@@ -1,29 +1,30 @@
-# BookFlip — SQLite jako jedyny magazyn aplikacji
+# BookFlip — dane, kopie i migracje SQLite
 
-Od wersji katalogu po PR #49 lokalny serwer BookFlip korzysta wyłącznie z SQLite. `npm start` uruchamia skanowanie, odczyt historii, ceny, tworzenie książek i ręczne przypisywanie ofert w bazie `scan-results/bookflip-catalog.sqlite`.
+## Bieżący stan
 
-**Tryb `BOOKFLIP_STORAGE=json` został wycofany z lokalnego serwera.** Ustawienie inne niż `sqlite` zgłasza błąd zamiast po cichu zapisywać dane gdzie indziej. Flagi historyczne `BOOKFLIP_SQLITE_FIRST`, `BOOKFLIP_SQLITE_HISTORY_READ` i `BOOKFLIP_SQLITE_MANUAL_WRITE` nie zmieniają już bieżącego zachowania serwera.
+SQLite jest jedynym produkcyjnym magazynem ofert, historii cen, katalogu, zadań identyfikacji i zestawów. Przestarzały magazyn historii JSON nie jest wykorzystywany przez `local-app.mjs`.
 
-## Nowa instalacja
+Domyślna ścieżka Windows: `%LOCALAPPDATA%\BookFlip\data\bookflip-catalog.sqlite`. Na Linuxie odpowiednikiem jest `$XDG_DATA_HOME/BookFlip/data` albo `~/.local/share/BookFlip/data`. Ścieżkę można zmienić poprzez `BOOKFLIP_CATALOG_DB`.
 
-1. Użyj Node.js 24 lub nowszego i uruchom `npm start`.
-2. Katalog SQLite powstaje automatycznie w `scan-results/`. Nie usuwaj pliku bazy ani jej kopii zapasowych.
-3. Historia cen przechowywana jest w `offer_price_history`, a podsumowania skanów w `scan_runs`. Zadania ISBN pozostają w `identification_jobs`.
-4. Nie uruchamiaj równocześnie kilku instancji na tym samym pliku bazy. Serwer zwraca HTTP 409 przy próbie równoległego skanu w obrębie jednej instancji.
+## Świeża instalacja bez importu
 
-## Stare pliki JSON
+Nowa instalacja tworzy **pustą bazę** w katalogu użytkownika. Nie przenosi ani nie usuwa `scan-results/bookflip-catalog.sqlite` ze starej instalacji. Jeżeli chcesz zacząć od nowa, nie musisz usuwać starej bazy — zachowaj ją jako archiwum.
 
-Historyczne narzędzia importu i kontroli danych pozostają w repozytorium, **nie są używane przez działający serwer**. Dla odzyskanych starych plików można wykonać:
+Zamknij poprzednią instancję przed aktualizacją. Kolejne wersje programu mogą być instalowane w innym katalogu, ale będą domyślnie używać **tej samej bazy użytkownika**. Skany nie wymagają ponownego uruchomienia po aktualizacji wersji interfejsu, jeśli baza już zawiera zapisane dane.
+
+## Bezpieczeństwo aktualizacji
+
+Przed zastosowaniem nowych migracji SQL istniejącej bazy program tworzy spójną kopię z użyciem SQLite i sprawdza jej integralność. Niepowodzenie backupu zatrzymuje migrację. Migracje schematu są wersjonowane; **nie modyfikuj usuniętych ani istniejących migracji**, bo bazy zapisują ich sumy kontrolne.
+
+Kopia zapasowa nie jest równoznaczna z automatycznym rollbackiem do starszego schematu. Aby przywrócić starszą wersję, zatrzymaj aplikację i użyj kopii utworzonej przed migracją, na osobnej instalacji. Przechowuj też regularne kopie poza laptopem.
 
 ```powershell
-npm run check:history
-npm run rehearse:history -- --json "ścieżka-do-historii.json" --sqlite "ścieżka-do-bazy.sqlite" --output "nowy-folder-proby"
+npm run backup
+npm run backup -- "D:\\Backups\\bookflip.sqlite"
 ```
 
-Próba migracji zapisuje kopie i raport do nowego, nieistniejącego katalogu. Nie modyfikuje oryginalnych danych. Przed importem rzeczywistych rekordów sprawdź raport oraz zrób kopie bazy.
+## Narzędzia historyczne
 
-Historyczny opis migracji i wygaszonych trybów znajduje się w [archiwum](archive/DATA-MIGRATION-LEGACY.md).
+`import-json-v2-to-sqlite.mjs`, `migration-rehearsal.mjs`, `scripts/check-history-parity.mjs` i `scripts/rehearse-history-migration.mjs` pozostają dla archiwalnych danych i testów — **nie wykonują się automatycznie** podczas zwykłego uruchamiania. Historyczne tryby zapisu opisano w [archiwum](archive/DATA-MIGRATION-LEGACY.md).
 
-## Stan techniczny
-
-SQLite jest magazynem zapisu i odczytu, także dla `/api/history` i `/api/book`. Interfejs pobiera dane stronicowo. Tekstowe wyszukiwanie i filtry/sortowanie katalogu wykonują zapytania do SQLite. Narzędzia importu JSON i raporty zgodności pozostają dla historycznych danych. Kod podwójnego zapisu i odzyskiwania mirrora został usunięty. Migracji SQL (w tym historycznej tabeli outbox) nie należy usuwać ani zmieniać: istniejące bazy przechowują ich sumy kontrolne.
+`scan-status.json` i `local-app.log` są zapisywane obok bazy. Nie dodawaj tych plików, danych SQLite ani sekretów do Git.
