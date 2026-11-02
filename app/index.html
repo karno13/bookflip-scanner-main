@@ -50,6 +50,16 @@
             <div class="scan-center-current" aria-live="polite"><div><span>Aktualne zadanie</span><strong id="scanInsightsCurrent">Brak aktywnego zadania</strong></div><div><span>Tempo</span><strong id="scanInsightsRate">—</strong></div><div><span>Szacowany pozostały czas</span><strong id="scanInsightsEta">—</strong></div><div><span>Czas skanu</span><strong id="scanInsightsElapsed">—</strong></div></div>
             <p id="scanInsightsNotice" class="scan-center-notice" role="status"></p>
             <div class="scan-insights-progress"><div><strong>Postęp zadań</strong><span id="scanInsightsPercent">—</span></div><progress id="scanInsightsBar" max="100" value="0" aria-label="Postęp skanowania"></progress></div>
+            <section class="scan-isbn-outcomes" aria-label="Wyniki identyfikacji ISBN w katalogu">
+              <div class="scan-isbn-heading"><div><h4>Identyfikacja ISBN</h4><p>Stan wszystkich zapisanych zadań katalogu — nie tylko bieżącego skanu.</p></div><span id="scanIsbnUpdated">Oczekiwanie na dane</span></div>
+              <div class="scan-isbn-metrics">
+                <div><span>Dopasowane istniejące</span><strong id="scanIsbnMatched">—</strong></div>
+                <div><span>Utworzone wydania</span><strong id="scanIsbnCreated">—</strong></div>
+                <div><span>Do weryfikacji</span><strong id="scanIsbnReview">—</strong></div>
+                <div><span>Nie znaleziono</span><strong id="scanIsbnNotFound">—</strong></div>
+              </div>
+              <div class="scan-isbn-reasons"><div><h5>Najczęstsze powody weryfikacji</h5><div id="scanIsbnReasons"><p>Brak danych.</p></div></div><div><h5>Błędy techniczne</h5><div id="scanIsbnFailures"><p>Brak błędów.</p></div></div></div>
+            </section>
             <div class="scan-insights-columns">
               <section><h4>Źródła</h4><div id="scanInsightsSources" class="scan-insights-list"><p>Uruchom skan, aby zobaczyć źródła.</p></div></section>
               <section><h4>Ostatnie zdarzenia</h4><div id="scanInsightsEvents" class="scan-insights-events" aria-live="off"><p>Brak zdarzeń.</p></div></section>
