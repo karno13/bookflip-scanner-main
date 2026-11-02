@@ -3,10 +3,52 @@ export function createScanInsights({ $, json, escapeHtml }) {
   const safe = value => escapeHtml(String(value ?? ''));
   let busy = false;
   let lastState = '';
+  let lastIsbnRefresh = 0;
+  const reasonLabels = {
+    metadata_sources_conflict: 'Niezgodne metadane źródeł',
+    offer_catalog_conflict: 'Rozbieżność oferty z katalogiem',
+    offer_metadata_conflict: 'Rozbieżność opisu z metadanymi',
+    insufficient_offer_context: 'Za mało danych w ofercie',
+    metadata_not_found: 'Brak metadanych ISBN',
+    metadata_source_temporary_error: 'Czasowy błąd źródła',
+    multiple_isbn_candidates: 'Wiele numerów ISBN',
+    missing_isbn: 'Brak ISBN',
+    invalid_isbn: 'Nieprawidłowy ISBN',
+    manual_assignment_conflicts_with_isbn: 'Konflikt z ręcznym przypisaniem',
+    offer_is_set: 'Oferta oznaczona jako zestaw',
+  };
+  async function refreshIsbn() {
+    const data = await json('/api/catalog/status');
+    if (!data.enabled) {
+      $('#scanIsbnUpdated').textContent = 'Katalog wyłączony';
+      return;
+    }
+    const info = data.identification || {};
+    const decisions = info.decisions || {};
+    const statuses = info.statuses || {};
+    $('#scanIsbnMatched').textContent = Number(decisions.matched_existing || 0);
+    $('#scanIsbnCreated').textContent =
+      Number(decisions.created_edition || 0) + Number(decisions.created_work_and_edition || 0);
+    $('#scanIsbnReview').textContent = Number(statuses.review_required || 0);
+    $('#scanIsbnNotFound').textContent = Number(decisions.not_found || 0);
+    $('#scanIsbnUpdated').textContent = 'Zapisane zadania';
+    const rows = (info.reviewReasons || []).slice(0, 8);
+    $('#scanIsbnReasons').innerHTML = rows.length
+      ? rows.map(item => `<div class="scan-isbn-reason"><span>${safe(reasonLabels[item.code] || item.code)}</span><strong>${Number(item.count || 0)}</strong></div>`).join('')
+      : '<p>Brak oczekujących konfliktów.</p>';
+    const failures = (info.failureReasons || []).slice(0, 5);
+    $('#scanIsbnFailures').innerHTML = failures.length
+      ? failures.map(item => `<div class="scan-isbn-reason"><span>${safe(item.code || 'OTHER_ERROR')}</span><strong>${Number(item.count || 0)}</strong></div>`).join('')
+      : '<p>Brak zarejestrowanych błędów.</p>';
+  }
   async function refresh() {
     if (busy) return;
     busy = true;
     try {
+      if (Date.now() - lastIsbnRefresh >= 9000) {
+        try { await refreshIsbn(); lastIsbnRefresh = Date.now(); }
+        catch { $('#scanIsbnUpdated').textContent = 'Nie udało się odświeżyć ISBN'; }
+      }
       const data = await json('/api/scan/diagnostics');
       const diagnostics = data.diagnostics || {};
       const progress = data.progress || {};
