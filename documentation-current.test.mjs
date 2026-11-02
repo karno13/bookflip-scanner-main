@@ -18,3 +18,16 @@ test('active documentation reflects persistent storage and six workspaces', asyn
 test('dead hosted workflow is no longer installed', async () => {
   await assert.rejects(access(new URL('./.github/workflows/bookflip-scan.yml', import.meta.url)));
 });
+
+test('obsolete UI audit assets and hosted-runner docs are not shipped', async () => {
+  for (const path of [
+    './artifacts/frontend-audit/scanner-1366x768.png',
+    './artifacts/audit-verification-flow/01-review-list.png',
+    './docs/archive/README-legacy-github-runner.md',
+    './docs/archive/AUDIT-2026-10-25.md',
+  ]) {
+    await assert.rejects(access(new URL(path, import.meta.url)));
+  }
+  // Keep migration reference documentation for historical JSON recovery.
+  await access(new URL('./docs/archive/DATA-MIGRATION-LEGACY.md', import.meta.url));
+});
