@@ -1,5 +1,19 @@
+import { isWatchedOffer, mountOfferWorkspace } from './offer-workspace.js';
 // offers workspace, preserving existing behavior while isolating its implementation.
 export function createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats }) {
+let watchedOnly = false;
+function ensureWatchFilter() {
+  const parent = $('#offerSearch')?.closest('.filterbar');
+  if (!parent || parent.querySelector('#watchedOnly')) return;
+  const label = document.createElement('label');
+  label.className = 'offer-watch-filter';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = 'watchedOnly';
+  input.addEventListener('change', () => { watchedOnly = input.checked; state.offerPage = 1; renderOffers(); });
+  label.append(input, document.createTextNode(' Tylko obserwowane'));
+  parent.append(label);
+}
 function filteredOffers() {
   const query = $('#offerSearch').value.trim().toLocaleLowerCase('pl'),
     source = $('#offerSource').value,
@@ -12,6 +26,7 @@ function filteredOffers() {
           .toLocaleLowerCase('pl')
           .includes(query)) &&
       (!source || offer.source === source) &&
+      (!watchedOnly || isWatchedOffer(offer.id)) &&
       (!status || (status === 'matched') === Boolean(offer.match || offer.bookId)),
   );
   return rows.sort((a, b) =>
@@ -26,6 +41,7 @@ function filteredOffers() {
 }
 
 function renderOffers() {
+  ensureWatchFilter();
   if (!state.history) return;
   const rows = filteredOffers(),
     pages = Math.max(1, Math.ceil(rows.length / state.pageSize));
@@ -120,6 +136,7 @@ async function openOfferDrawer(id) {
       active = offer.matches.find((item) => item.status === 'active');
     $('#offerDrawerContent').innerHTML =
       `<span class="status-pill ${active ? 'success' : 'neutral'}">${active ? 'Przypisana' : escapeHtml(offer.identificationJob?.status || 'Bez przypisania')}</span><h2>${escapeHtml(offer.title)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Zrodlo</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'brak')}</small></span><span><b>Ostatnio</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(active?.editionTitle || 'nieprzypisane')}</small></span></div>${priceEvidenceMarkup(offer)}${scenarioCalculatorMarkup(offer)}<section class="detail-section"><details class="detail-disclosure price-history-disclosure"><summary>Historia cen ofertowych (${Array.isArray(offer.priceHistory) ? offer.priceHistory.length : 0} obserwacji)</summary><details class="detail-disclosure"><summary>O tych danych</summary><p class="inline-note">Historia zapisanych cen ogłoszenia; nie potwierdza transakcji ani dostępności.</p></details><div class="price-list">${offer.priceHistory.map((item) => `<span><small>${escapeHtml(date(item.observedAt))}</small><b>${money(item.price)}</b></span>`).join('') || '<p>Brak obserwacji.</p>'}</div></details></section><div class="detail-actions"><a class="button primary" href="${escapeHtml(offer.url)}" target="_blank" rel="noreferrer">Otworz ogloszenie</a>${offer.identificationJob && offer.identificationJob.status !== 'completed' ? '<button class="button secondary" type="button" id="drawerReview">Przejdz do weryfikacji</button>' : ''}</div>`;
+    mountOfferWorkspace(offer, $('#offerDrawerContent'), renderOffers);
     ['scenarioPurchase', 'scenarioShipping', 'scenarioOther', 'scenarioResale'].forEach((id) =>
       $('#' + id)?.addEventListener('input', calculateScenario),
     );
