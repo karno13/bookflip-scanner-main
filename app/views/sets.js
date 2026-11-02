@@ -3,6 +3,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
   let sets = [];
   let activeId = null;
   let searchSerial = 0;
+  let editionSearchTimer = null;
   const request = (method, path, body) => json(path, {
     method, headers: { 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -48,7 +49,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
   function renderMembers() {
     const active = sets.find(item => item.offerId === activeId);
     $('#setSelectedTitle').textContent = active?.title || 'Wybierz zestaw z listy';
-    $('#setSelectedMeta').textContent = active ? `Źródło: ${active.source} · Cena dotyczy całego zestawu` : 'Zawartość zestawu pojawi się tutaj.';
+    $('#setSelectedMeta').textContent = active ? `Źródło: ${active.source} · Cena dotyczy całego zestawu · ${active.editions.length} przypisanych pozycji` : 'Zawartość zestawu pojawi się tutaj.';
     $('#setSelectedCount').textContent = plural(active?.editions.length || 0);
     $('#setMemberHint').textContent = active?.editions.length ? 'Powiązane wydania z katalogu' : 'Brak przypisanych wydań';
     const target = $('#setMembers');
@@ -98,7 +99,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
     output.textContent = 'Wyszukiwanie w katalogu…';
     try {
       const response = await json('/api/catalog/works?' + new URLSearchParams({ query, limit: '100' }));
-      if (serial !== searchSerial) return;
+      if (serial !== searchSerial || $('#setEditionQuery').value.trim() !== query) return;
       const rows = (response.items || []).flatMap(work => (work.editions || []).map(edition =>
         ({ id: edition.id, work: work.title, title: edition.title, publisher: edition.publisher || '' })));
       const current = sets.find(item => item.offerId === activeId);
@@ -120,7 +121,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
         } catch (error) { button.disabled = false; toast(error.message); }
       }));
     } catch (error) {
-      if (serial === searchSerial) output.textContent = 'Nie udało się wyszukać książek: ' + error.message;
+      if (serial === searchSerial && $('#setEditionQuery').value.trim() === query) output.textContent = 'Nie udało się wyszukać książek: ' + error.message;
     }
   }
   function wire(id, callback) {
@@ -144,8 +145,18 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
   });
   $('#setFilter').addEventListener('input', renderList);
   $('#setCurrent').addEventListener('change', () => selectSet($('#setCurrent').value));
+  $('#setEditionQuery').addEventListener('input', () => {
+    clearTimeout(editionSearchTimer);
+    const term = $('#setEditionQuery').value.trim();
+    if (term.length < 2) {
+      ++searchSerial;
+      $('#setEditionResults').textContent = 'Wpisz co najmniej 2 znaki.';
+      return;
+    }
+    editionSearchTimer = setTimeout(() => { void searchEditions(); }, 350);
+  });
   $('#setEditionQuery').addEventListener('keydown', event => {
-    if (event.key === 'Enter') { event.preventDefault(); void searchEditions(); }
+    if (event.key === 'Enter') { event.preventDefault(); clearTimeout(editionSearchTimer); void searchEditions(); }
   });
   $('#setOfferQuery').addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); void searchOffers().catch(error => toast(error.message)); }
