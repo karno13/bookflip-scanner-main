@@ -12,7 +12,7 @@ test('active documentation reflects persistent storage and six workspaces', asyn
   assert.match(readme, /Zestawy/);
   assert.match(migration, /pustą bazę/);
   assert.match(production, /bezpośrednio do SQLite/);
-  assert.doesNotMatch(production, /dual-write/);
+  assert.match(production, /Nie ma produkcyjnego dual-write/);
 });
 
 test('dead hosted workflow is no longer installed', async () => {
