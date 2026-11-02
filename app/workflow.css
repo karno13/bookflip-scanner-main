@@ -1,0 +1,11 @@
+.offer-watch-filter{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:12px;background:var(--surface)}
+.offer-watch-filter input{width:16px;height:16px}
+.offer-workspace{display:grid;gap:10px}
+.offer-workspace-check{display:flex;align-items:center;gap:8px;font-size:13px}
+.offer-workspace select,.offer-workspace input[type=number],.offer-workspace textarea,.scan-profiles select,.scan-profiles input{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:9px;color:var(--text);font:inherit}
+.offer-workspace textarea{resize:vertical;min-height:70px}
+.offer-workspace button{justify-self:start}
+.scan-profiles{display:grid;gap:9px;margin-bottom:15px;padding:14px;background:var(--green-soft);border-radius:12px}
+.scan-profiles strong{font-size:13px}
+.scan-profile-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:760px){.offer-watch-filter{grid-column:1/-1}.scan-profile-actions button{flex:1 1 auto}}
