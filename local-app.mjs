@@ -4,7 +4,7 @@ import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from 
 import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createServer } from 'node:http';
-import { readFile, appendFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, appendFile, writeFile, mkdir, rename, stat, rm } from 'node:fs/promises';
 import { extname, join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -350,7 +350,9 @@ const logPath = join(runtimeDataDirectory, 'local-app.log');
 const scanStatusPath = join(runtimeDataDirectory, 'scan-status.json');
 async function persistScanStatus(status) {
   await mkdir(runtimeDataDirectory, { recursive: true });
-  await writeFile(scanStatusPath, JSON.stringify(status));
+  const tempPath = scanStatusPath + '.tmp';
+  await writeFile(tempPath, JSON.stringify(status));
+  await rename(tempPath, scanStatusPath);
 }
 async function readScanStatus() {
   try {
@@ -369,11 +371,23 @@ function getProductionCatalog() {
 }
 // Incremental compatibility bridge: manual JSON operations must not replay the
 // entire historical snapshot into a live SQLite catalog.
+let logWriteQueue = Promise.resolve();
+const maxLogBytes = 5 * 1024 * 1024;
 function recordProgress(event) {
   const safe = { at: new Date().toISOString(), ...event };
-  void mkdir(runtimeDataDirectory, { recursive: true })
-    .then(() => appendFile(logPath, JSON.stringify(safe) + '\n'))
-    .catch(() => {});
+  logWriteQueue = logWriteQueue.then(async () => {
+    await mkdir(runtimeDataDirectory, { recursive: true });
+    const bytes = Buffer.byteLength(JSON.stringify(safe) + '\n');
+    const size = await stat(logPath).then(file => file.size).catch(error => {
+      if (error.code === 'ENOENT') return 0;
+      throw error;
+    });
+    if (size + bytes > maxLogBytes) {
+      await rm(logPath + '.1', { force: true });
+      if (size) await rename(logPath, logPath + '.1');
+    }
+    await appendFile(logPath, JSON.stringify(safe) + '\n');
+  }).catch(() => {});
   return safe;
 }
 function streamHeaders(response, type = 'application/x-ndjson; charset=utf-8') {
@@ -736,8 +750,10 @@ export function createLocalAppServer({
         if (scanInFlight)
           return send(response, 409, JSON.stringify({ error: 'SCAN_ALREADY_RUNNING' }));
         scanInFlight = true;
+        let scanStarted = false;
         try {
-          const scanInput = await readJson(request);
+          const scanInput = validateSearchInput(await readJson(request));
+          scanStarted = true;
           currentScan = { status: 'running', startedAt: new Date().toISOString(),
             diagnostics: createScanDiagnostics({ queries: scanInput.queries || [], sources: scanInput.sources || [] }) };
           await persistScanStatus(currentScan);
@@ -778,8 +794,10 @@ export function createLocalAppServer({
           await persistScanStatus(currentScan);
           return send(response, 200, JSON.stringify(result));
         } catch (error) {
-          currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
-          await persistScanStatus(currentScan);
+          if (scanStarted) {
+            currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
+            await persistScanStatus(currentScan);
+          }
           throw error;
         } finally {
           scanInFlight = false;
