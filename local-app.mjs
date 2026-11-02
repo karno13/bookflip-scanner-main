@@ -789,6 +789,8 @@ export function createLocalAppServer({
           '/views/review.js': 'views/review.js',
           '/views/catalog.js': 'views/catalog.js',
           '/views/offers.js': 'views/offers.js',
+          '/views/dashboard.js': 'views/dashboard.js',
+          '/views/series.js': 'views/series.js',
           '/views/offer-workspace.js': 'views/offer-workspace.js',
           '/views/scan-profiles.js': 'views/scan-profiles.js',
           '/core/formatters.js': 'core/formatters.js',

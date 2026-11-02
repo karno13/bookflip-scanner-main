@@ -9,3 +9,5 @@
 .scan-profiles strong{font-size:13px}
 .scan-profile-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:760px){.offer-watch-filter{grid-column:1/-1}.scan-profile-actions button{flex:1 1 auto}}
+
+.series-editor{display:grid;gap:9px}.series-editor input{padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);width:100%;min-width:0}.series-editor button{justify-self:start}.series-summary{padding:12px 15px;margin-bottom:12px;font-size:12px}.series-summary p{margin:5px 0 0;line-height:1.6}.workflow-dashboard{padding:16px;margin:0 0 16px}.workflow-dashboard h3{margin:0 0 5px}.workflow-dashboard p{font-size:12px;color:var(--muted)}.workflow-dashboard-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0}.workflow-dashboard-stats>div{padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px}.workflow-dashboard-stats span{font-size:11px;color:var(--muted)}.workflow-dashboard-stats strong{font-size:23px}.workflow-dashboard-links{display:flex;gap:8px;flex-wrap:wrap}

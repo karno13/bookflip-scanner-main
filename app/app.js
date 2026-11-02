@@ -1,3 +1,4 @@
+import { installDashboard } from './views/dashboard.js';
 import { installScanProfiles } from './views/scan-profiles.js';
 import { createScanInsights } from './views/scan-insights.js';
 import { createSetsView } from './views/sets.js';
@@ -140,6 +141,7 @@ function showView(name) {
   });
   $('#viewTitle').textContent = $(`#view-${name}`).dataset.title;
   history.replaceState(null, '', name === 'scanner' ? '/' : `/?view=${name}`);
+  if (name === 'scanner') refreshWorkflowDashboard?.();
   if (name === 'review') renderReview();
   if (name === 'catalog') renderCatalog();
   if (name === 'offers') renderOffers();
@@ -626,6 +628,7 @@ const reviewView = createReviewView({ state, $, $$, json, toast, money, date, es
 const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows });
 const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats });
 
+const refreshWorkflowDashboard = installDashboard({ state, showView });
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
 Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
   (error) => {
