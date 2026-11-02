@@ -72,6 +72,16 @@ try {
   }
   await page.locator('.sidebar [data-view="review"]').click();
   await assert.equal(await page.locator('#reviewList .review-item').count() > 0, true, 'nonempty review');
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const view of ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']) {
+    const tab = page.locator(`.mobile-bottom-nav [data-view="${view}"]`);
+    assert.equal(await tab.isVisible(), true, `mobile tab ${view} should be visible`);
+    await tab.click();
+    assert.equal(await page.locator(`#view-${view}`).isVisible(), true, `mobile view ${view}`);
+    assert.equal(await tab.getAttribute('aria-current'), 'page', `current mobile tab ${view}`);
+  }
+  assert.equal(await page.locator('.sidebar').isVisible(), false, 'desktop sidebar hidden on phone');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'no horizontal page overflow on phone');
   assert.deepEqual(errors, [], 'Unexpected frontend exceptions');
   console.log('Browser smoke passed: all six views, nonempty SQLite, no JS page errors');
 } finally {
