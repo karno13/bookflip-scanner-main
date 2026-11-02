@@ -59,7 +59,6 @@ async function loadSeries() {
   seriesRequest = json('/api/catalog/series').then(response => {
     sqliteAnnotations = Object.fromEntries((response.items || []).map(item => [item.workId, { series: item.series, volume: item.volume }]));
     renderSeriesSummary();
-  if (sqliteAnnotations === null && !seriesRequest) void loadSeries().catch(() => {});
   }).finally(() => { seriesRequest = null; });
   return seriesRequest;
 }
@@ -75,6 +74,7 @@ async function saveSeries(workId, entry) {
 function renderCatalog() {
   if (!state.history) return;
   renderSeriesSummary();
+  if (sqliteAnnotations === null && !seriesRequest) void loadSeries().catch(() => {});
   const rows = catalogRows();
   $('#catalogList').innerHTML = rows.length
     ? visibleCatalogRows('works', rows)
@@ -107,6 +107,36 @@ function renderSeriesSummary() {
   const info = document.createElement('p');
   info.textContent = sqliteAnnotations === null ? 'Ładowanie serii z SQLite…' : groups.length ? groups.map(group => `${group.name}: tomy ${group.volumes.join(', ')}${group.missing.length ? ` · brak numerów ${group.missing.join(', ')}` : ''}`).join(' | ') : 'Wybierz dzieło, aby przypisać serię i numer tomu.';
   panel.append(info);
+  const legacy = readSeries();
+  const pending = Object.entries(legacy).filter(([workId, entry]) =>
+    entry && typeof entry.series === 'string' && entry.series.trim() &&
+    Number.isSafeInteger(entry.volume) && entry.volume > 0 && entry.volume <= 10000 &&
+    sqliteAnnotations && !Object.hasOwn(sqliteAnnotations, workId));
+  if (sqliteAnnotations !== null && pending.length) {
+    const importButton = document.createElement('button');
+    importButton.type = 'button';
+    importButton.className = 'button secondary compact';
+    importButton.textContent = 'Importuj lokalne oznaczenia (' + pending.length + ')';
+    const result = document.createElement('small');
+    result.setAttribute('role', 'status');
+    importButton.addEventListener('click', async () => {
+      if (!confirm('Importować ' + pending.length + ' lokalnych oznaczeń do SQLite? Istniejące wpisy zostaną pominięte.')) return;
+      importButton.disabled = true;
+      let imported = 0, skipped = 0, errors = 0;
+      for (const [workId, entry] of pending) {
+        try {
+          const current = await json('/api/catalog/series');
+          const existing = new Set((current.items || []).map(row => row.workId));
+          if (existing.has(workId)) { skipped++; continue; }
+          await saveSeries(workId, { series: entry.series.trim(), volume: entry.volume });
+          imported++;
+        } catch { errors++; }
+      }
+      result.textContent = 'Zaimportowano: ' + imported + ', pominięto: ' + skipped + ', błędy: ' + errors + '. Dane lokalne zachowano.';
+      renderSeriesSummary();
+    });
+    panel.append(importButton, result);
+  }
 }
 
 async function openCatalogDetail(id) {
