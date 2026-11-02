@@ -555,3 +555,21 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 .scan-center-notice:not(:empty) {margin:12px 0;padding:12px 14px;border:1px solid #dba76d;border-radius:10px;background:#fff4e3;color:#754813;font-size:12px;line-height:1.6;}
 @media(max-width:1080px){.scan-center-current{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:560px){.scan-center-current{grid-template-columns:1fr 1fr;gap:7px;}.scan-center-current > div{padding:10px;}.scan-center-current strong{font-size:12px;}}
+
+/* Catalog-wide ISBN outcome diagnostics, independent of the current scan. */
+.scan-isbn-outcomes{margin:16px 0;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fffefa;}
+.scan-isbn-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.scan-isbn-heading h4{margin:0 0 5px;font-size:15px;color:var(--green-dark);}
+.scan-isbn-heading p{margin:0;font-size:11px;line-height:1.5;color:var(--muted);}
+#scanIsbnUpdated{font-size:11px;color:var(--muted);}
+.scan-isbn-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:16px 0;}
+.scan-isbn-metrics>div{min-width:0;display:grid;gap:6px;padding:12px;background:#f3f7f3;border-radius:10px;}
+.scan-isbn-metrics span{font-size:11px;line-height:1.4;color:var(--muted);}
+.scan-isbn-metrics strong{font-size:22px;font-variant-numeric:tabular-nums;color:var(--green-dark);}
+.scan-isbn-reasons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;}
+.scan-isbn-reasons h5{font-size:12px;margin:0 0 9px;color:var(--text);}
+.scan-isbn-reasons p{font-size:11px;color:var(--muted);line-height:1.5;}
+.scan-isbn-reason{display:flex;justify-content:space-between;align-items:start;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.scan-isbn-reason span{min-width:0;overflow-wrap:anywhere;}
+.scan-isbn-reason strong{flex:none;font-variant-numeric:tabular-nums;}
+@media(max-width:800px){.scan-isbn-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}.scan-isbn-reasons{grid-template-columns:1fr;}}
