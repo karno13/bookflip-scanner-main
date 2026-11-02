@@ -1,3 +1,4 @@
+import { mountSeriesEditor, readSeries, seriesSummary } from './series.js';
 // catalog workspace, preserving existing behavior while isolating its implementation.
 export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows }) {
 function catalogRows() {
@@ -53,6 +54,7 @@ document.addEventListener(
 
 function renderCatalog() {
   if (!state.history) return;
+  renderSeriesSummary();
   const rows = catalogRows();
   $('#catalogList').innerHTML = rows.length
     ? visibleCatalogRows('works', rows)
@@ -67,6 +69,26 @@ function renderCatalog() {
   );
 }
 
+function renderSeriesSummary() {
+  const anchor = $('#catalogList');
+  if (!anchor) return;
+  let panel = $('#catalogSeriesSummary');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'catalogSeriesSummary';
+    panel.className = 'series-summary panel';
+    anchor.parentElement.before(panel);
+  }
+  const groups = seriesSummary(state.catalogWorks, readSeries());
+  panel.replaceChildren();
+  const label = document.createElement('strong');
+  label.textContent = 'Moje serie (lokalnie)';
+  panel.append(label);
+  const info = document.createElement('p');
+  info.textContent = groups.length ? groups.map(group => `${group.name}: tomy ${group.volumes.join(', ')}${group.missing.length ? ` · brak numerów ${group.missing.join(', ')}` : ''}`).join(' | ') : 'Wybierz dzieło, aby przypisać serię i numer tomu.';
+  panel.append(info);
+}
+
 async function openCatalogDetail(id) {
   state.selectedCatalogId = id;
   renderCatalog();
@@ -75,7 +97,8 @@ async function openCatalogDetail(id) {
   try {
     const row = await json(`/api/catalog/works/${encodeURIComponent(id)}`);
     detail.innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(row.verificationStatus)}</span><h3>${escapeHtml(row.title)}</h3><p>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</p></div><strong>${row.editions.length} wydań</strong></div></section><section class="detail-section"><h4>Wydania — wybierz, aby zobaczyć oferty i ceny</h4><div class="price-list">${row.editions.map((edition) => `<button type="button" class="link-button" data-edition-detail="${escapeHtml(edition.id)}"><span><strong>${escapeHtml(edition.title)}</strong><small>${escapeHtml([edition.publisher, edition.publicationYear, edition.language].filter(Boolean).join(' / ') || 'Brak szczegółów')}</small></span><b>${escapeHtml(edition.identifiers.find((item) => item.scheme.startsWith('isbn'))?.value || 'bez ISBN')}</b></button>`).join('') || '<p>Brak wydań.</p>'}</div></section><section class="detail-section"><h4>Pochodzenie</h4><p class="inline-note">${row.externalRecords.length ? row.externalRecords.map((record) => `${escapeHtml(record.provider)}: ${escapeHtml(record.externalId)}`).join(', ') : 'Brak zewnętrznych rekordów bibliograficznych.'}</p></section>`;
-    $$('[data-edition-detail]').forEach((button) =>
+    mountSeriesEditor(row, detail, renderSeriesSummary);
+    $('[data-edition-detail]').forEach((button) =>
       button.addEventListener('click', () => openEditionDetail(button.dataset.editionDetail)),
     );
   } catch (error) {
