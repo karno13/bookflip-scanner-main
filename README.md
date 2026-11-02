@@ -1,76 +1,72 @@
 # BookFlip — lokalny skaner i katalog książek
 
-BookFlip to lokalna aplikacja na Windows z interfejsem przeglądarkowym, skanerem ofert i bibliograficznym katalogiem SQLite. **Aktualnym sposobem uruchamiania jest `local-app.mjs`, a nie historyczna kolejka GitHub Actions.**
+BookFlip to lokalna aplikacja na Windows z interfejsem w przeglądarce, skanowaniem ofert i katalogiem SQLite. Główny serwer to `local-app.mjs`. **GitHub Pages jest tylko demonstracją**, nie uruchamia skanów ani nie przechowuje Twojego katalogu.
 
-## Szybki start na Windows
+## Uruchomienie (Windows 11)
 
-1. Zainstaluj Node.js 24 (wersja używana przez CI).
-2. Pobierz całe repozytorium i rozpakuj je w jednym folderze.
-3. Uruchom dwuklikiem **`Uruchom BookFlip Scanner.cmd`** albo wykonaj `node local-app.mjs`.
-4. Otwórz **http://127.0.0.1:4317**. Nie trzeba publikować serwera w internecie.
+1. Zainstaluj Node.js **24 lub nowszy**.
+2. Pobierz aktualne repozytorium i rozpakuj je w osobnym folderze aplikacji.
+3. Uruchom **`Uruchom BookFlip Scanner.cmd`** (lub `npm start`).
+4. Otwórz `http://127.0.0.1:4317`.
 
-Plik CMD wykrywa już działający lokalny serwer i otwiera go w przeglądarce. W razie problemów sprawdź terminal i `scan-results/local-app.log`.
+Pozostaw serwer uruchomiony, gdy skanujesz lub identyfikujesz książki. Aplikacja domyślnie nasłuchuje **wyłącznie na localhost**; nie udostępniaj portu 4317 bez osobnego, przetestowanego rozwiązania uwierzytelnienia i sieci prywatnej.
 
-## Pięć obszarów aplikacji
+## Sześć obszarów aplikacji
 
-| Obszar | Do czego służy |
+| Zakładka | Funkcja |
 | --- | --- |
-| Skaner | Frazy, wybór źródeł, postęp oraz wyszukiwanie zapisanych ofert |
-| Do weryfikacji | Oferta, dowody ISBN, propozycja wydania i świadoma decyzja |
-| Katalog | Dzieła, wydania, metadane, ISBN i powiązane oferty |
-| Oferty | Wyszukiwanie, filtry, szczegóły, historia cen i kalkulator scenariusza |
-| Ustawienia | Status SQLite, źródła i diagnostyka |
+| Skaner | Wybór źródeł, zapytania, przebieg skanu i oferty |
+| Do weryfikacji | Decyzje dotyczące ISBN i wydania, oznaczanie oferty jako zestawu |
+| Katalog | Dzieła i wydania, identyfikatory, metadane |
+| Zestawy | Jedna oferta z kilkoma wydaniami; cena dotyczy całego zestawu |
+| Oferty | Filtry, historia cen i szczegóły zapisanych ogłoszeń |
+| Ustawienia | Stan SQLite, diagnostyka identyfikacji, ręczne ponowienie kolejki |
 
-Aplikacja pobiera dostępne źródła z backendu; nie wszystkie adaptery są zawsze dostępne i nie każdy portal pozwala na niezawodny odczyt.
+Znajdowanie ISBN w źródłach zewnętrznych nie gwarantuje automatycznego przypisania. Sprzeczne lub słabe dowody nadal kierują ofertę do ręcznej weryfikacji.
 
-## Dane i prywatność
+## Gdzie są dane?
 
-- `scan-results/local-offer-history.json`: wyłącznie archiwalny format z dawnych instalacji; serwer już go nie używa.
-- `scan-results/bookflip-catalog.sqlite`: lokalny katalog SQLite (domyślna ścieżka).
-- `scan-results/local-app.log`: lokalny dziennik diagnostyczny.
-- Folder `scan-results/` i pliki SQLite WAL są ignorowane przez Git. **Nie dodawaj prawdziwych baz, historii skanów, ciasteczek ani sekretów do repozytorium**.
-- Okładki Open Library to zewnętrzne obrazy podpowiadane wyłącznie po ISBN o poprawnej sumie kontrolnej. Brak okładki oznacza placeholder; zdjęcia nie są kopiowane do SQLite.
+**Nowa instalacja niczego nie importuje ze starego katalogu programu.**
 
-Historia cen zawiera zaobserwowane **ceny ogłoszeń**, nie ceny zakończonych transakcji. Kalkulator odsprzedaży działa na ręcznie przyjętych kosztach i cenie sprzedaży; nie jest gwarancją zysku.
+- Windows: `%LOCALAPPDATA%\BookFlip\data\bookflip-catalog.sqlite`
+- Linux: `$XDG_DATA_HOME/BookFlip/data/bookflip-catalog.sqlite` lub `~/.local/share/BookFlip/data/bookflip-catalog.sqlite`
+- Plik stanu: `scan-status.json`, a log diagnostyczny: `local-app.log` — w tym samym katalogu danych.
+- Zmienna `BOOKFLIP_CATALOG_DB` pozwala świadomie wskazać inną bazę.
+- Stary `scan-results/` pozostaje nieużywany przez nowy domyślny magazyn SQLite; jego usunięcie nie jest wymagane i może pozbawić Cię archiwum.
 
-## Testy
+**Aktualizacja:** zamknij BookFlip, wymień tylko pliki programu i uruchom ponownie. Nie usuwaj katalogu `%LOCALAPPDATA%\BookFlip\data`. Przed zmianami struktury istniejącej bazy program wykonuje kopię w podfolderze `backups`. Przed większą aktualizacją zalecana jest dodatkowa kopia na inny dysk.
+
+### Ręczny backup
 
 ```powershell
-node --test
+npm run backup
+npm run backup -- "D:\\Backups\\bookflip.sqlite"
 ```
 
-Takie same testy offline uruchamia `.github/workflows/scanner-tests.yml` na Node.js 24. Nie zastępują testów prawdziwego skanowania i pełnego przebiegu na Windows.
+Backup używa API SQLite (uwzględnia WAL), sprawdza integralność i nie nadpisuje istniejącej kopii. Kopia zapasowa na tym samym dysku nie chroni przed awarią dysku.
 
-## Architektura
+## Testowanie
 
-- `app/index.html`, `app/styles.css`, `app/app.js` — pięć obszarów interfejsu.
-- `local-app.mjs` — lokalny HTTP API, skanowanie i integracja danych.
-- `marketplaces.mjs`, `local-scan.mjs`, `vinted-detail.mjs` — adaptery źródeł.
-- `catalog-production.mjs`, `catalog-api.mjs`, `sqlite-catalog-repository.mjs` — katalog, odczyty i zapisy SQLite.
-- `catalog-resolver.mjs`, `identification-worker.mjs`, `metadata-sources/` — identyfikacja i zewnętrzne metadane.
-- `offer-history.mjs`, `price-analysis.mjs` — historia ofert i analiza cen.
-- `migrations/` — migracje schematu SQLite.
+```powershell
+npm test
+npm run lint
+npm run check:syntax
+```
 
-Więcej szczegółów konfiguracji katalogu: [PRODUCTION-CATALOG.md](PRODUCTION-CATALOG.md).
+CI: `.github/workflows/scanner-tests.yml` (testy Node na Linux i Windows) oraz `.github/workflows/browser-smoke.yml` (Chromium, sześć widoków, izolowana niepusta baza testowa). Test przeglądarkowy nie zastępuje pełnego testu skanowania rzeczywistych portali.
 
-## GitHub Pages — tylko demonstracja
+## Architektura i dalsza dokumentacja
 
-Publiczny podgląd [BookFlip](https://karno13.github.io/bookflip-scanner-main/) jest odrębną aplikacją statyczną z przykładowymi danymi, na gałęzi `gh-pages`. **Nie uruchamia prawdziwych skanów, SQLite ani zapisywania decyzji.** Zmiany produkcyjnego interfejsu nie pojawiają się automatycznie w demonstracji, dopóki nie zostanie zaktualizowana.
+- `local-app.mjs` — serwer i API; `app/` — interfejs.
+- `marketplaces.mjs`, `local-scan.mjs` — źródła skanowania.
+- `catalog-production.mjs`, `sqlite-catalog-repository.mjs`, `catalog-api.mjs`, `offer-sets.mjs` — zapis i odczyt katalogu oraz zestawów.
+- `catalog-resolver.mjs`, `identification-worker.mjs`, `metadata-sources/` — dopasowanie ISBN i metadane.
+- `migrations/` — **niezmienne** migracje SQLite; nie usuwaj starych plików migracji.
 
-## Kod historyczny
+Szczegóły: [Katalog i konfiguracja](PRODUCTION-CATALOG.md), [Przechowywanie i migracje](docs/DATA-MIGRATION.md), [Mapa repozytorium](docs/REPOSITORY-MAP.md).
 
-Repozytorium zawiera także starszy skaner/runner kolejki GitHub Actions, używany wcześniej dla innego sposobu pracy. Kod historyczny nie jest podstawowym punktem wejścia do lokalnego BookFlip. Nie usuwamy go automatycznie, bo część testów i narzędzi nadal może z niego korzystać.
+## Co jest historyczne?
 
-- [Archiwalny README runnera](docs/archive/README-legacy-github-runner.md)
-- [Mapa aktywnych i historycznych elementów](docs/REPOSITORY-MAP.md)
-- [Raport starego frontendu](docs/archive/FRONTEND-REDESIGN.md) oraz archiwalne audyty — tylko jako dokumentacja historyczna.
+Repozytorium nadal zawiera moduły dawnego runnera GitHub oraz narzędzia importu starej historii JSON. Nie są głównym sposobem uruchamiania BookFlip, ale część ma nadal własne testy i zastosowania diagnostyczne. Nie usuwamy ich bez potwierdzenia braku zależności. Archiwalne materiały znajdują się w `docs/archive/`.
 
-## Gotowość do wydania
-
-CI obejmuje testy offline, ale przed uznaniem aplikacji za gotową wymagany jest jeszcze test na Windows: uruchomienie przez CMD, skan wybranego źródła, zapis oferty i SQLite, identyfikacja wydania, zapis decyzji i odczyt analizy cen.
-
-## Kopia zapasowa SQLite
-
-Wykonaj `npm run backup`, aby utworzyć kopię bazy katalogu w katalogu `scan-results/backups/`.
-Możesz wskazać własną ścieżkę: `npm run backup -- C:\\BookFlip\\backup.sqlite`.
-Narzędzie używa API kopii SQLite (również w trybie WAL), sprawdza integralność kopii i nie nadpisuje istniejących plików. Po wykonaniu warto przetestować odtworzenie kopii na osobnej instalacji.
+Nie commituj prawdziwych baz SQLite, historii skanów, cookies, kluczy ani innych danych prywatnych.
