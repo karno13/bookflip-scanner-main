@@ -1,3 +1,4 @@
+import { createScanDiagnostics, addScanEvent, scanProgress } from './scan-diagnostics.mjs';
 import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from './offer-sets.mjs';
 import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
@@ -516,6 +517,10 @@ export function createLocalAppServer({
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
+      if (request.method === 'GET' && url.pathname === '/api/scan/diagnostics') {
+        const scan = currentScan || await readScanStatus();
+        return send(response, 200, JSON.stringify({ ...scan, progress: scanProgress(scan.diagnostics) }));
+      }
       if (request.method === 'GET' && url.pathname === '/api/scan/status')
         return send(response, 200, JSON.stringify(currentScan || await readScanStatus()));
       if (request.method === 'GET' && url.pathname === '/api/catalog/summary') {
@@ -719,16 +724,19 @@ export function createLocalAppServer({
           return send(response, 409, JSON.stringify({ error: 'SCAN_ALREADY_RUNNING' }));
         scanInFlight = true;
         try {
-          currentScan = { status: 'running', startedAt: new Date().toISOString() };
+          const scanInput = await readJson(request);
+          currentScan = { status: 'running', startedAt: new Date().toISOString(),
+            diagnostics: createScanDiagnostics({ queries: scanInput.queries || [], sources: scanInput.sources || [] }) };
           await persistScanStatus(currentScan);
           if (url.searchParams.get('stream') === '1') {
             streamHeaders(response);
             const emit = (event) => {
               const safe = recordProgress(event);
+              addScanEvent(currentScan.diagnostics, safe);
               if (!response.destroyed) response.write(JSON.stringify({ type: 'progress', event: safe }) + '\n');
             };
             try {
-              const result = await searchAndStore(await readJson(request), emit, {
+              const result = await searchAndStore(scanInput, emit, {
                 catalogProvider,
                 search,
               });
@@ -749,7 +757,7 @@ export function createLocalAppServer({
             }
             return;
           }
-          const result = await searchAndStore(await readJson(request), undefined, {
+          const result = await searchAndStore(scanInput, (event) => addScanEvent(currentScan.diagnostics, recordProgress(event)), {
             catalogProvider,
             search,
           });
@@ -774,6 +782,7 @@ export function createLocalAppServer({
           '/frontend-utils.js': 'frontend-utils.js',
           '/scan-stream.js': 'scan-stream.js',
           '/views/scanner.js': 'views/scanner.js',
+          '/views/scan-insights.js': 'views/scan-insights.js',
           '/views/settings.js': 'views/settings.js',
           '/views/sets.js': 'views/sets.js',
           '/views/review.js': 'views/review.js',

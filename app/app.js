@@ -1,3 +1,4 @@
+import { createScanInsights } from './views/scan-insights.js';
 import { createSetsView } from './views/sets.js';
 import { createReviewView } from './views/review.js';
 import { createCatalogView } from './views/catalog.js';
@@ -618,6 +619,7 @@ async function restoreLastScanStatus() {
   }
 }
 
+const scanInsights = createScanInsights({ $, json, escapeHtml });
 const setsView = createSetsView({ $, json, escapeHtml, toast });
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog });
 const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows });
@@ -650,3 +652,7 @@ setInterval(async () => {
     identificationRefreshBusy = false;
   }
 }, 4000);
+
+// Live diagnostics are read-only and do not interfere with scan streaming.
+void scanInsights.refresh();
+setInterval(() => { if (!document.hidden) void scanInsights.refresh(); }, 3000);
