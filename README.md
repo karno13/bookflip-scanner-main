@@ -67,6 +67,6 @@ Szczegóły: [Katalog i konfiguracja](PRODUCTION-CATALOG.md), [Przechowywanie i 
 
 ## Co jest historyczne?
 
-Repozytorium nadal zawiera moduły dawnego runnera GitHub oraz narzędzia importu starej historii JSON. Nie są głównym sposobem uruchamiania BookFlip, ale część ma nadal własne testy i zastosowania diagnostyczne. Nie usuwamy ich bez potwierdzenia braku zależności. Historyczne raporty UI i zrzuty usunięto z bieżącej gałęzi; pozostają w historii Git. Dokument historycznej migracji JSON zachowano w `docs/archive/`.
+Nieaktywny runner GitHub Actions został usunięty, ponieważ nie był wykorzystywany przez lokalny BookFlip. Zachowano odrębnie testowane parsery źródeł i narzędzia importu starej historii JSON, które mogą służyć diagnostyce. Historyczne raporty UI i zrzuty usunięto z bieżącej gałęzi; pozostają w historii Git. Dokument historycznej migracji JSON zachowano w `docs/archive/`.
 
 Nie commituj prawdziwych baz SQLite, historii skanów, cookies, kluczy ani innych danych prywatnych.
