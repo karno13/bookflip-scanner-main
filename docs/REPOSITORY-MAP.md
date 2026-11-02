@@ -1,36 +1,31 @@
-# Mapa repozytorium — BookFlip
+# Mapa repozytorium — aktualny BookFlip
 
-## Aktualny produkt lokalny
+## Aktywna aplikacja
 
-| Obszar | Pliki | Stan |
-| --- | --- | --- |
-| Uruchamianie Windows | `Uruchom BookFlip Scanner.cmd`, `local-app.mjs` | Główna ścieżka użytkownika |
-| UI | `app/index.html`, `app/app.js`, `app/styles.css` | Główny frontend |
-| Źródła | `marketplaces.mjs`, `local-scan.mjs`, `vinted-detail.mjs` | Aktywne adaptery |
-| Katalog | `catalog-production.mjs`, `catalog-api.mjs`, `sqlite-catalog-repository.mjs` | Lokalny SQLite |
-| Metadane | `metadata-sources/`, `metadata-lookup.mjs`, `catalog-resolver.mjs` | BN / Open Library i rozpoznawanie |
-| Historia i cena | `offer-history.mjs`, `price-analysis.mjs` | Dane ofertowe, nie sprzedaż |
-| Testy | `*.test.mjs`, `.github/workflows/scanner-tests.yml` | Offline CI |
-| Publiczne demo | gałąź `gh-pages` | Tylko przykładowe dane |
+| Warstwa | Pliki |
+| --- | --- |
+| Uruchamianie | `Uruchom BookFlip Scanner.cmd`, `local-app.mjs` |
+| Frontend, 6 zakładek | `app/index.html`, `app/styles.css`, `app/app.js`, `app/views/*.js` |
+| Skanowanie | `marketplaces.mjs`, `local-scan.mjs`, `vinted-detail.mjs` |
+| SQLite | `catalog-production.mjs`, `sqlite-catalog-repository.mjs`, `catalog-api.mjs`, `offer-sets.mjs` |
+| ISBN / metadane | `catalog-resolver.mjs`, `identification-worker.mjs`, `metadata-lookup.mjs`, `metadata-sources/` |
+| Trwały katalog danych / backup | `catalog-data-location.mjs`, `scripts/backup-catalog.mjs` |
+| Migracje — zachować | `migrations/001_catalog.sql` … `007_offer_sets.sql` |
+| Testy Node | `*.test.mjs`, `.github/workflows/scanner-tests.yml` |
+| Test startu interfejsu | `scripts/browser-smoke.mjs`, `.github/workflows/browser-smoke.yml` |
+| Publiczne demo | Osobna gałąź `gh-pages` — bez produkcyjnego API |
 
-## Moduły starszego sposobu działania
+## Elementy historyczne
 
-`run.mjs`, `continuation.mjs`, `process.mjs`, `enrich.mjs`, `feed.mjs`, `rss.mjs`, `historical-reidentification.mjs`, `local-batch-scan.mjs` oraz część testów dotyczą starszego modelu kolejki/automatyzacji. **Nie są usuwane**, ponieważ nie ma jeszcze audytu zależności oraz końcowego testu uruchamiania na Windows. Status historyczny nie oznacza bezużyteczności.
+Starszy runner GitHub (`run.mjs`, `process.mjs`, `continuation.mjs`, `enrich.mjs`, `feed.mjs`, `rss.mjs`) nie jest wykorzystywany jako produkcyjne uruchomienie lokalnej aplikacji. **Nie usuwamy modułów pochopnie**, ponieważ mogą być importowane przez testy lub narzędzia diagnostyczne. Usunięto natomiast nieaktywny workflow `bookflip-scan.yml`, którego warunek wskazywał inne repozytorium i nigdy nie mógł tu wykonać skanu.
 
-Workflow `.github/workflows/bookflip-scan.yml` posiada warunek identyfikujący inne repozytorium (`PJASDEM/bookflip-scanner`), więc jego zadania nie powinny wykonywać skanowania w `karno13/bookflip-scanner-main`. W tej gałęzi wyłączono jego automatyczne harmonogramy i trigger push; pozostawiono uruchomienie ręczne, ale warunek starego repo nadal blokuje zadanie w `karno13/bookflip-scanner-main`.
+Narzędzia importu JSON i prób migracji są historyczne, lecz nadal przydatne do analizy dawnych danych. `docs/archive/` przechowuje poprzednie audyty i dokumentację innych architektur. Archiwalne obrazy w `artifacts/` są materiałem referencyjnym — ich porządkowanie wymaga osobnej decyzji, nie jest częścią danych aplikacji.
 
-`.github/workflows/buyback-test.yml` i `source-connectivity.yml` to testy łączności zewnętrznej, odrębne od testów offline. Nie należy traktować ich wyników jak lokalnych testów pełnego procesu.
+Workflow `source-connectivity.yml` i `buyback-test.yml` są odrębnymi testami łączności z portalami, a nie właściwym skanowaniem użytkownika.
 
-## Dokumentacja historyczna
+## Bezpieczne sprzątanie
 
-- `docs/archive/README-legacy-github-runner.md`: dawny główny README opisujący GitHub Actions / Sites.
-- `docs/archive/AUDIT-2026-10-25.md`, `docs/archive/AUDIT-POST-PR5.md`: dawne audyty z określonego momentu rozwoju.
-- `docs/archive/FRONTEND-REDESIGN.md`, `docs/archive/design-qa.md`: poprzednie przeglądy projektu, nie stan obecnej implementacji.
-- `artifacts/`: archiwalne zrzuty i ślady poprzednich audytów.
-
-## Zasady dalszego porządkowania
-
-1. Kod można usunąć dopiero po potwierdzeniu, że nie importuje go `local-app.mjs`, katalog, testy ani aktywny workflow.
-2. Historyczne raporty można w kolejnym PR przenieść do `docs/archive/` bez utraty treści.
-3. Żadnych prawdziwych danych użytkownika, historii skanów, sekretów ani baz SQLite w repozytorium.
-4. Aktualny `main` pozostaje punktem wyjścia; zmiany wprowadzaj na osobnych gałęziach z testami.
+1. Usuwaj tylko nieużywane komponenty z potwierdzonym brakiem importów w aplikacji, testach i CI.
+2. **Nigdy nie usuwaj ani nie modyfikuj historycznych migracji SQL**.
+3. Nie publikuj plików SQLite, skanów, danych użytkownika, plików WAL ani tokenów.
+4. Każda zmiana wymaga testów Node na Linux/Windows i smoke Chromium.

@@ -1,22 +1,44 @@
-# Produkcyjne wpięcie katalogu
+# BookFlip — produkcyjny katalog SQLite
 
-`local-app.mjs` wykonuje dual-write po każdym udanym skanie:
+## Obowiązujący przepływ
 
-1. zachowuje dotychczasowy zapis w `scan-results/local-offer-history.json`,
-2. zapisuje ofertę, obserwację ceny i dowody ISBN do SQLite,
-3. tworzy `identification_job`,
-4. uruchamia ograniczoną partię resolvera poza transakcją skanu.
+Lokalny serwer `local-app.mjs` zapisuje udane skany **bezpośrednio do SQLite**:
 
-SQLite jest domyślnie zapisywany jako `scan-results/bookflip-catalog.sqlite`. Można zmienić ścieżkę przez `BOOKFLIP_CATALOG_DB`.
+1. Zapis oferty i obserwacji ceny.
+2. Zapis dowodów ISBN oraz zadania w `identification_jobs`.
+3. Przetwarzanie kolejki poza transakcją zapisu skanu, z ograniczoną równoległością i limitami dostawców.
+4. Zapis wydania albo skierowanie do weryfikacji, jeśli dowody są niejednoznaczne.
 
-Zmienne konfiguracyjne:
+Nie ma produkcyjnego dual-write do `local-offer-history.json`. Historyczne narzędzia JSON są osobne. Nie trzeba korzystać z GitHub Actions do skanowania.
 
-- `BOOKFLIP_CATALOG_ENABLED=0` — wyłącza integrację.
-- `BOOKFLIP_CATALOG_AUTO_RESOLVE=0` — zapisuje joby, ale nie uruchamia workera po skanie.
-- `BOOKFLIP_CATALOG_BATCH=5` — maksymalna liczba jobów po jednym skanie.
-- `BOOKFLIP_OPEN_LIBRARY_CONTACT` — kontakt używany w User-Agent Open Library.
-- `BOOKFLIP_METADATA_TIMEOUT_MS`, `BOOKFLIP_CATALOG_LEASE_MS`, `BOOKFLIP_CATALOG_RETRY_MS` — timeouty i lease/retry.
+## Lokalizacja danych
 
-Status katalogu jest dostępny pod `GET /api/catalog/status`. Awaria SQLite lub BN/Open Library nie przerywa zapisu JSON ofert; job pozostaje w kolejce albo otrzymuje status retry.
+Domyślnie Windows: `%LOCALAPPDATA%\BookFlip\data\bookflip-catalog.sqlite`. Można nadpisać przez `BOOKFLIP_CATALOG_DB`. W nowej instalacji stary katalog `scan-results` **nie jest automatycznie importowany**.
 
-Integracja nie modyfikuje D1 i nie uruchamia workera przy imporcie modułu. Skaner nadal jest wywoływany wyłącznie przez istniejący endpoint aplikacji.
+Przed uruchomieniem niezaaplikowanych migracji istniejącej bazy wykonywany jest backup z kontrolą integralności. Kopie w `data/backups/` nie zastępują kopii poza urządzeniem. Nie zmieniaj ani nie usuwaj istniejących plików `migrations/*.sql` — ich sumy są zapisane w bazie.
+
+## Konfiguracja
+
+| Zmienna | Działanie |
+| --- | --- |
+| `BOOKFLIP_CATALOG_DB` | Jawna ścieżka bazy |
+| `BOOKFLIP_CATALOG_ENABLED=0` | Wyłączenie katalogu |
+| `BOOKFLIP_CATALOG_AUTO_RESOLVE=0` | Wyłączenie automatycznej identyfikacji |
+| `BOOKFLIP_CATALOG_BATCH` | Liczba zadań w partii (domyślnie 5) |
+| `BOOKFLIP_IDENTIFICATION_POLL_MS` | Odstęp sprawdzania kolejki (domyślnie 5000 ms) |
+| `BOOKFLIP_OPEN_LIBRARY_CONTACT` | Kontakt podawany przy żądaniach do Open Library |
+| `BOOKFLIP_METADATA_TIMEOUT_MS` | Timeout zewnętrznych metadanych |
+| `BOOKFLIP_CATALOG_LEASE_MS`, `BOOKFLIP_CATALOG_RETRY_MS` | Lease i opóźnienie ponowień |
+| `BOOKFLIP_LOCAL_PORT` | Port lokalnego serwera (domyślnie 4317) |
+
+## Zasady integralności
+
+- Identyfikacja nie przypisuje oferty automatycznie na podstawie samego podobieństwa tytułu.
+- Dokładny ISBN może pozwolić powiązać wydanie pomimo nieistotnych różnic zapisu tytułu; sprzeczne dowody mogą wymagać decyzji ręcznej.
+- Ręczne przypisania i zestawy są chronione przed ponownym automatycznym przypisaniem do pojedynczej książki.
+- Zestaw ma własny zapis powiązań do wielu wydań; cena nadal dotyczy całej oferty.
+- `GET /api/catalog/status` zwraca liczniki i diagnostykę kolejki; w Ustawieniach dostępne jest ręczne ponowienie identyfikacji.
+
+## Diagnostyka i testy
+
+Log serwera: `%LOCALAPPDATA%\BookFlip\data\local-app.log`. Uruchom `npm test`, `npm run lint` i `npm run check:syntax`. CI sprawdza backend na Windows/Linux oraz podstawowy start interfejsu w Chromium. Te testy nie gwarantują, że zewnętrzny portal aktualnie pozwala na skanowanie.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { enrichVintedBatch } from './vinted-detail.mjs';
 import { drainProcessing } from './process.mjs';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 const offers = [1, 2, 3].map((id) => ({
   url: `https://www.vinted.pl/items/${id}-book`,
   title: 'Book',
@@ -90,14 +90,5 @@ test('CI runs offline tests and legacy hosted runner cannot schedule scans in th
     'utf8',
   );
   assert.match(ci, /run: node --test\s*$/m);
-  const workflow = readFileSync(
-    new URL('./.github/workflows/bookflip-scan.yml', import.meta.url),
-    'utf8',
-  );
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /cron:/);
-  assert.doesNotMatch(workflow, /\n  push:/);
-  assert.match(workflow, /github\.repository == 'PJASDEM\/bookflip-scanner'/);
-  assert.match(workflow, /group: bookflip-scanner/);
-  assert.match(workflow, /group: bookflip-matching/);
+  assert.equal(existsSync(new URL('./.github/workflows/bookflip-scan.yml', import.meta.url)), false);
 });
