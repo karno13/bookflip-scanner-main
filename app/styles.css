@@ -573,3 +573,52 @@ body{background:var(--bg)}.app-shell{background:var(--bg)}.sidebar{background:li
 .scan-isbn-reason span{min-width:0;overflow-wrap:anywhere;}
 .scan-isbn-reason strong{flex:none;font-variant-numeric:tabular-nums;}
 @media(max-width:800px){.scan-isbn-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}.scan-isbn-reasons{grid-template-columns:1fr;}}
+
+/* Mobile app shell: persistent six-destination thumb navigation. */
+.mobile-bottom-nav { display:none; }
+@media (max-width:760px) {
+  html { scroll-padding-bottom:95px; }
+  body { overflow-x:hidden; }
+  .app-shell { width:100%; min-width:0; padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell > .sidebar { display:none; }
+  .topbar { top:0; height:auto; min-height:60px; padding:10px 15px; background:#fffefa; }
+  .topbar-kicker { display:none; }
+  .topbar h1 { font-size:19px; }
+  .topbar-status { gap:6px; }
+  .topbar-status #databaseStatus { display:none; }
+  .topbar-status button { min-height:40px; }
+  .view { padding:14px 12px 22px; min-width:0; }
+  .view-heading { flex-wrap:wrap; gap:10px; }
+  .view-heading h2 { font-size:clamp(19px,5.8vw,27px); line-height:1.2; }
+  .mobile-bottom-nav {
+    position:fixed; display:grid; grid-template-columns:repeat(6,minmax(0,1fr));
+    left:0; right:0; bottom:0; z-index:35;
+    padding:6px 5px calc(7px + env(safe-area-inset-bottom, 0px));
+    border-top:1px solid #cbdad2; background:#fcfdfa;
+    box-shadow:0 -4px 20px rgba(17,45,42,.09);
+  }
+  .mobile-nav-item {
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    gap:3px; min-height:57px; min-width:0; padding:5px 2px;
+    background:transparent; border:0; border-radius:10px;
+    color:#66756e; font-size:clamp(9px,2.2vw,11px); font-weight:650;
+  }
+  .mobile-nav-icon { font-size:23px; font-weight:650; line-height:1.1; }
+  .mobile-nav-item.active { color:#176747; background:#e6f3e9; }
+  .mobile-nav-item:focus-visible { outline:3px solid #176747; outline-offset:-3px; }
+  .toast-region { bottom:calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .modal-actions { flex-wrap:wrap; gap:8px; }
+  .modal-actions button { min-height:44px; }
+  #view-review .split-workspace, #view-catalog .catalog-layout { min-width:0; }
+  .review-list, .catalog-list-panel { max-height:min(40vh,340px); }
+  .detail-panel, .sets-workspace .panel { min-width:0; overflow-wrap:anywhere; }
+  .detail-actions button, .scan-cta, .sets-search-bar button { min-height:44px; }
+  .scan-insights-columns { grid-template-columns:minmax(0,1fr); }
+  .scan-insights-list, .scan-insights-events { max-width:100%; overflow-wrap:anywhere; }
+}
+@media(max-width:390px) {
+  .mobile-nav-item { font-size:9px; }
+  .mobile-nav-icon { font-size:20px; }
+  .view { padding-inline:10px; }
+  .topbar { padding-inline:10px; }
+}
