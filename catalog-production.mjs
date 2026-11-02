@@ -200,7 +200,7 @@ export function createProductionCatalog({
         count: Number(row.count),
       }));
       const reviewReasons = repository.database.prepare(
-        "SELECT je.value AS code, count(*) AS count FROM identification_jobs j, json_each(j.result_json, '$.reason') je WHERE j.status='review_required' AND json_valid(j.result_json) AND je.type='text' GROUP BY je.value ORDER BY count DESC LIMIT 10",
+        "SELECT je.value AS code, count(*) AS count FROM identification_jobs j, json_each(CASE WHEN json_valid(j.result_json) THEN j.result_json ELSE '{}' END, '$.reason') je WHERE j.status='review_required' AND json_valid(j.result_json) AND je.type='text' GROUP BY je.value ORDER BY count DESC LIMIT 10",
       ).all().map((row) => ({
         code: /^[a-z][a-z0-9_]{1,63}$/.test(String(row.code || '')) ? row.code : 'other_reason',
         count: Number(row.count),
