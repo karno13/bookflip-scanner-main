@@ -317,6 +317,18 @@ async function decideReview(action, editionId = null) {
     state.selectedReviewId = null;
     state.reviewDetail = null;
     const refreshed = await loadCatalogData();
+    if (refreshed !== false) {
+      const next = filteredReviewOffers()[0];
+      if (next) {
+        state.selectedReviewId = next.id;
+        try {
+          state.reviewDetail = await json(`/api/offers/${encodeURIComponent(next.offerId)}`);
+        } catch {
+          state.reviewDetail = null;
+        }
+        renderReview();
+      }
+    }
     toast(refreshed === false
       ? 'Decyzja zapisana w SQLite, ale nie udało się odświeżyć widoku.'
       : 'Decyzja została zapisana w historii SQLite.');
