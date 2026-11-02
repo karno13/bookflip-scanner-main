@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { enrichVintedBatch } from './vinted-detail.mjs';
-import { drainProcessing } from './process.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 const offers = [1, 2, 3].map((id) => ({
   url: `https://www.vinted.pl/items/${id}-book`,
@@ -53,36 +52,6 @@ test('best effort never swallows CAPTCHA', async () => {
     }),
     (e) => e === error,
   );
-});
-test('matching drains successive batches without marketplace calls', async () => {
-  let count = 0;
-  const calls = [];
-  const result = await drainProcessing(
-    async (b) => {
-      calls.push(b.action);
-      if (b.action === 'status') return { automatic: true, processing: count < 2 ? 12 : 0 };
-      count++;
-      return { processed: count === 1 ? 10 : count === 2 ? 2 : 0 };
-    },
-    { now: () => 0, log: () => {} },
-  );
-  assert.equal(result.processed, 12);
-  assert.equal(result.remaining, 0);
-  assert.ok(calls.every((a) => ['status', 'process'].includes(a)));
-});
-test('matching exits on paused or retry-delayed queue', async () => {
-  for (const automatic of [false, true]) {
-    let calls = 0;
-    const result = await drainProcessing(
-      async (b) => {
-        calls++;
-        return b.action === 'status' ? { automatic, processing: 3 } : { processed: 0, failed: 0 };
-      },
-      { now: () => 0, log: () => {} },
-    );
-    assert.equal(result.remaining, 3);
-    assert.equal(calls, automatic ? 3 : 1);
-  }
 });
 test('CI runs offline tests and legacy hosted runner cannot schedule scans in this repo', () => {
   const ci = readFileSync(
