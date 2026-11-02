@@ -1,4 +1,4 @@
-import { createScanDiagnostics, addScanEvent, scanProgress } from './scan-diagnostics.mjs';
+import { createScanDiagnostics, addScanEvent, scanProgress, scanTelemetry } from './scan-diagnostics.mjs';
 import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from './offer-sets.mjs';
 import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
@@ -519,7 +519,7 @@ export function createLocalAppServer({
       const url = new URL(request.url || '/', 'http://127.0.0.1');
       if (request.method === 'GET' && url.pathname === '/api/scan/diagnostics') {
         const scan = currentScan || await readScanStatus();
-        return send(response, 200, JSON.stringify({ ...scan, progress: scanProgress(scan.diagnostics) }));
+        return send(response, 200, JSON.stringify({ ...scan, progress: scanProgress(scan.diagnostics), telemetry: scanTelemetry(scan.diagnostics, { running: scan.status === 'running' }) }));
       }
       if (request.method === 'GET' && url.pathname === '/api/scan/status')
         return send(response, 200, JSON.stringify(currentScan || await readScanStatus()));
