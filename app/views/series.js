@@ -31,13 +31,13 @@ export function seriesSummary(works, annotations) {
     return { name, books, volumes: ordered, missing };
   }).sort((a,b)=>a.name.localeCompare(b.name,'pl'));
 }
-export function mountSeriesEditor(work, target, onSave = () => {}) {
-  const data = readSeries();
+export function mountSeriesEditor(work, target, onSave = () => {}, options = {}) {
+  const data = options.annotations || readSeries();
   const current = data[String(work.id)] || {};
   const block = document.createElement('section');
   block.className = 'detail-section series-editor';
   const heading = document.createElement('h4');
-  heading.textContent = 'Seria i tom (notatka lokalna)';
+  heading.textContent = options.save ? 'Seria i tom (SQLite)' : 'Seria i tom (notatka lokalna)';
   const series = document.createElement('input');
   series.placeholder = 'Nazwa serii, np. Horus Heresy';
   series.maxLength = 120;
@@ -57,12 +57,23 @@ export function mountSeriesEditor(work, target, onSave = () => {}) {
   save.textContent = 'Zapisz serię i tom';
   const feedback = document.createElement('small');
   feedback.setAttribute('role','status');
-  save.addEventListener('click', () => {
+  save.addEventListener('click', async () => {
     const name = series.value.trim();
     const value = volume.value.trim();
     const number = Number(value);
     if ((name && (!value || !Number.isInteger(number) || number < 1 || number > 10000)) || (!name && value)) {
       feedback.textContent = 'Podaj nazwę serii i poprawny numer tomu (1–10000).';
+      return;
+    }
+    if (options.save) {
+      save.disabled = true;
+      try {
+        const saved = await options.save(String(work.id), { series: name, volume: name ? number : null });
+        feedback.textContent = 'Zapisano w SQLite.';
+        onSave(saved);
+      } catch (error) {
+        feedback.textContent = 'Błąd zapisu w SQLite: ' + error.message;
+      } finally { save.disabled = false; }
       return;
     }
     const updated = readSeries();
