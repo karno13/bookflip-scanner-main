@@ -17,7 +17,7 @@
 
 ## Elementy historyczne
 
-Starszy runner GitHub (`run.mjs`, `process.mjs`, `continuation.mjs`, `enrich.mjs`, `feed.mjs`, `rss.mjs`) nie jest wykorzystywany jako produkcyjne uruchomienie lokalnej aplikacji. **Nie usuwamy modułów pochopnie**, ponieważ mogą być importowane przez testy lub narzędzia diagnostyczne. Usunięto natomiast nieaktywny workflow `bookflip-scan.yml`, którego warunek wskazywał inne repozytorium i nigdy nie mógł tu wykonać skanu.
+Nieaktywny runner GitHub (`run.mjs`, `process.mjs`, `continuation.mjs`, `enrich.mjs`, `page-cursor.mjs`) oraz jego dwa testy zostały usunięte. Nie obsługiwał lokalnego BookFlip ani żadnego osiągalnego workflow w tym repozytorium. Zachowano odrębnie testowane narzędzia parsowania kanałów (`feed.mjs`, `rss.mjs`) oraz aktualne moduły skanera.
 
 Narzędzia importu JSON i prób migracji są historyczne, lecz nadal przydatne do analizy dawnych danych. Usunięto stare raporty projektowe, nieaktywną instrukcję GitHub runnera i zrzuty w `artifacts/`. W `docs/archive/` zachowano jedynie dokumentację dawnej migracji JSON ze względu na aktywne odnośniki. Usunięte materiały są nadal dostępne w historii Git.
 
