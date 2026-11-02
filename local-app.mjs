@@ -1,3 +1,4 @@
+import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
 import { createScanDiagnostics, addScanEvent, scanProgress, scanTelemetry } from './scan-diagnostics.mjs';
 import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from './offer-sets.mjs';
 import { defaultCatalogPath } from './catalog-data-location.mjs';
@@ -560,6 +561,18 @@ export function createLocalAppServer({
       if (request.method === 'GET' && url.pathname === '/api/catalog/status') {
         const catalog = getProductionCatalog();
         return send(response, 200, JSON.stringify(catalog ? catalog.status() : { enabled: false }));
+      }
+      if (request.method === 'GET' && url.pathname === '/api/catalog/series') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify({ items: listWorkSeries(catalog.repository) }));
+      }
+      if (request.method === 'PUT' && url.pathname.startsWith('/api/catalog/series/')) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.slice('/api/catalog/series/'.length));
+        const data = await readJson(request);
+        return send(response, 200, JSON.stringify(updateWorkSeries(catalog.repository, id, data)));
       }
       if (request.method === 'GET' && url.pathname === '/api/catalog/works') {
         const catalog = getProductionCatalog();
