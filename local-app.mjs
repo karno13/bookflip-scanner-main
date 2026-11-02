@@ -782,6 +782,7 @@ export function createLocalAppServer({
           '/frontend-utils.js': 'frontend-utils.js',
           '/scan-stream.js': 'scan-stream.js',
           '/views/scanner.js': 'views/scanner.js',
+          '/views/scan-insights.js': 'views/scan-insights.js',
           '/views/settings.js': 'views/settings.js',
           '/views/sets.js': 'views/sets.js',
           '/views/review.js': 'views/review.js',
