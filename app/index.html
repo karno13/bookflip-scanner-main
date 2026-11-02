@@ -39,6 +39,20 @@
             <div class="progress-heading"><div><strong id="progressMessage">Przygotowywanie skanu...</strong><small id="progressDetail">Oczekiwanie na backend</small></div><span id="progressElapsed">0 s</span></div>
             <div class="progress-track" id="progressTrack" data-indeterminate="true"><i id="progressBar"></i></div>
           </div>
+          <section class="panel scan-insights" aria-label="Centrum diagnostyki skanowania">
+            <div class="panel-heading"><div><h3>Centrum skanowania</h3><p>Postęp i diagnostyka źródeł — aktualizacja automatyczna co 3 sekundy.</p></div><span id="scanInsightsState" class="state-badge neutral">Oczekiwanie</span></div>
+            <div class="scan-insights-metrics">
+              <div><span>Zadania</span><strong id="scanInsightsTasks">0 / 0</strong></div>
+              <div><span>Oferty</span><strong id="scanInsightsOffers">0</strong></div>
+              <div><span>Ponowienia</span><strong id="scanInsightsRetries">0</strong></div>
+              <div><span>Błędy</span><strong id="scanInsightsErrors">0</strong></div>
+            </div>
+            <div class="scan-insights-progress"><div><strong>Postęp zadań</strong><span id="scanInsightsPercent">—</span></div><progress id="scanInsightsBar" max="100" value="0" aria-label="Postęp skanowania"></progress></div>
+            <div class="scan-insights-columns">
+              <section><h4>Źródła</h4><div id="scanInsightsSources" class="scan-insights-list"><p>Uruchom skan, aby zobaczyć źródła.</p></div></section>
+              <section><h4>Ostatnie zdarzenia</h4><div id="scanInsightsEvents" class="scan-insights-events" aria-live="off"><p>Brak zdarzeń.</p></div></section>
+            </div>
+          </section>
           <div class="stats-grid" aria-label="Statystyki aktualnego skanu">
             <article class="metric"><span class="metric-symbol" aria-hidden="true">▤</span><span>Znalezione oferty</span><strong id="statFound">0</strong><small>ten skan</small></article>
             <article class="metric"><span class="metric-symbol" aria-hidden="true">✦</span><span>Nowe oferty</span><strong id="statNew">0</strong><small>ten skan</small></article>
