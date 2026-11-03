@@ -498,7 +498,7 @@ async function submitCatalog(event) {
   const title = $('#catalogTitle').value.trim(),
     isbn = $('#catalogManualIsbn').value.trim();
   if (!title) return toast('Podaj tytul dziela.');
-  const data = await json('/api/catalog', {
+  const data = await json('/api/catalog?compact=1', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, isbn }),
