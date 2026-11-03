@@ -2,6 +2,20 @@ import { readSearchStream } from '../scan-stream.js';
 
 // Scanner view owns its progress state and UI; dependencies are injected by the shell.
 export function createScannerView({ state, $, escapeHtml, shortTime, readQueries, selectedSources, toast, loadHistory, loadCatalogStatus, loadCatalogData, storage = globalThis.localStorage }) {
+async function cancelSearch() {
+  const button = $('#cancelSearch');
+  button.disabled = true;
+  button.textContent = 'Anulowanie…';
+  try {
+    const response = await fetch('/api/search/cancel', { method: 'POST' });
+    if (!response.ok) throw Error('CANCEL_HTTP_' + response.status);
+    $('#scanGuardMessage').textContent = 'Trwa zatrzymywanie skanu. Wcześniej zapisane oferty pozostają w katalogu.';
+  } catch (error) {
+    toast('Nie udało się anulować skanu: ' + error.message);
+    button.disabled = false;
+    button.textContent = 'Anuluj skan';
+  }
+}
 function resetScanUi(queries, sources) {
   state.scan.total = queries.length * sources.length;
   state.scan.completed = 0;
@@ -106,8 +120,11 @@ async function startSearch() {
   }
   resetScanUi(queries, sources);
   $('#startSearch').disabled = true;
+  $('#cancelSearch').hidden = false;
+  $('#cancelSearch').disabled = false;
+  $('#cancelSearch').textContent = 'Anuluj skan';
   $('#startSearch').textContent = 'Skanowanie...';
-  $('#scanGuardMessage').textContent = 'Możesz zmieniać zakładki. Nie zamykaj strony podczas skanowania.';
+  $('#scanGuardMessage').textContent = 'Skan trwa na serwerze także po zamknięciu karty. Aby go zatrzymać, kliknij Anuluj skan.';
   state.scan.timer = setInterval(() => {
     $('#progressElapsed').textContent =
       `${Math.floor((Date.now() - state.scan.startedAt) / 1000)} s`;
@@ -139,6 +156,14 @@ async function startSearch() {
     renderSourceRows();
     toast(`Skan zakonczony: ${summary.offers || 0} ofert.`);
   } catch (error) {
+    if (error.message === 'SCAN_CANCELLED') {
+      $('#progressMessage').textContent = 'Skan anulowany';
+      $('#progressDetail').textContent = 'Nowe wyniki z anulowanego skanu nie zostały zapisane.';
+      $('#scanStateBadge').textContent = 'Anulowany';
+      $('#scanStateBadge').className = 'state-badge neutral';
+      toast('Skan został anulowany.');
+      return;
+    }
     $('#progressMessage').textContent = 'Nie udało się potwierdzić zakończenia skanu';
     $('#progressDetail').textContent = error.message;
     $('#scanStateBadge').textContent = 'Blad';
@@ -147,6 +172,7 @@ async function startSearch() {
   } finally {
     clearInterval(state.scan.timer);
     state.scan.running = false;
+    $('#cancelSearch').hidden = true;
     $('#startSearch').disabled = false;
     $('#startSearch').textContent = 'Uruchom skan';
     $('#scanGuardMessage').textContent = '';
@@ -154,5 +180,5 @@ async function startSearch() {
 }
 
 
-  return { startSearch, resetScanUi, renderSourceRows, updateProgress };
+  return { startSearch, cancelSearch, resetScanUi, renderSourceRows, updateProgress };
 }
