@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createVintedDetailCache} from '../vinted-detail-cache.mjs';
+test('Vinted cache reuses known details, expires entries, and caps memory', () => {
+ let time=0;
+ const cache=createVintedDetailCache({ttlMs:500,maxEntries:2,now:()=>time});
+ assert.equal(cache.get('a'),undefined);
+ cache.set('a',{language:'polski'});
+ assert.equal(cache.get('a').language,'polski');
+ cache.set('b',{language:'angielski'});
+ cache.get('a');
+ cache.set('c',{language:'polski'});
+ assert.equal(cache.get('b'),undefined);
+ assert.equal(cache.size(),2);
+ time=501;
+ assert.equal(cache.get('a'),undefined);
+ assert.equal(cache.get('c'),undefined);
+ cache.set('missing',{language:null});
+ assert.equal(cache.size(),0);
+});
