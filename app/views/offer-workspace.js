@@ -1,5 +1,5 @@
-// Browser-local shortlist; intentionally separate from the SQLite catalogue.
-// No network requests and no changes to offer identification state.
+import { zlotyToGrosze, money } from '../core/formatters.js';
+// Legacy localStorage is used only for explicit import and fallback. SQLite is the live store.
 const KEY = 'bookflip-offer-workspace-v1';
 const statuses = [
   ['watching', 'Obserwowana'],
@@ -80,9 +80,10 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
   section.append(targetStatus);
   const showThreshold = () => {
     const value = target.value.trim() === '' ? null : Number(target.value);
-    const asking = Number(offer.currentPrice);
-    targetStatus.textContent = value !== null && Number.isFinite(value) && value >= 0 && Number.isFinite(asking) && offer.currency === 'PLN'
-      ? asking <= value ? 'Cena osiągnęła próg: oferta w cenie docelowej lub niższej.' : 'Cena jest wyższa od docelowej o ' + (asking-value).toFixed(2) + ' zł.'
+    const asking = offer.currentPrice;
+    const threshold = value === null ? null : zlotyToGrosze(value);
+    targetStatus.textContent = threshold !== null && Number.isSafeInteger(asking) && offer.currency === 'PLN'
+      ? asking <= threshold ? 'Cena osiągnęła próg: oferta w cenie docelowej lub niższej.' : 'Cena jest wyższa od docelowej o ' + money(asking - threshold) + '.'
       : value !== null && offer.currency !== 'PLN' ? 'Próg dotyczy wyłącznie ofert w PLN.' : '';
   };
   target.addEventListener('input', showThreshold);
@@ -90,7 +91,7 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
   const commit = async () => {
     const value = target.value.trim();
     const price = value === '' ? null : Number(value);
-    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+    if (price !== null && (zlotyToGrosze(price) === null || Math.abs(price * 100 - Math.round(price * 100)) > 1e-7)) {
       message.textContent = 'Cena docelowa musi być nieujemna.';
       return;
     }
