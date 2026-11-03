@@ -480,7 +480,7 @@ const sharedVintedDetailCache = createVintedDetailCache();
 async function searchAndStore(
   input,
   onProgress = () => {},
-  { catalogProvider = getProductionCatalog, search = searchOffers } = {},
+  { catalogProvider = getProductionCatalog, search = searchOffers, signal = null } = {},
 ) {
   storageMode();
   const catalog = catalogProvider();
@@ -842,7 +842,7 @@ export function createLocalAppServer({
           return send(response, 200, JSON.stringify(result));
         } catch (error) {
           if (scanStarted) {
-            currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
+            currentScan = { ...currentScan, status: error.message === 'SCAN_CANCELLED' ? 'cancelled' : 'failed', finishedAt: new Date().toISOString() };
             await persistScanStatus(currentScan);
           }
           throw error;
