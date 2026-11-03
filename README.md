@@ -19,6 +19,14 @@ Zasady podejmowania decyzji produktowych i lista celów poza zakresem: [Kierunek
 
 Pozostaw serwer uruchomiony, gdy skanujesz lub identyfikujesz książki. Aplikacja domyślnie nasłuchuje **wyłącznie na localhost**; nie udostępniaj portu 4317 bez osobnego, przetestowanego rozwiązania uwierzytelnienia i sieci prywatnej.
 
+## Dostęp do BookFlip z telefonu (Tailscale)
+
+BookFlip można otworzyć z telefonu przez **prywatną sieć Tailscale i Tailscale Serve** (HTTPS, bez publicznego portu, bez Funnel). Na komputerze i telefonie potrzebny jest Tailscale na tym samym koncie; komputer musi być włączony.
+
+Na Windows zamknij stary serwer BookFlip i uruchom **`Uruchom BookFlip przez Tailscale.cmd`**. Skrypt wykryje adres MagicDNS i konto właściciela, uruchomi prywatne proxy `tailscale serve --bg 4317` i lokalny serwer w trybie zgodnym z Tailscale. Na telefonie włącz Tailscale i otwórz wyświetlony adres HTTPS. Działanie lokalne na `127.0.0.1` pozostaje bez zmian.
+
+**Nie stosuj `tailscale funnel`, przekierowania portu ani `0.0.0.0`.** Serwer dopuszcza wyłącznie dokładny host Tailscale Serve i tożsamość właściciela, nadal nasłuchując wyłącznie na localhost. Szczegóły konfiguracji, wyłączania i rozwiązywania problemów: [BookFlip przez Tailscale na telefonie](docs/TAILSCALE.md).
+
 ## Sześć obszarów aplikacji
 
 | Zakładka | Funkcja |
