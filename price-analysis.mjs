@@ -47,68 +47,87 @@ export function bookStatistics(raw, bookId) {
   };
 }
 
-export function assessOffer(raw, offerId, config = PRICE_CLASSIFICATION) {
-  const history = migrateOfferHistory(raw),
-    offer = history.offers[offerId];
-  if (!offer?.bookId || !offer.currentPrice)
-    return {
-      label: 'Brak oceny',
-      code: 'none',
-      reason: 'Za mało danych do oceny',
-      median: null,
-      differencePercent: null,
-      comparableOffers: 0,
-    };
-  const comparable = currentOffers(history, offer.bookId).filter((row) => row.id !== offer.id),
-    benchmark = median(comparable.map((row) => row.currentPrice));
-  if (comparable.length < config.minimumComparableOffers || !benchmark)
-    return {
-      label: 'Brak oceny',
-      code: 'none',
-      reason: 'Za mało danych do oceny',
-      median: benchmark,
-      differencePercent: null,
-      comparableOffers: comparable.length,
-    };
-  const difference = ((offer.currentPrice - benchmark) / benchmark) * 100,
-    discount = -difference;
-  let label, code;
-  if (discount >= config.dealDiscount) {
-    label = 'Okazja';
-    code = 'deal';
-  } else if (discount >= config.goodDiscount) {
-    label = 'Dobra cena';
-    code = 'good';
-  } else if (Math.abs(difference) <= config.marketRange) {
-    label = 'Cena rynkowa';
-    code = 'market';
-  } else if (difference > config.marketRange) {
-    label = 'Drogo';
-    code = 'expensive';
-  } else {
-    label = 'Cena rynkowa';
-    code = 'market';
-  }
+function emptyAssessment() {
   return {
-    label,
-    code,
-    reason: null,
-    median: benchmark,
-    differencePercent: Math.round(difference * 10) / 10,
-    comparableOffers: comparable.length,
+    label: 'Brak oceny', code: 'none', reason: 'Za mało danych do oceny',
+    median: null, differencePercent: null, comparableOffers: 0,
   };
 }
 
+// Prepare current, active comparables once per edition/book. Reuse their
+// sorted order to calculate leave-one-out medians in O(1) per assessed offer.
+function buildComparables(history, bookIds) {
+  const grouped = new Map();
+  for (const offer of Object.values(history.offers)) {
+    if (!bookIds.has(offer.bookId) || !(offer.currentPrice > 0) ||
+        offer.availability === 'unavailable') continue;
+    if (!grouped.has(offer.bookId)) grouped.set(offer.bookId, []);
+    grouped.get(offer.bookId).push(offer);
+  }
+  const prepared = new Map();
+  for (const [bookId, offers] of grouped) {
+    offers.sort((a,b) => a.currentPrice - b.currentPrice);
+    prepared.set(bookId, {
+      offers,
+      indexes: new Map(offers.map((item,index) => [item.id,index])),
+    });
+  }
+  return prepared;
+}
+function assessPrepared(offer, prepared, config = PRICE_CLASSIFICATION) {
+  if (!offer?.bookId || !offer.currentPrice) return emptyAssessment();
+  const group = prepared.get(offer.bookId);
+  const sorted = group?.offers || [];
+  const removed = group?.indexes.get(offer.id) ?? -1;
+  const count = sorted.length - (removed >= 0 ? 1 : 0);
+  const nth = index => sorted[index + (removed >= 0 && index >= removed ? 1 : 0)].currentPrice;
+  const middle = Math.floor(count / 2);
+  const benchmark = !count ? null : count % 2 ? nth(middle) :
+    (nth(middle - 1) + nth(middle)) / 2;
+  if (count < config.minimumComparableOffers || !benchmark)
+    return {
+      label: 'Brak oceny', code: 'none', reason: 'Za mało danych do oceny',
+      median: benchmark, differencePercent: null, comparableOffers: count,
+    };
+  const difference = ((offer.currentPrice - benchmark) / benchmark) * 100;
+  const discount = -difference;
+  let label, code;
+  if (discount >= config.dealDiscount) {
+    label = 'Okazja'; code = 'deal';
+  } else if (discount >= config.goodDiscount) {
+    label = 'Dobra cena'; code = 'good';
+  } else if (Math.abs(difference) <= config.marketRange) {
+    label = 'Cena rynkowa'; code = 'market';
+  } else if (difference > config.marketRange) {
+    label = 'Drogo'; code = 'expensive';
+  } else {
+    label = 'Cena rynkowa'; code = 'market';
+  }
+  return {
+    label, code, reason: null, median: benchmark,
+    differencePercent: Math.round(difference * 10) / 10,
+    comparableOffers: count,
+  };
+}
+export function assessOffer(raw, offerId, config = PRICE_CLASSIFICATION) {
+  const history = migrateOfferHistory(raw);
+  const offer = history.offers[offerId];
+  if (!offer?.bookId || !offer.currentPrice) return emptyAssessment();
+  const prepared = buildComparables(history, new Set([offer.bookId]));
+  return assessPrepared(offer, prepared, config);
+}
 export function analyzedOffers(raw, ids = null) {
   const history = migrateOfferHistory(raw),
     selected = ids ? new Set(ids) : null;
-  return Object.values(history.offers)
-    .filter((offer) => !selected || selected.has(offer.id))
-    .map((offer) => ({
-      ...offer,
-      price: offer.currentPrice,
-      assessment: assessOffer(history, offer.id),
-    }));
+  const offers = Object.values(history.offers)
+    .filter(offer => !selected || selected.has(offer.id));
+  const books = new Set(offers.map(offer => offer.bookId).filter(Boolean));
+  const prepared = books.size ? buildComparables(history, books) : new Map();
+  return offers.map(offer => ({
+    ...offer,
+    price: offer.currentPrice,
+    assessment: assessPrepared(offer, prepared),
+  }));
 }
 
 export function bookHistory(raw, bookId) {
