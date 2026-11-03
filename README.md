@@ -1,6 +1,14 @@
-# BookFlip — lokalny skaner i katalog książek
+# BookFlip — lokalne narzędzie do handlu książkami
 
-BookFlip to lokalna aplikacja na Windows z interfejsem w przeglądarce, skanowaniem ofert i katalogiem SQLite. Główny serwer to `local-app.mjs`. **GitHub Pages jest tylko demonstracją**, nie uruchamia skanów ani nie przechowuje Twojego katalogu.
+BookFlip to lokalna aplikacja na Windows wspierająca handel używanymi książkami: skanowanie ofert, identyfikację towaru, porównywanie cen i decyzje zakupowe, z interfejsem w przeglądarce i bazą SQLite. Główny serwer to `local-app.mjs`. **GitHub Pages jest tylko demonstracją**, nie uruchamia skanów ani nie przechowuje Twojego katalogu.
+
+## Cel produktu i granice rozwoju
+
+**BookFlip służy do handlu książkami, nie do prowadzenia prywatnej kolekcji.** Jego celem jest wyszukiwanie okazji, prawidłowe rozpoznawanie książek i wydań, ocena pełnych kosztów zakupu, potencjalnej ceny odsprzedaży, zysku i ryzyka oraz obsługa ofert i transakcji.
+
+Katalog, ISBN, serie, tomy i zestawy pomagają **identyfikować i wyceniać towar**, a nie kompletować własną biblioteczkę. **Nie planujemy funkcji dla kolekcjonerów** takich jak prywatne półki, brakujące tomy do własnego zbioru, statystyki czytania czy ranking kompletności kolekcji. Propozycje nowych funkcji oceniamy przez ich wartość w procesie zakupu i odsprzedaży.
+
+Zasady podejmowania decyzji produktowych i lista celów poza zakresem: [Kierunek produktu — handel, nie kolekcjonerstwo](docs/PRODUCT-DIRECTION.md).
 
 ## Uruchomienie (Windows 11)
 
