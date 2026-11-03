@@ -180,7 +180,7 @@ function fillSourceFilters() {
 }
 
 async function loadHistory() {
-  state.history = await json('/api/history');
+  state.history = await json('/api/history/brief');
   $('#offersNavCount').textContent = `${allOffers().length} zapisanych`;
   $('#reviewNavCount').textContent = `${state.catalogPages.jobs.total} pozycji`;
   renderReview();
