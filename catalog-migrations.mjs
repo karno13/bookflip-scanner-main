@@ -20,6 +20,51 @@ export function availableCatalogMigrations(directory = migrationsDirectory) {
     });
 }
 
+
+/**
+ * SQLite cannot ALTER a CHECK constraint. Rebuild the decision table once to
+ * admit excluded offers, preserving rows, indexes and triggers from the current
+ * schema. This runs after versioned SQL migrations and is idempotent.
+ */
+function allowExcludedReviewDecisions(database) {
+  const table = database.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='review_decisions'",
+  ).get();
+  if (!table) return;
+  const expanded = table.sql.replace(
+    /('not_book'\s*,\s*)('requeued')/,
+    "$1'excluded',$2",
+  );
+  if (expanded === table.sql) return;
+  const objects = database.prepare(
+    "SELECT sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name='review_decisions' AND sql IS NOT NULL ORDER BY type",
+  ).all();
+  database.exec('PRAGMA foreign_keys=OFF');
+  try {
+    database.exec('BEGIN IMMEDIATE');
+    try {
+      const createTemp = expanded.replace(
+        /^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(?:"review_decisions"|`review_decisions`|review_decisions)/i,
+        '$1review_decisions_upgrade',
+      );
+      if (createTemp === expanded) throw Error('REVIEW_DECISIONS_SCHEMA_UNRECOGNIZED');
+      database.exec(createTemp);
+      database.exec('INSERT INTO review_decisions_upgrade SELECT * FROM review_decisions');
+      database.exec('DROP TABLE review_decisions');
+      database.exec('ALTER TABLE review_decisions_upgrade RENAME TO review_decisions');
+      for (const object of objects) database.exec(object.sql);
+      database.exec('COMMIT');
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
+  } finally {
+    database.exec('PRAGMA foreign_keys=ON');
+  }
+  if (database.prepare('PRAGMA foreign_key_check').all().length)
+    throw Error('REVIEW_DECISIONS_MIGRATION_FK_FAILED');
+}
+
 export function applyCatalogMigrations(
   database,
   { directory = migrationsDirectory, now = () => new Date() } = {},
@@ -60,5 +105,6 @@ export function applyCatalogMigrations(
       throw error;
     }
   }
+  allowExcludedReviewDecisions(database);
   return completed;
 }

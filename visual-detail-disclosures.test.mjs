@@ -7,15 +7,17 @@ const review = await readFile(new URL('./app/views/review.js', import.meta.url),
 const css = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
 
 test('price evidence and review guidance remain accessible in semantic disclosures', () => {
-  for (const script of [offers, review]) {
+  for (const script of [offers]) {
     assert.match(script, /<details class="detail-disclosure">/);
     assert.match(script, /<summary>/);
     assert.match(script, /<\/details>/);
   }
   assert.match(offers, /Wielokrotne odczyty tej samej ceny nie są niezależnymi transakcjami/);
   assert.match(offers, /Przed podatkiem, bez gwarancji sprzedaży/);
-  assert.match(review, /Dopasowanie dotyczy konkretnego wydania/);
-  assert.match(review, /Zatwierdź przypisanie/);
+  assert.match(review, /Sprawdź zgodność przed zatwierdzeniem/);
+  assert.match(review, /<details class="lean-review-candidate"/);
+  assert.match(review, /<details class="lean-review-evidence"/);
+  assert.match(review, /Zatwierdź wydanie/);
 });
 test('secondary disclosures retain visible keyboard focus and touch targets', () => {
   assert.match(css, /\.detail-disclosure > summary:focus-visible/);

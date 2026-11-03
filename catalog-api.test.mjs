@@ -275,3 +275,22 @@ test('offer pagination preserves unique offer identities and stable totals', () 
     repository.close();
   }
 });
+
+test('language exclusion completes review without classifying the offer as a non-book', () => {
+  const { repository } = fixture();
+  try {
+    const result = decideIdentificationJob(
+      repository,
+      'job-1',
+      { action: 'excluded', reason: 'Niewłaściwy język' },
+      { now: () => at, idFactory: () => 'decision-excluded' },
+    );
+    assert.equal(result.job.status, 'completed');
+    const detail = getCatalogOffer(repository, 'offer-1');
+    assert.equal(detail.decisions[0].action, 'excluded');
+    assert.equal(detail.decisions[0].reason, 'Niewłaściwy język');
+    assert.equal(listIdentificationJobs(repository, { status: 'review_required' }).items.some((row) => row.id === 'job-1'), false);
+  } finally {
+    repository.close();
+  }
+});

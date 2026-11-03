@@ -439,7 +439,7 @@ export function decideIdentificationJob(
   { now = () => new Date(), idFactory = randomUUID } = {},
 ) {
   const action = String(input.action ?? '');
-  if (!['approved', 'proposal_rejected', 'not_book', 'requeued'].includes(action))
+  if (!['approved', 'proposal_rejected', 'not_book', 'excluded', 'requeued'].includes(action))
     throw Object.assign(Error('INVALID_REVIEW_ACTION'), { statusCode: 400 });
   return repository.transaction(() => {
     const job = repository.database
@@ -457,7 +457,7 @@ export function decideIdentificationJob(
       (action !== 'approved' || active.edition_id !== editionId)
     )
       throw Object.assign(Error('MANUAL_ASSIGNMENT_PROTECTED'), { statusCode: 409 });
-    if (action === 'not_book' && active)
+    if (['not_book', 'excluded'].includes(action) && active)
       repository.database.prepare(
         "UPDATE offer_matches SET status='superseded',valid_to=? WHERE offer_id=? AND status='active'",
       ).run(at, job.offer_id);
@@ -505,7 +505,7 @@ export function decideIdentificationJob(
         'local_user',
         at,
       );
-    const status = ['approved', 'not_book'].includes(action)
+    const status = ['approved', 'not_book', 'excluded'].includes(action)
       ? 'completed'
       : action === 'requeued'
         ? 'queued'
