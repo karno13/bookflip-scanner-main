@@ -86,6 +86,8 @@ try {
   const scenario = await page.locator('#scenarioResult').textContent();
   assert.match(scenario, /32,00/, 'purchase + delivery + costs in PLN');
   assert.match(scenario, /8,00/, 'profit in PLN');
+  await page.locator('#scenarioResale').fill('20');
+  assert.match(await page.locator('#scenarioResult').textContent(), /[-−]12,00/, 'loss stays signed');
   await page.locator('.offer-workspace input[type="number"]').fill('30');
   await page.locator('.offer-workspace button').click();
   await page.waitForFunction(() => document.querySelector('.offer-workspace small[role="status"]')?.textContent?.includes('Zapisano'));
