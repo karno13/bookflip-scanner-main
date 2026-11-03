@@ -31,6 +31,7 @@ import {
   listCatalogOffers,
   listCatalogWorks,
   listIdentificationJobs,
+  matchIdentificationJobByIsbn,
 } from './catalog-api.mjs';
 import { analyzedOffers, bookHistory, bookStatistics } from './price-analysis.mjs';
 import { sqliteHistoryModel } from './sqlite-history-read.mjs';
@@ -785,6 +786,20 @@ export function createLocalAppServer({
           response,
           200,
           JSON.stringify(decideIdentificationJob(catalog.repository, id, await readJson(request))),
+        );
+      }
+      if (
+        request.method === 'POST' &&
+        /^\\/api\\/identification-jobs\\/[^/]+\\/match-isbn$/.test(url.pathname)
+      ) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.split('/')[3]);
+        const input = await readJson(request);
+        return send(
+          response,
+          200,
+          JSON.stringify(await matchIdentificationJobByIsbn(catalog, id, input)),
         );
       }
       if (request.method === 'POST' && url.pathname === '/api/catalog/isbn-check') {
