@@ -1,3 +1,4 @@
+import { sharedMarketplaceGate } from './marketplace-gate.mjs';
 import { queryText, matchesTopic, excludesProduct } from './search-policy.mjs';
 import { bibliographicMetadata, extractOfferISBN } from './isbn.mjs';
 import { createHash } from 'node:crypto';
@@ -102,7 +103,6 @@ export function retryAfterSeconds(header, now = Date.now()) {
     ? Math.min(86400, Math.max(30, Math.ceil(seconds)))
     : 30;
 }
-const lastReads = new Map();
 export function sourceChallenge(html) {
   // Embedded form integrations are not access challenges. Inspect visible markup,
   // while retaining explicit challenge-provider endpoints even inside scripts.
@@ -146,7 +146,7 @@ async function readBody(response, limit = 4000000) {
 }
 export async function readSourceHtml(
   raw,
-  { fetcher = fetch, source, pause = wait, now = Date.now } = {},
+  { fetcher = fetch, source, pause = wait, now = Date.now, gate = sharedMarketplaceGate } = {},
 ) {
   const config = sources[source];
   if (!config) throw Error('UNTRUSTED_MARKETPLACE_TASK');
@@ -162,8 +162,7 @@ export async function readSourceHtml(
       url.port
     )
       throw Error('UNSAFE_SOURCE_REDIRECT');
-    await pause(Math.max(0, (lastReads.get(source) || 0) + 2000 - now()), undefined, { signal });
-    lastReads.set(source, now());
+    await gate.acquire(source, {now, pause, signal});
     const response = await fetcher(url, {
       headers: { Accept: 'text/html', 'User-Agent': 'BookFlip/1.0 (book price comparison)' },
       redirect: 'manual',
@@ -171,6 +170,7 @@ export async function readSourceHtml(
     });
     if ([403, 429].includes(response.status)) {
       const retryAfter = retryAfterSeconds(response.headers.get('retry-after'), now());
+      gate.cooldown(source, retryAfter, {now});
       if (response.status === 403) {
         let html;
         try {
@@ -203,6 +203,10 @@ export async function readSourceHtml(
       await response.body?.cancel();
       const retryable =
         response.status === 408 || response.status === 425 || response.status >= 500;
+      if (retryable) {
+        const cooldown = retryAfterSeconds(response.headers.get('retry-after'), now());
+        gate.cooldown(source, cooldown, {now});
+      }
       throw Object.assign(Error('SOURCE_HTTP_' + response.status), {
         status: response.status,
         retryable,
