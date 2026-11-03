@@ -14,7 +14,9 @@ test('price evidence and review guidance remain accessible in semantic disclosur
   }
   assert.match(offers, /Wielokrotne odczyty tej samej ceny nie są niezależnymi transakcjami/);
   assert.match(offers, /Przed podatkiem, bez gwarancji sprzedaży/);
-  assert.match(review, /Sprawdź zgodność przed zatwierdzeniem/);\n  assert.match(review, /<details class="lean-review-candidate"/);\n  assert.match(review, /<details class="lean-review-evidence"/);
+  assert.match(review, /Sprawdź zgodność przed zatwierdzeniem/);
+  assert.match(review, /<details class="lean-review-candidate"/);
+  assert.match(review, /<details class="lean-review-evidence"/);
   assert.match(review, /Zatwierdź wydanie/);
 });
 test('secondary disclosures retain visible keyboard focus and touch targets', () => {
