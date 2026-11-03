@@ -576,6 +576,16 @@ $('#catalogSort').addEventListener('change', () => scheduleGlobalCatalogSearch('
 $('#catalogSearch').addEventListener('input', () => scheduleGlobalCatalogSearch('works'));
 for (const selector of ['#offerSource', '#offerStatus', '#offerSort'])
   $(selector).addEventListener('change', () => scheduleGlobalCatalogSearch('offers'));
+document.querySelectorAll('#view-offers [data-offer-sort]').forEach((button) =>
+  button.addEventListener('click', () => {
+    const field = $('#offerSort');
+    field.value = field.value === button.dataset.offerSort
+      ? button.dataset.offerSortReverse
+      : button.dataset.offerSort;
+    state.offerPage = 1;
+    scheduleGlobalCatalogSearch('offers');
+  }),
+);
 $('#offerSearch').addEventListener('input', () => scheduleGlobalCatalogSearch('offers'));
 $('#offerPrev').addEventListener('click', () => {
   state.offerPage -= 1;
