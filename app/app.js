@@ -300,6 +300,10 @@ function updateCatalogLoadControls() {
     const view = document.querySelector('#view-' + source.view);
     if (!view) continue;
     let control = view.querySelector('[data-load-catalog-kind="' + kind + '"]');
+    if (kind === 'jobs') {
+      control?.remove();
+      continue; // Review list loads more as it is scrolled.
+    }
     if (!control) {
       control = document.createElement('button');
       control.type = 'button';
@@ -642,6 +646,31 @@ async function restoreLastScanStatus() {
 
 const scanInsights = createScanInsights({ $, json, escapeHtml });
 const setsView = createSetsView({ $, json, escapeHtml, toast });
+// Review: one scrolling list, no separate page-level loading controls.
+let reviewScrollLoading = false;
+$('#reviewList').addEventListener('scroll', async (event) => {
+  const list = event.currentTarget;
+  if (reviewScrollLoading || state.activeView !== 'review') return;
+  if (list.scrollTop + list.clientHeight < list.scrollHeight - 180) return;
+  reviewScrollLoading = true;
+  try {
+    if ((state.visibleRows.jobs || 100) < state.reviewJobs.length) {
+      state.visibleRows.jobs = Math.min(state.visibleRows.jobs + 100, state.reviewJobs.length);
+      renderReview();
+    } else if (state.catalogPages.jobs.offset < state.catalogPages.jobs.total) {
+      const loaded = await loadCatalogPage('jobs');
+      if (loaded) {
+        state.visibleRows.jobs += 100;
+        renderReview();
+      }
+    }
+  } catch (error) {
+    toast('Nie udało się wczytać dalszych ofert: ' + error.message);
+  } finally {
+    reviewScrollLoading = false;
+  }
+});
+
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog });
 const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows });
 const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats });

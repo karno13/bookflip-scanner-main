@@ -31,6 +31,7 @@ import {
   listCatalogOffers,
   listCatalogWorks,
   listIdentificationJobs,
+  matchIdentificationJobByIsbn,
 } from './catalog-api.mjs';
 import { analyzedOffers, bookHistory, bookStatistics } from './price-analysis.mjs';
 import { sqliteHistoryModel } from './sqlite-history-read.mjs';
@@ -785,6 +786,36 @@ export function createLocalAppServer({
           response,
           200,
           JSON.stringify(decideIdentificationJob(catalog.repository, id, await readJson(request))),
+        );
+      }
+      if (
+        request.method === 'POST' &&
+        /^\/api\/identification-jobs\/[^/]+\/find-isbn$/.test(url.pathname)
+      ) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.split('/')[3]);
+        const job = catalog.repository.database.prepare(
+          "SELECT j.id,o.original_title FROM identification_jobs j JOIN offers o ON o.id=j.offer_id WHERE j.id=? AND j.status='review_required'",
+        ).get(id);
+        if (!job) return send(response, 404, JSON.stringify({ error: 'REVIEW_JOB_NOT_FOUND' }));
+        const input = await readJson(request);
+        return send(response, 200, JSON.stringify(
+          await catalog.findIsbnsByTitle(input?.title || job.original_title),
+        ));
+      }
+      if (
+        request.method === 'POST' &&
+        /^\/api\/identification-jobs\/[^/]+\/match-isbn$/.test(url.pathname)
+      ) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.split('/')[3]);
+        const input = await readJson(request);
+        return send(
+          response,
+          200,
+          JSON.stringify(await matchIdentificationJobByIsbn(catalog, id, input)),
         );
       }
       if (request.method === 'POST' && url.pathname === '/api/catalog/isbn-check') {

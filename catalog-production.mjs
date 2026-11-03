@@ -5,7 +5,8 @@ import { CatalogResolver } from './catalog-resolver.mjs';
 import { IdentificationWorker } from './identification-worker.mjs';
 import { createBnAdapter } from './metadata-sources/bn.mjs';
 import { createOpenLibraryAdapter } from './metadata-sources/open-library.mjs';
-import { SourceRateLimiter } from './metadata-http.mjs';
+import { SourceRateLimiter, createJsonRequester } from './metadata-http.mjs';
+import { findTitleIsbnCandidates } from './catalog-title-isbn.mjs';
 import { lookupISBN, SqliteMetadataCache } from './metadata-lookup.mjs';
 import { extractOfferISBN } from './isbn.mjs';
 import { identifyOffer } from './offer-identity.mjs';
@@ -45,6 +46,17 @@ export function createProductionCatalog({
     timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
     userAgent: `BookFlip/2.0 (catalog resolver; ${contact})`,
   });
+  const titleBnRequest = createJsonRequester({
+    fetcher, limiter: new SourceRateLimiter({ minIntervalMs: 1_000 }),
+    timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
+    retries: 1,
+  });
+  const titleOlRequest = createJsonRequester({
+    fetcher, limiter: new SourceRateLimiter({ minIntervalMs: 1_000 }),
+    timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
+    retries: 1,
+    headers: { 'User-Agent': `BookFlip/2.0 (title lookup; ${contact})` },
+  });
   const cache = new SqliteMetadataCache(repository, { now });
   const resolver = new CatalogResolver({
     repository,
@@ -68,6 +80,12 @@ export function createProductionCatalog({
     repository,
     resolver,
     worker,
+    findIsbnsByTitle(title) {
+      return findTitleIsbnCandidates(title, {
+        requestBn: titleBnRequest,
+        requestOpenLibrary: titleOlRequest,
+      });
+    },
     lookupIsbn(isbn) {
       return lookupISBN(isbn, { bnAdapter, openLibraryAdapter, cache });
     },

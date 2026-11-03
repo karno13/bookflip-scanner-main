@@ -1,3 +1,4 @@
+import { normalizeISBN } from './isbn-normalization.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 
 const json = (value, fallback = null) => {
@@ -434,6 +435,59 @@ export function listIdentificationJobs(repository, options = {}) {
       },
     })),
   };
+}
+
+/**
+ * Resolve a reviewed ISBN against the local catalog and metadata providers,
+ * with the original offer context. Unlike catalog-only lookup this can attach
+ * the offer, but never silently overrides a manual assignment.
+ */
+export async function matchIdentificationJobByIsbn(
+  catalog,
+  jobId,
+  input = {},
+  { now = () => new Date() } = {},
+) {
+  const repository = catalog.repository;
+  const job = repository.database
+    .prepare('SELECT id,offer_id,status FROM identification_jobs WHERE id=?')
+    .get(String(jobId));
+  if (!job) throw Object.assign(Error('IDENTIFICATION_JOB_NOT_FOUND'), { statusCode: 404 });
+  if (job.status !== 'review_required')
+    throw Object.assign(Error('REVIEW_JOB_NOT_PENDING'), { statusCode: 409 });
+  const offer = repository.database.prepare(
+    'SELECT observed_isbn FROM offers WHERE id=?',
+  ).get(job.offer_id);
+  const raw = String(input.isbn ?? offer?.observed_isbn ?? '').trim();
+  if (!raw) throw Object.assign(Error('ISBN_REQUIRED'), { statusCode: 400 });
+  const isbn = normalizeISBN(raw);
+  if (!isbn) throw Object.assign(Error('INVALID_ISBN'), { statusCode: 400 });
+  // A typed ISBN is an explicit operator assertion, not evidence extracted
+  // from an unrelated advertisement. The resolver still validates context.
+  const result = await catalog.resolver.resolve({
+    offerId: job.offer_id,
+    evidence: {
+      status: 'valid',
+      values: [isbn],
+      isbn,
+      candidateIsbn: isbn,
+      classification: 'structured',
+      autoAssignable: true,
+      reviewRequired: false,
+      observations: [{ value: isbn, classification: 'structured', source: 'review:operator' }],
+    },
+  });
+  const matched = ['matched_existing', 'created_edition', 'created_work_and_edition']
+    .includes(result.decision);
+  const at = now().toISOString();
+  // Do not mark the job completed for temporary API errors, missing metadata,
+  // or mismatched bibliographic information.
+  const saved = repository.database.prepare(
+    "UPDATE identification_jobs SET status=?,result_json=?,updated_at=?,last_error=NULL WHERE id=? AND status='review_required'",
+  ).run(matched ? 'completed' : 'review_required', JSON.stringify(result), at, job.id);
+  if (Number(saved.changes) !== 1)
+    throw Object.assign(Error('REVIEW_JOB_CHANGED'), { statusCode: 409 });
+  return { ...result, isbn, matched, status: matched ? 'completed' : 'review_required' };
 }
 
 export function decideIdentificationJob(

@@ -101,3 +101,40 @@
 #view-offers .offer-sort-arrow{font-size:12px;line-height:1;opacity:.55}
 #view-offers .offer-sort-header.active .offer-sort-arrow{opacity:1}
 @media(max-width:760px){#view-offers .offer-sort-label{display:none}#view-offers #offerSort{flex:1;min-width:145px}}
+
+/* Review workspace: content-first decisions, one independent scrolling offer list. */
+@media(min-width:761px){
+  #view-review{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;padding:10px 14px}
+  #view-review .view-heading{flex-shrink:0;margin-bottom:6px}
+  #view-review .view-heading .section-eyebrow,#view-review .view-heading p:not(.section-eyebrow){display:none}
+  #view-review .view-heading h2{font-size:18px;margin:0}
+  #view-review .identification-progress{flex-shrink:0;margin-bottom:7px!important}
+  #view-review .filterbar{flex-shrink:0;margin-bottom:7px}
+  #view-review .split-workspace{display:grid;grid-template-columns:minmax(280px,38fr) minmax(0,62fr);flex:1 1 auto;height:auto;min-height:0;gap:10px}
+  #view-review .review-list,#view-review .detail-panel{min-height:0;max-height:none;height:100%;overflow:auto}
+  #view-review .lean-review{min-height:0;height:auto}
+  #view-review .lean-review-footer{position:static;margin-top:0;box-shadow:none}
+  #view-review [data-load-catalog-kind="jobs"],#view-review [data-show-loaded-kind="jobs"]{display:none!important}
+}
+.lean-review-more{position:relative;max-width:100%}
+.lean-review-more>summary{cursor:pointer;font-size:11px;color:var(--green-dark);border:1px solid var(--line);border-radius:7px;padding:7px 10px;background:#fff;min-height:28px}
+.lean-review-more>div{display:flex;gap:6px;flex-wrap:wrap;padding:7px 0}
+.lean-review-more>summary:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.lean-review-footer{gap:5px}
+.lean-review-body{padding-bottom:8px}
+#view-review .lean-review-isbn-tools #reviewIsbnMatchButton{min-height:34px}
+@media(max-width:760px){#view-review .lean-review-footer{position:static;margin-top:0;box-shadow:none}}
+
+.lean-review-title-lookup{display:flex;gap:6px;align-items:center}
+.lean-review-title-lookup[hidden]{display:none}
+.lean-review-title-lookup input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--text);font:inherit;height:34px}
+.lean-review-title-lookup .button{min-height:34px;white-space:nowrap;padding:7px 10px;font-size:11px}
+.lean-review-title-matches:empty{display:none}
+.lean-review-title-matches{max-height:195px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:7px;background:#fff}
+.lean-review-title-matches p{margin:4px 2px 7px;font-size:10px;color:var(--muted)}
+.lean-review-title-option{width:100%;border:0;border-top:1px solid var(--line);display:grid;gap:3px;cursor:pointer;background:#fff;text-align:left;padding:8px 6px}
+.lean-review-title-option:first-of-type{border-top:0}
+.lean-review-title-option:hover,.lean-review-title-option:focus-visible{background:var(--green-soft)}
+.lean-review-title-option strong{font-size:11px}
+.lean-review-title-option small{font-size:10px;color:var(--muted)}
+@media(max-width:760px){.lean-review-title-lookup{flex-wrap:wrap}.lean-review-title-lookup input{flex-basis:100%}}
