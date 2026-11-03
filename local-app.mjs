@@ -1,3 +1,4 @@
+import { listOfferWorkspace, setOfferWorkspace } from './offer-workspace-api.mjs';
 import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
 import { createScanDiagnostics, addScanEvent, scanProgress, scanTelemetry } from './scan-diagnostics.mjs';
 import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from './offer-sets.mjs';
@@ -616,6 +617,18 @@ export function createLocalAppServer({
         return data
           ? send(response, 200, JSON.stringify(data))
           : send(response, 404, JSON.stringify({ error: 'EDITION_NOT_FOUND' }));
+      }
+      if (request.method === 'GET' && url.pathname === '/api/offer-workspace') {
+        const catalog=getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        return send(response,200,JSON.stringify({items:listOfferWorkspace(catalog.repository)}));
+      }
+      if (request.method === 'PUT' && url.pathname.startsWith('/api/offer-workspace/')) {
+        const catalog=getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        const id=decodeURIComponent(url.pathname.slice('/api/offer-workspace/'.length));
+        const input=await readJson(request);
+        return send(response,200,JSON.stringify(setOfferWorkspace(catalog.repository,id,input)));
       }
       if (request.method === 'GET' && url.pathname === '/api/offers') {
         const catalog = getProductionCatalog();
