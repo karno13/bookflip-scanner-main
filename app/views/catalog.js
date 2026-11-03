@@ -200,3 +200,4 @@ async function openEditionDetail(id) {
 
 return { catalogRows, validCoverIsbn, coverPreviewMarkup, renderCatalog, openCatalogDetail, priceStats, offerPriceSummary, offerPriceSummaryMarkup, openEditionDetail };
 }
+
