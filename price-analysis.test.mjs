@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyScanToHistory, emptyOfferHistory } from './offer-history.mjs';
-import { assessOffer, bookStatistics, median } from './price-analysis.mjs';
+import { assessOffer, analyzedOffers, bookStatistics, median } from './price-analysis.mjs';
 
 const isbn = '9788388916014';
 function build(prices) {
@@ -77,4 +77,36 @@ test('offers without ISBN or enough comparables receive no categorical rating', 
   assert.equal(assessment.label, 'Brak oceny');
   assert.equal(assessment.reason, 'Za mało danych do oceny');
   assert.equal(assessOffer(unlinked, 'OLX:abc').label, 'Brak oceny');
+});
+
+test('batched classification matches independent leave-one-out median for duplicate prices',()=>{
+  const base = build([5000,5000,6000,6500,10000,10000,12000]);
+  const ids = Object.keys(base.offers);
+  base.offers[ids[5]].availability = 'unavailable';
+  const fast = analyzedOffers(base);
+  const byId=new Map(fast.map(offer=>[offer.id,offer]));
+  for(const offer of Object.values(base.offers)){
+    const others=Object.values(base.offers)
+      .filter(row=>row.bookId===offer.bookId && row.currentPrice>0 &&
+        row.availability!=='unavailable' && row.id!==offer.id);
+    const expectedMedian=median(others.map(row=>row.currentPrice));
+    const actual=byId.get(offer.id).assessment;
+    assert.equal(actual.median,expectedMedian,offer.id);
+    assert.equal(actual.comparableOffers,others.length,offer.id);
+    assert.deepEqual(actual,assessOffer(base,offer.id),offer.id);
+  }
+});
+test('unassigned batch analysis is linear in its result size and preserves none classification',()=>{
+  const history=emptyOfferHistory();
+  for(let index=0;index<1200;index++){
+    const id='test:'+index;
+    history.offers[id]={
+      id, bookId:null, currentPrice:2500,
+      originalTitle:'Unknown edition '+index,availability:'unconfirmed',
+    };
+  }
+  const rows=analyzedOffers(history);
+  assert.equal(rows.length,1200);
+  assert.equal(rows[0].assessment.code,'none');
+  assert.equal(rows.at(-1).assessment.median,null);
 });
