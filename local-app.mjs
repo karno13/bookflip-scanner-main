@@ -1,3 +1,4 @@
+import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs';
 import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
 import { historyBookLabels } from './history-brief.mjs';
@@ -493,7 +494,10 @@ async function searchAndStore(
   const catalog = catalogProvider();
   if (!catalog) throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
   scanCancelled(signal);
-  const result = await awaitScan(search(input, { onProgress, detailCache: sharedVintedDetailCache, signal }), signal);
+  const detailCache = catalog.repository?.database
+    ? createSqliteVintedDetailCache(catalog.repository)
+    : sharedVintedDetailCache;
+  const result = await awaitScan(search(input, { onProgress, detailCache, signal }), signal);
   scanCancelled(signal);
   const errors = result.results
     .filter((row) => row.status !== 'ok')
