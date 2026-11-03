@@ -29,3 +29,14 @@ test('review lookup is read-only and does not silently approve an edition', asyn
   assert.match(server, /repository\.findEditionByISBN\(isbn\)/);
   assert.doesNotMatch(frontend.match(/reviewIsbnCheckButton'\)\.addEventListener[\s\S]*?\n  \}\);/)?.[0] ?? '', /decideReview\(|approveReview\(/);
 });
+
+test('top ISBN matching selects an edition but requires explicit approval', async () => {
+  const frontend = await readFile(new URL('./app/views/review.js', import.meta.url), 'utf8');
+  assert.match(frontend, /id="reviewIsbnMatchButton"/);
+  const handler = frontend.split("$('#reviewIsbnMatchButton').addEventListener('click'")[1]?.split("$('#reviewIsbnCheckButton').addEventListener('click'")[0];
+  assert.ok(handler, 'ISBN match handler is present');
+  assert.match(handler, /\/api\/catalog\/isbn-check/);
+  assert.match(handler, /input\.dataset\.editionId = response\.edition\.id/);
+  assert.match(handler, /Sprawdź dane i kliknij/);
+  assert.doesNotMatch(handler, /decideReview\(|approveReview\(/);
+});

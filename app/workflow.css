@@ -55,3 +55,49 @@
 .lean-review-reject select{flex:1;min-width:100px;max-width:240px;height:36px;border:1px solid var(--line);border-radius:7px;padding:0 7px;background:#fff;color:var(--text);font:inherit}
 .lean-review-secondary-actions .button{padding:5px 9px;font-size:10px}
 @media(max-width:760px){#view-review .detail-panel{max-height:none}.lean-review-header{padding:12px}.lean-review-body{padding:12px}.lean-review-footer{padding:10px}.lean-review-isbn-tools{flex-wrap:wrap}.lean-review-isbn-tools input{flex-basis:100%}.lean-review-reject{min-width:100%}.lean-review-section-title{flex-wrap:wrap}}
+
+/* Compact, decision-first review workspace */
+#view-review .identification-progress{display:grid;grid-template-columns:auto minmax(90px,1fr) auto;align-items:center;column-gap:10px;min-height:34px!important;padding:7px 11px!important}
+#view-review .identification-progress>div{display:contents!important}
+#view-review .identification-progress strong{font-size:11px;white-space:nowrap}
+#view-review .identification-progress progress{grid-column:2;grid-row:1;margin:0!important;height:6px!important}
+#view-review #identificationProgressLabel{grid-column:3;grid-row:1;font-size:11px;white-space:nowrap}
+#view-review #identificationProgressDetails{display:none}
+#view-review .review-item.active,#view-review .review-item[aria-current="true"]{background:#e3f0e8!important;box-shadow:inset 4px 0 0 var(--green)}
+#view-review .review-item:focus-visible{outline:3px solid var(--green);outline-offset:-3px}
+.lean-review-match{border:1px solid #d6e3d7;border-radius:9px;padding:11px;background:#f7faf6}
+.lean-review-match-status{display:inline-flex;align-items:center;padding:3px 7px;border-radius:30px;background:#e3f2e8;color:#1c6346;font-weight:700!important;font-size:10px!important;white-space:nowrap}
+.lean-review-match-status.is-conflict{background:#fff0e2;color:#943c1c}
+.lean-review-edition{display:grid;gap:8px;background:#fff;border:1px solid #e1e9e1;padding:10px;border-radius:8px}
+.lean-review-edition>strong{font:700 14px/1.3 Georgia,"Times New Roman",serif;color:#173a2c}
+.lean-review-edition-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.lean-review-edition-meta>span{display:grid;gap:3px;font-size:11px;overflow-wrap:anywhere}
+.lean-review-edition-meta small{color:var(--muted);font-size:9px}
+.lean-review-empty{margin:0;background:#fff;padding:10px;border-radius:7px;color:var(--muted)}
+.lean-review-candidate{border:0;background:transparent}
+.lean-review-candidate>summary{padding:6px 1px;font-size:10px;color:var(--green-dark);font-weight:500}
+.lean-review-manual{border:1px solid var(--line);border-radius:8px;background:#fff}
+.lean-review-manual>summary{cursor:pointer;min-height:36px;display:list-item;padding:10px 12px;font-size:11px;font-weight:650}
+.lean-review-manual[open]{padding-bottom:9px}
+.lean-review-manual .book-combobox{margin:0 9px}
+.lean-review-shortcuts{color:var(--muted);font-size:10px}
+.lean-review-navigation{display:flex;gap:6px;margin-left:auto}
+.lean-review-navigation .button{min-height:28px;padding:4px 9px;font-size:11px}
+.lean-review-candidate>summary:focus-visible,.lean-review-manual>summary:focus-visible,.lean-review-evidence>summary:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:5px}
+.lean-review-isbn-tools #reviewIsbnMatchButton{font-weight:700}
+.lean-review-result{overflow-wrap:anywhere}
+@media(max-width:1080px){.lean-review-edition-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.lean-review-shortcuts{display:none}}
+@media(max-width:760px){.lean-review-navigation{width:100%;justify-content:flex-end}}
+
+.lean-review-selected{margin:0;padding:4px 2px;color:var(--green-dark);font-size:10px;font-weight:650;overflow-wrap:anywhere}
+.lean-review-selected:empty{display:none}
+
+/* Visible offer sorting, including keyboard-accessible table headers */
+#view-offers .offer-sort-label{font-size:11px;font-weight:650;color:var(--muted);white-space:nowrap}
+#view-offers #offerSort{min-width:165px}
+#view-offers .offer-sort-header{display:inline-flex;align-items:center;gap:5px;background:transparent;border:0;border-radius:5px;padding:5px 2px;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left}
+#view-offers .offer-sort-header:hover,#view-offers .offer-sort-header.active{color:var(--green-dark);text-decoration:underline}
+#view-offers .offer-sort-header:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+#view-offers .offer-sort-arrow{font-size:12px;line-height:1;opacity:.55}
+#view-offers .offer-sort-header.active .offer-sort-arrow{opacity:1}
+@media(max-width:760px){#view-offers .offer-sort-label{display:none}#view-offers #offerSort{flex:1;min-width:145px}}
