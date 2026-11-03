@@ -4,7 +4,7 @@ BookFlip to lokalna aplikacja na Windows z interfejsem w przeglądarce, skanowan
 
 ## Uruchomienie (Windows 11)
 
-1. Zainstaluj Node.js **24 lub nowszy**.
+1. Zainstaluj Node.js **24 LTS (zalecany)** albo **22.16 lub nowszy z gałęzi 22**. W Node 22 moduł `node:sqlite` pozostaje eksperymentalny; wymagane API kopii SQLite pojawiło się w 22.16. Node 23 nie jest wspierany.
 2. Pobierz aktualne repozytorium i rozpakuj je w osobnym folderze aplikacji.
 3. Uruchom **`Uruchom BookFlip Scanner.cmd`** (lub `npm start`).
 4. Otwórz `http://127.0.0.1:4317`.

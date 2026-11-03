@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Local BookFlip scanner and bibliographic SQLite catalog",
   "engines": {
-    "node": ">=24"
+    "node": "^22.16.0 || >=24.0.0"
   },
   "scripts": {
     "start": "node local-app.mjs",
