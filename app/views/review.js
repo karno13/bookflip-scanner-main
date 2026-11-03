@@ -141,7 +141,7 @@ function renderReviewDetail() {
       <div class="lean-review-body">
         <div class="lean-review-isbn">
           <label for="reviewIsbnCheckInput"><strong>ISBN</strong><span>${escapeHtml(offer.observedIsbn || 'nie wykryto — wpisz ręcznie')}</span></label>
-          <div class="lean-review-isbn-tools"><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 / ISBN-13" aria-label="ISBN do weryfikacji"><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">BN / Open Library</button></div>
+          <div class="lean-review-isbn-tools"><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 / ISBN-13" aria-label="ISBN do weryfikacji"><button class="button primary" type="button" id="reviewIsbnMatchButton">Dopasuj po ISBN</button><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">BN / Open Library</button></div>
           <p id="reviewIsbnCheckResult" class="lean-review-result" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p>
         </div>
         <section class="lean-review-match"><div class="lean-review-section-title"><strong>Proponowane wydanie</strong><span>${suggested ? 'Sprawdź zgodność przed zatwierdzeniem' : 'Brak automatycznego dopasowania'}</span></div>
@@ -206,6 +206,45 @@ function renderReviewDetail() {
       input.placeholder = 'Konflikt ISBN — wybierz wydanie ręcznie';
     }
   }
+  $('#reviewIsbnMatchButton').addEventListener('click', async () => {
+    const button = $('#reviewIsbnMatchButton');
+    const output = $('#reviewIsbnCheckResult');
+    const isbn = $('#reviewIsbnCheckInput').value.trim();
+    if (!isbn) {
+      output.textContent = 'Wpisz ISBN książki, aby znaleźć pasujące wydanie.';
+      return;
+    }
+    button.disabled = true;
+    output.textContent = 'Szukanie wydania po ISBN w katalogu…';
+    try {
+      const response = await json('/api/catalog/isbn-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isbn }),
+      });
+      if (state.selectedReviewId !== job.id) return;
+      if (!response.found || !response.edition?.id) {
+        output.textContent = 'Brak tego ISBN w katalogu. Możesz sprawdzić BN / Open Library lub wyszukać wydanie ręcznie.';
+        return;
+      }
+      const input = $('#reviewBookSearch');
+      const options = $('#reviewBookOptions');
+      input.value = response.edition.workTitle || response.edition.title;
+      input.dataset.editionId = response.edition.id;
+      input.setAttribute('aria-expanded', 'false');
+      options.innerHTML = '';
+      options.classList.remove('is-open');
+      $('#approveReview').disabled = false;
+      output.textContent = `Dopasowano ISBN ${response.isbn} do wydania „${response.edition.title}”. Sprawdź dane i kliknij „Zatwierdź wydanie”, aby przypisać ofertę.`;
+    } catch (error) {
+      if (state.selectedReviewId === job.id)
+        output.textContent = error.message === 'INVALID_ISBN'
+          ? 'Nieprawidłowy ISBN — popraw numer i spróbuj ponownie.'
+          : 'Nie udało się dopasować ISBN: ' + error.message;
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
+  });
   $('#reviewIsbnCheckButton').addEventListener('click', async () => {
     const button = $('#reviewIsbnCheckButton');
     const result = $('#reviewIsbnCheckResult');
