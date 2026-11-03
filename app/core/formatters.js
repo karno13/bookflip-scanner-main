@@ -32,3 +32,12 @@ export function moneyFromZloty(value) {
   const grosze = zlotyToGrosze(value);
   return grosze === null ? '-' : money(grosze);
 }
+
+// Never interpolate untrusted non-HTTPS URLs into actionable links from legacy records.
+export function safeOfferHref(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname && !url.username &&
+      !url.password && !url.port ? url.href : '#';
+  } catch { return '#'; }
+}

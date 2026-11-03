@@ -90,10 +90,12 @@ function isRetryable(error) {
     String(error?.message || ''),
   );
 }
-function retryDelay(error, attempt) {
-  const suggested = Number(error?.retryAfter) * 1000,
-    fallback = 1000 * 2 ** (attempt - 1);
-  return Math.min(30000, Math.max(1000, Number.isFinite(suggested) ? suggested : fallback));
+export function retryDelay(error, attempt) {
+  const retryAfter = error?.retryAfter;
+  const suggested = retryAfter === null || retryAfter === undefined ? NaN : Number(retryAfter) * 1000;
+  if (Number.isFinite(suggested) && suggested >= 0)
+    return Math.min(24 * 60 * 60 * 1000, Math.max(1000, suggested));
+  return Math.min(30000, Math.max(1000, 1000 * 2 ** (attempt - 1)));
 }
 async function retryRead(read, { onProgress = () => {}, waiter = wait, context = {}, signal = null } = {}) {
   for (let attempt = 1; attempt <= retryLimit; attempt++)
