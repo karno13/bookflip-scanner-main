@@ -790,7 +790,7 @@ export function createLocalAppServer({
       }
       if (
         request.method === 'POST' &&
-        /^\\/api\\/identification-jobs\\/[^/]+\\/match-isbn$/.test(url.pathname)
+        /^\/api\/identification-jobs\/[^/]+\/match-isbn$/.test(url.pathname)
       ) {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
