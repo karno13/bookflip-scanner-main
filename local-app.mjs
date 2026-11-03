@@ -1,3 +1,4 @@
+import { createVintedDetailCache } from './vinted-detail-cache.mjs';
 import { listOfferWorkspace, setOfferWorkspace } from './offer-workspace-api.mjs';
 import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
 import { createScanDiagnostics, addScanEvent, scanProgress, scanTelemetry } from './scan-diagnostics.mjs';
@@ -461,6 +462,7 @@ function scheduleCatalogResolution(catalogStore) {
   return runningCatalogResolution;
 }
 
+const sharedVintedDetailCache = createVintedDetailCache();
 async function searchAndStore(
   input,
   onProgress = () => {},
@@ -469,7 +471,7 @@ async function searchAndStore(
   storageMode();
   const catalog = catalogProvider();
   if (!catalog) throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
-  const result = await search(input, { onProgress, detailCache: new Map() });
+  const result = await search(input, { onProgress, detailCache: sharedVintedDetailCache });
   const errors = result.results
     .filter((row) => row.status !== 'ok')
     .map((row) => ({
