@@ -905,7 +905,6 @@ export function createLocalAppServer({
                 catalogProvider,
                 search,
                 signal: scanAbortController.signal,
-            shouldAutoResolve: () => identificationControl?.status().running ?? true,
                 shouldAutoResolve: () => identificationControl?.status().running ?? true,
               });
               currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
@@ -929,6 +928,7 @@ export function createLocalAppServer({
             catalogProvider,
             search,
             signal: scanAbortController.signal,
+            shouldAutoResolve: () => identificationControl?.status().running ?? true,
           });
           currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
           await persistScanStatus(currentScan);
