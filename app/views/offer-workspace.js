@@ -110,6 +110,7 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
         });
         if (!sqliteNotes) sqliteNotes = {};
         sqliteNotes[id] = saved;
+        await loadOfferWorkspace(options.json);
         message.textContent = 'Zapisano w SQLite.';
         onChange();
       } catch(error) { message.textContent = 'Błąd zapisu: ' + error.message; }
