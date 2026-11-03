@@ -52,7 +52,7 @@ test('only exact Serve hostname, injected user identity and HTTPS origin are acc
   const port=server.address().port;
   try{
     assert.equal((await getOrPost(port)).status,200);
-    assert.equal((await getOrPost(port,{identity:undefined})).status,403);
+    assert.equal((await getOrPost(port,{identity:null})).status,403);
     assert.equal((await getOrPost(port,{identity:'other@example.com'})).status,403);
     assert.equal((await getOrPost(port,{hostHeader:'evil.example'})).status,403);
     assert.equal((await getOrPost(port,{hostHeader:host+'.evil.com'})).status,403);
@@ -61,7 +61,7 @@ test('only exact Serve hostname, injected user identity and HTTPS origin are acc
     assert.equal((await getOrPost(port,{method:'POST',origin:'https://attacker.example'})).status,403);
     assert.equal((await getOrPost(port,{method:'POST',origin:undefined})).status,403);
     assert.equal((await getOrPost(port,{method:'POST',origin:'https://'+host,contentType:'text/plain'})).status,415);
-    assert.equal((await getOrPost(port,{hostHeader:'127.0.0.1:'+port,identity:undefined})).status,200);
+    assert.equal((await getOrPost(port,{hostHeader:'127.0.0.1:'+port,identity:null})).status,200);
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
