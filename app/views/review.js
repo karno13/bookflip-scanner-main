@@ -157,7 +157,7 @@ function renderReviewDetail() {
           <details class="lean-review-candidate"><summary>Dowody i porównanie metadanych</summary>${candidate}</details>
         </section>
         <section class="lean-review-choice"><details id="reviewManualChoice" class="lean-review-manual" ${suggested ? '' : 'open'}><summary>Zmień / wyszukaj inne wydanie</summary>
-          <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Wpisz tytuł, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div>
+          <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Wpisz tytuł, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><p id="reviewChosenEdition" class="lean-review-selected" role="status" aria-live="polite"></p>
         </details></section>
         <details class="lean-review-evidence"><summary>Dane oferty i diagnostyka</summary><div class="detail-grid"><span><b>Źródło</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN z ogłoszenia</b><small>${escapeHtml(offer.observedIsbn || 'Brak')}</small></span><span><b>Klasyfikacja</b><small>${escapeHtml(evidence.map((row) => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="lean-review-diagnostic">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Brak dodatkowych informacji')}</p></details>
       </div>
@@ -167,12 +167,15 @@ function renderReviewDetail() {
       </footer>
     </div>`;
   $('#approveReview').disabled = !$('#reviewBookSearch').dataset.editionId;
+  const chosenEdition = $('#reviewChosenEdition');
+  chosenEdition.textContent = suggested ? `Wybrane: ${suggested.work.title} — ${suggested.edition.title}` : 'Nie wybrano wydania.';
   const reviewPosition = filteredReviewOffers().findIndex((row) => row.id === job.id);
   $('#reviewPrev').disabled = reviewPosition <= 0;
   $('#reviewNext').disabled = reviewPosition < 0 || reviewPosition >= filteredReviewOffers().length - 1;
   $('#reviewBookSearch').addEventListener('input', (event) => {
     event.target.dataset.editionId = '';
     $('#approveReview').disabled = true;
+    $('#reviewChosenEdition').textContent = 'Nie wybrano wydania.';
     $('#reviewBookOptions').classList.add('is-open');
     event.target.setAttribute('aria-expanded', 'true');
     renderReviewBookChoices(event.target.value);
@@ -216,10 +219,12 @@ function renderReviewDetail() {
       input.dataset.editionId = '';
       input.value = '';
       input.placeholder = 'Konflikt ISBN — wybierz wydanie ręcznie';
+      chosenEdition.textContent = 'Konflikt ISBN — wybierz inne wydanie.';
     }
   }
   $('#reviewIsbnCheckInput').addEventListener('input', () => {
     $('#reviewBookSearch').dataset.editionId = '';
+    $('#reviewChosenEdition').textContent = 'ISBN zmieniony — dopasuj ponownie.';
     $('#approveReview').disabled = true;
     $('#reviewIsbnCheckResult').textContent = 'ISBN zmieniony — dopasuj ponownie przed zatwierdzeniem.';
   });
@@ -248,6 +253,7 @@ function renderReviewDetail() {
       const options = $('#reviewBookOptions');
       input.value = response.edition.workTitle || response.edition.title;
       input.dataset.editionId = response.edition.id;
+      $('#reviewChosenEdition').textContent = `Wybrane po ISBN: ${response.edition.workTitle || response.edition.title} — ${response.edition.title}`;
       input.setAttribute('aria-expanded', 'false');
       options.innerHTML = '';
       options.classList.remove('is-open');
@@ -404,6 +410,7 @@ function renderReviewBookChoices(query = '', works = state.catalogWorks) {
     button.addEventListener('click', () => {
       input.value = button.dataset.reviewBookTitle;
       input.dataset.editionId = button.dataset.reviewEditionId;
+      $('#reviewChosenEdition').textContent = `Wybrane ręcznie: ${button.dataset.reviewBookTitle}`;
       input.setAttribute('aria-expanded', 'false');
       list.innerHTML = '';
       list.classList.remove('is-open');
