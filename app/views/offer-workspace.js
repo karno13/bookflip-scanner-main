@@ -20,17 +20,24 @@ export function saveOfferNotes(notes, storage = localStorage) {
     return true;
   } catch { return false; }
 }
-export function isWatchedOffer(id) {
-  return Boolean(readOfferNotes()[String(id)]?.watched);
+let sqliteNotes = null;
+export function allSavedOfferNotes() { return sqliteNotes || {}; }
+export async function loadOfferWorkspace(json) {
+  const response = await json('/api/offer-workspace');
+  sqliteNotes = Object.fromEntries((response.items || []).map(item => [item.offerId,item]));
+  return sqliteNotes;
 }
-export function mountOfferWorkspace(offer, container, onChange = () => {}) {
+export function isWatchedOffer(id) {
+  return Boolean(sqliteNotes?.[String(id)]?.watched);
+}
+export function mountOfferWorkspace(offer, container, onChange = () => {}, options = {}) {
   const id = String(offer.id);
-  const notes = readOfferNotes();
+  const notes = options.json ? (sqliteNotes || {}) : readOfferNotes();
   const current = notes[id] || {};
   const section = document.createElement('section');
   section.className = 'detail-section offer-workspace';
   const title = document.createElement('h4');
-  title.textContent = 'Moja lista zakupowa (tylko ta przeglądarka)';
+  title.textContent = options.json ? 'Moja lista zakupowa (SQLite)' : 'Moja lista zakupowa (tylko ta przeglądarka)';
   section.append(title);
   const watched = document.createElement('label');
   watched.className = 'offer-workspace-check';
@@ -68,24 +75,49 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}) {
   const message = document.createElement('small');
   message.setAttribute('role', 'status');
   section.append(status, target, note, save, message);
-  const commit = () => {
+  const targetStatus = document.createElement('small');
+  targetStatus.setAttribute('role', 'status');
+  section.append(targetStatus);
+  const showThreshold = () => {
+    const value = target.value.trim() === '' ? null : Number(target.value);
+    const asking = Number(offer.currentPrice);
+    targetStatus.textContent = value !== null && Number.isFinite(value) && value >= 0 && Number.isFinite(asking) && offer.currency === 'PLN'
+      ? asking <= value ? 'Cena osiągnęła próg: oferta w cenie docelowej lub niższej.' : 'Cena jest wyższa od docelowej o ' + (asking-value).toFixed(2) + ' zł.'
+      : value !== null && offer.currency !== 'PLN' ? 'Próg dotyczy wyłącznie ofert w PLN.' : '';
+  };
+  target.addEventListener('input', showThreshold);
+  showThreshold();
+  const commit = async () => {
     const value = target.value.trim();
     const price = value === '' ? null : Number(value);
     if (price !== null && (!Number.isFinite(price) || price < 0)) {
       message.textContent = 'Cena docelowa musi być nieujemna.';
       return;
     }
+    const record = {
+      watched: checkbox.checked,
+      status: status.value,
+      targetPrice: price,
+      note: note.value.trim().slice(0, 2000),
+    };
+    if (options.json) {
+      save.disabled = true;
+      checkbox.disabled = true;
+      try {
+        const saved = await options.json('/api/offer-workspace/' + encodeURIComponent(id), {
+          method:'PUT', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(record)
+        });
+        if (!sqliteNotes) sqliteNotes = {};
+        sqliteNotes[id] = saved;
+        message.textContent = 'Zapisano w SQLite.';
+        onChange();
+      } catch(error) { message.textContent = 'Błąd zapisu: ' + error.message; }
+      finally { save.disabled = false; checkbox.disabled = false; }
+      return;
+    }
     const updated = readOfferNotes();
-    const watchedValue = checkbox.checked;
-    if (watchedValue || note.value.trim() || price !== null || status.value !== 'watching') {
-      updated[id] = {
-        watched: watchedValue,
-        status: status.value,
-        targetPrice: price,
-        note: note.value.trim().slice(0, 2000),
-        updatedAt: new Date().toISOString(),
-      };
-    } else delete updated[id];
+    updated[id] = { ...record, updatedAt:new Date().toISOString() };
     message.textContent = saveOfferNotes(updated)
       ? 'Zapisano lokalnie w tej przeglądarce.'
       : 'Nie udało się zapisać danych przeglądarki.';
