@@ -42,11 +42,11 @@ function ensureWatchFilter() {
           note: String(entry?.note || '').slice(0, 2000),
         },
       }));
-      for (let index = 0; index < entries.length; index += 200) {
+      for (let index = 0; index < entries.length; index += 10) {
         const outcome = await json('/api/offer-workspace/import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries: entries.slice(index, index + 200) }),
+          body: JSON.stringify({ entries: entries.slice(index, index + 10) }),
         });
         imported += outcome.imported;
         skipped += outcome.skipped;
