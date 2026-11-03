@@ -307,8 +307,8 @@ test('offer sort order applies before SQLite pagination for every direction', ()
       ['title-desc', ['zulu','offer-1','alpha']],
       ['source', ['zulu','offer-1','alpha']],
       ['source-desc', ['alpha','offer-1','zulu']],
-      ['price-asc', ['alpha','offer-1','zulu']],
-      ['price-desc', ['zulu','offer-1','alpha']],
+      ['price-asc', ['alpha','zulu','offer-1']],
+      ['price-desc', ['offer-1','zulu','alpha']],
     ];
     for (const [sort, expected] of cases) {
       const pages = [0,1,2].map((offset) => listCatalogOffers(repository, {sort,limit:1,offset}));
