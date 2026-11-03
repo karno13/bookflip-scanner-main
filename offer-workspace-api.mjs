@@ -22,7 +22,7 @@ export function setOfferWorkspace(repository, offerId, input) {
  const target=input.targetPrice;
  const note=input.note;
  if(typeof watched !== 'boolean' || !statuses.has(status) ||
-    (target !== null && (!Number.isFinite(target) || target < 0 || target > 100000000 || Math.round(target * 100) !== target * 100)) ||
+    (target !== null && (!Number.isFinite(target) || target < 0 || target > 100000000 || Math.abs(Math.round(target * 100) - target * 100) > 1e-7)) ||
     typeof note !== 'string' || note.length > 2000)
     throw Object.assign(Error('INVALID_OFFER_WORKSPACE'),{statusCode:400});
  const now=new Date().toISOString();
