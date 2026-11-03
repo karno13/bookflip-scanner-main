@@ -31,6 +31,8 @@ test('local Windows launcher requires supported Node and project declares runtim
   const pkg = JSON.parse(read('package.json'));
   assert.match(cmd, /process\.versions\.node/);
   assert.equal(pkg.private, true);
-  assert.equal(pkg.engines.node, '>=24');
+  assert.equal(pkg.engines.node, '^22.16.0 || >=24.0.0');
+  assert.match(cmd, /v\[0\]===22 && v\[1\]>=16/);
+  assert.match(cmd, /v\[0\]>=24/);
   assert.equal(pkg.scripts.test, 'node --test');
 });
