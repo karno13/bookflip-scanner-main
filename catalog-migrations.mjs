@@ -32,7 +32,7 @@ function allowExcludedReviewDecisions(database) {
   ).get();
   if (!table) return;
   const expanded = table.sql.replace(
-    /('not_book'\\s*,\\s*)('requeued')/,
+    /('not_book'\s*,\s*)('requeued')/,
     "$1'excluded',$2",
   );
   if (expanded === table.sql) return;
@@ -44,7 +44,7 @@ function allowExcludedReviewDecisions(database) {
     database.exec('BEGIN IMMEDIATE');
     try {
       const createTemp = expanded.replace(
-        /^(CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?)(?:"review_decisions"|`review_decisions`|review_decisions)/i,
+        /^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(?:"review_decisions"|`review_decisions`|review_decisions)/i,
         '$1review_decisions_upgrade',
       );
       if (createTemp === expanded) throw Error('REVIEW_DECISIONS_SCHEMA_UNRECOGNIZED');
