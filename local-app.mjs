@@ -1,4 +1,5 @@
 import { historyBookLabels } from './history-brief.mjs';
+import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
 import { listOfferWorkspace, setOfferWorkspace } from './offer-workspace-api.mjs';
 import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
@@ -89,11 +90,12 @@ function retryDelay(error, attempt) {
     fallback = 1000 * 2 ** (attempt - 1);
   return Math.min(30000, Math.max(1000, Number.isFinite(suggested) ? suggested : fallback));
 }
-async function retryRead(read, { onProgress = () => {}, waiter = wait, context = {} } = {}) {
+async function retryRead(read, { onProgress = () => {}, waiter = wait, context = {}, signal = null } = {}) {
   for (let attempt = 1; attempt <= retryLimit; attempt++)
     try {
-      return { value: await read(), error: null };
+      return { value: await awaitScan(read(), signal), error: null };
     } catch (error) {
+      scanCancelled(signal);
       if (attempt === retryLimit || !isRetryable(error)) return { value: null, error };
       const delayMs = retryDelay(error, attempt);
       onProgress({
@@ -104,7 +106,7 @@ async function retryRead(read, { onProgress = () => {}, waiter = wait, context =
         delayMs,
         code: safeCode(error),
       });
-      await waiter(delayMs);
+      await awaitScan(waiter(delayMs), signal);
     }
   return { value: null, error: Error('SOURCE_REQUEST_FAILED') };
 }
@@ -118,6 +120,7 @@ export async function searchOffers(
     onProgress = () => {},
     detailCache = new Map(),
     retryWait = wait,
+    signal = null,
   } = {},
 ) {
   const { queries, sources } = validateSearchInput(input),
@@ -126,6 +129,7 @@ export async function searchOffers(
   await Promise.all(
     sources.map(async (source) => {
       for (const query of queries) {
+        scanCancelled(signal);
         const task = {
           source,
           host: localSourceHosts[source],
@@ -144,6 +148,7 @@ export async function searchOffers(
             scanner,
             (event) => onProgress({ ...event, source, query }),
             retryWait,
+            signal,
           );
           let offers = scan.offers,
             diagnostic = scan.diagnostic;
@@ -155,6 +160,7 @@ export async function searchOffers(
               (event) => onProgress({ ...event, source, query }),
               languageCache,
               retryWait,
+              signal,
             );
             offers = filtered.offers;
             diagnostic = diagnostic || filtered.diagnostic;
@@ -193,6 +199,7 @@ export async function searchOffers(
       }
     }),
   );
+  scanCancelled(signal);
   const offersByUrl = new Map();
   for (const row of results) {
     for (const offer of row.offers) {
@@ -223,13 +230,14 @@ export async function searchOffers(
     results: results.map(({ offers, ...row }) => ({ ...row, count: offers.length })),
   };
 }
-async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait) {
+async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait, signal = null) {
   const offers = [],
     seenPages = new Set(),
     pages = [];
   let current = { ...task },
     diagnostic = null;
   for (let pageIndex = 0; pageIndex < 50; pageIndex++) {
+    scanCancelled(signal);
     if (seenPages.has(current.page)) {
       diagnostic = errorDiagnostic(Error('PAGINATION_LOOP'));
       break;
@@ -239,6 +247,7 @@ async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait)
     const read = await retryRead(() => scanner(current), {
       onProgress,
       waiter,
+      signal,
       context: { scope: 'page', page: current.page },
     });
     if (read.error) {
@@ -280,6 +289,7 @@ async function filterVintedPolishOffers(
   onProgress = () => {},
   cache = new Map(),
   waiter = wait,
+  signal = null,
 ) {
   offers = [...new Map(offers.map((offer) => [offer.url, offer])).values()];
   const accepted = [];
@@ -288,18 +298,21 @@ async function filterVintedPolishOffers(
     cached = 0,
     diagnostic = null;
   for (const offer of offers) {
+    scanCancelled(signal);
     let detail = cache.get(offer.url);
     if (detail) cached++;
     else {
       const read = await retryRead(() => languageReader(offer.url), {
         onProgress,
         waiter,
+        signal,
         context: { scope: 'vinted-language', item: checked + 1, total: offers.length },
       });
       if (read.error) {
         diagnostic = errorDiagnostic(read.error);
         break;
       }
+      scanCancelled(signal);
       detail = read.value;
       cache.set(offer.url, detail);
     }
@@ -472,7 +485,9 @@ async function searchAndStore(
   storageMode();
   const catalog = catalogProvider();
   if (!catalog) throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
-  const result = await search(input, { onProgress, detailCache: sharedVintedDetailCache });
+  scanCancelled(signal);
+  const result = await awaitScan(search(input, { onProgress, detailCache: sharedVintedDetailCache, signal }), signal);
+  scanCancelled(signal);
   const errors = result.results
     .filter((row) => row.status !== 'ok')
     .map((row) => ({
@@ -480,9 +495,10 @@ async function searchAndStore(
       query: row.query,
       code: row.diagnostic?.code || 'SOURCE_REQUEST_FAILED',
     }));
-  const saved = await withHistoryWriteLock(async () =>
-    persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors }),
-  );
+  const saved = await withHistoryWriteLock(async () => {
+    scanCancelled(signal);
+    return persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors });
+  });
   if (String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0')
     scheduleCatalogResolution(catalog);
   return {
@@ -529,6 +545,7 @@ export function createLocalAppServer({
   storageMode();
   const getProductionCatalog = catalogProvider;
   let scanInFlight = false;
+  let scanAbortController = null;
   let currentScan = null;
   const server = createServer(async (request, response) => {
     try {
@@ -767,6 +784,12 @@ export function createLocalAppServer({
         const result = await withHistoryWriteLock(async () => linkSqliteOffer(catalog, input));
         return send(response, 200, JSON.stringify(historySnapshot(result)));
       }
+      if (request.method === 'POST' && url.pathname === '/api/search/cancel') {
+        if (!scanInFlight || !scanAbortController || scanAbortController.signal.aborted)
+          return send(response, 409, JSON.stringify({ error: 'NO_ACTIVE_SCAN' }));
+        scanAbortController.abort();
+        return send(response, 202, JSON.stringify({ status: 'cancelling' }));
+      }
       if (request.method === 'POST' && url.pathname === '/api/search') {
         if (scanInFlight)
           return send(response, 409, JSON.stringify({ error: 'SCAN_ALREADY_RUNNING' }));
@@ -775,6 +798,7 @@ export function createLocalAppServer({
         try {
           const scanInput = validateSearchInput(await readJson(request));
           scanStarted = true;
+          scanAbortController = new AbortController();
           currentScan = { status: 'running', startedAt: new Date().toISOString(),
             diagnostics: createScanDiagnostics({ queries: scanInput.queries || [], sources: scanInput.sources || [] }) };
           await persistScanStatus(currentScan);
@@ -789,13 +813,14 @@ export function createLocalAppServer({
               const result = await searchAndStore(scanInput, emit, {
                 catalogProvider,
                 search,
+                signal: scanAbortController.signal,
               });
               currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
               await persistScanStatus(currentScan);
               if (!response.destroyed) response.write(JSON.stringify({ type: 'result', result }) + '\n');
               if (!response.destroyed) response.end();
             } catch (error) {
-              currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
+              currentScan = { ...currentScan, status: error.message === 'SCAN_CANCELLED' ? 'cancelled' : 'failed', finishedAt: new Date().toISOString() };
               await persistScanStatus(currentScan);
               if (!response.destroyed) response.write(
                 JSON.stringify({
@@ -810,6 +835,7 @@ export function createLocalAppServer({
           const result = await searchAndStore(scanInput, (event) => addScanEvent(currentScan.diagnostics, recordProgress(event)), {
             catalogProvider,
             search,
+            signal: scanAbortController.signal,
           });
           currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
           await persistScanStatus(currentScan);
@@ -821,6 +847,7 @@ export function createLocalAppServer({
           }
           throw error;
         } finally {
+          scanAbortController = null;
           scanInFlight = false;
         }
       }
