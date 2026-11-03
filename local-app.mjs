@@ -525,7 +525,7 @@ const sharedVintedDetailCache = createVintedDetailCache();
 async function searchAndStore(
   input,
   onProgress = () => {},
-  { catalogProvider = getProductionCatalog, search = searchOffers, signal = null } = {},
+  { catalogProvider = getProductionCatalog, search = searchOffers, signal = null, shouldAutoResolve = () => true } = {},
 ) {
   storageMode();
   const catalog = catalogProvider();
@@ -547,7 +547,7 @@ async function searchAndStore(
     scanCancelled(signal);
     return persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors });
   });
-  if (String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0')
+  if (String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0' && shouldAutoResolve())
     scheduleCatalogResolution(catalog);
   return {
     ...result,
@@ -563,6 +563,7 @@ export function createLocalAppServer({
   catalogProvider = getProductionCatalog,
   search = searchOffers,
   tailscaleAccess = tailscaleAccessFromEnv(),
+  identificationControl = null,
 } = {}) {
   storageMode();
   const getProductionCatalog = catalogProvider;
@@ -648,9 +649,18 @@ export function createLocalAppServer({
           }),
         );
       }
+      if (request.method === 'POST' && url.pathname === '/api/identification/control') {
+        const catalog = getProductionCatalog();
+        if (!catalog || !identificationControl) return send(response, 503, JSON.stringify({ error: 'IDENTIFICATION_UNAVAILABLE' }));
+        const { action } = await readJson(request);
+        if (action === 'start') identificationControl.start();
+        else if (action === 'stop') identificationControl.pause();
+        else return send(response, 400, JSON.stringify({ error: 'INVALID_IDENTIFICATION_ACTION' }));
+        return send(response, 200, JSON.stringify(identificationControl.status()));
+      }
       if (request.method === 'GET' && url.pathname === '/api/catalog/status') {
         const catalog = getProductionCatalog();
-        return send(response, 200, JSON.stringify(catalog ? catalog.status() : { enabled: false }));
+        return send(response, 200, JSON.stringify(catalog ? { ...catalog.status(), scheduler: identificationControl?.status() ?? { available: false } } : { enabled: false }));
       }
       if (request.method === 'GET' && url.pathname === '/api/catalog/series') {
         const catalog = getProductionCatalog();
@@ -895,6 +905,8 @@ export function createLocalAppServer({
                 catalogProvider,
                 search,
                 signal: scanAbortController.signal,
+            shouldAutoResolve: () => identificationControl?.status().running ?? true,
+                shouldAutoResolve: () => identificationControl?.status().running ?? true,
               });
               currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
               await persistScanStatus(currentScan);
@@ -978,25 +990,22 @@ function openLocalApp(url) {
 async function main() {
   const port = Number(process.env.BOOKFLIP_LOCAL_PORT || 4317);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('INVALID_PORT');
-  const url = `http://127.0.0.1:${port}`,
-    server = createLocalAppServer();
+  const url = `http://127.0.0.1:${port}`;
   const enabled = String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0';
-  const catalog = enabled ? getProductionCatalog() : null;
   const intervalMs = Number(process.env.BOOKFLIP_IDENTIFICATION_POLL_MS ?? 5_000);
-  const scheduler = catalog
-    ? createIdentificationScheduler({
-        runBatch: () => scheduleCatalogResolution(catalog),
-        intervalMs,
-        onError: (error) =>
-          recordProgress({
-            type: 'catalog_scheduler_error',
-            code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'CATALOG_INTEGRATION_ERROR',
-          }),
-      })
-    : null;
-  server.on('close', () => {
-    void scheduler?.stop();
+  const scheduler = createIdentificationScheduler({
+    runBatch: () => {
+      const catalog = getProductionCatalog();
+      return catalog ? scheduleCatalogResolution(catalog) : null;
+    },
+    intervalMs,
+    onError: (error) => recordProgress({
+      type: 'catalog_scheduler_error',
+      code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'CATALOG_INTEGRATION_ERROR',
+    }),
   });
+  const server = createLocalAppServer({ identificationControl: scheduler });
+  server.on('close', () => { void scheduler.stop(); });
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       console.log(`BookFlip Scanner już działa pod adresem ${url}`);
@@ -1008,7 +1017,7 @@ async function main() {
     process.exitCode = 1;
   });
   server.listen(port, '127.0.0.1', () => {
-    scheduler?.start();
+    if (enabled) scheduler.start();
     console.log(`BookFlip Scanner działa: ${url}`);
     openLocalApp(url);
   });
