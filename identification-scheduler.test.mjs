@@ -152,3 +152,49 @@ test('scheduler rejects nonbounded polling intervals', () => {
     /INVALID_SCHEDULER_INTERVAL/,
   );
 });
+
+test('pause stops future batches and start resumes processing', async () => {
+  let callback, runs = 0, cancels = 0;
+  const scheduler = createIdentificationScheduler({
+    runBatch: () => { runs++; return { processed: 1 }; },
+    setIntervalFn: (fn) => { callback = fn; return { unref() {} }; },
+    clearIntervalFn: () => { cancels++; },
+  });
+  scheduler.start();
+  await flush();
+  assert.equal(runs, 1);
+  assert.equal(scheduler.status().running, true);
+  scheduler.pause();
+  assert.equal(scheduler.status().paused, true);
+  assert.equal(scheduler.status().running, false);
+  callback();
+  await scheduler.tick();
+  await flush();
+  assert.equal(runs, 1);
+  assert.equal(cancels, 1);
+  scheduler.start();
+  await flush();
+  assert.equal(runs, 2);
+  assert.equal(scheduler.status().running, true);
+  await scheduler.stop();
+});
+
+test('pause allows the current batch to finish without starting another', async () => {
+  let release, callback, runs = 0;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const scheduler = createIdentificationScheduler({
+    runBatch: async () => { runs++; await pending; },
+    setIntervalFn: (fn) => { callback = fn; return { unref() {} }; },
+    clearIntervalFn: () => {},
+  });
+  scheduler.start();
+  await flush();
+  scheduler.pause();
+  assert.equal(scheduler.status().active, true);
+  callback();
+  release();
+  await flush();
+  assert.equal(runs, 1);
+  assert.equal(scheduler.status().paused, true);
+  await scheduler.stop();
+});
