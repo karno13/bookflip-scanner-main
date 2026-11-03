@@ -34,7 +34,7 @@
             <label class="field grow"><span>Frazy wyszukiwania</span><textarea id="queries" rows="3" placeholder="Jedna fraza w wierszu, np. Diuna, Frank Herbert lub ISBN" required></textarea><small>Maksymalnie 10 fraz.</small></label>
             <div class="source-header"><div><span class="field-label">Źródła skanowania</span><small>Tylko adaptery udostępnione przez lokalny backend</small></div><button class="link-button" id="toggleSources" type="button">Zaznacz wszystkie</button></div>
             <div class="source-grid" id="sourceGrid"><span class="loading-copy">Wczytywanie źródeł...</span></div>
-            <div class="form-actions"><span class="form-note" id="scanGuardMessage"></span><button class="button primary scan-cta" id="startSearch" type="button"><span aria-hidden="true">◎</span> Uruchom skan <span aria-hidden="true">→</span></button></div>
+            <div class="form-actions"><span class="form-note" id="scanGuardMessage"></span><button class="button secondary compact" id="cancelSearch" type="button" hidden>Anuluj skan</button><button class="button primary scan-cta" id="startSearch" type="button"><span aria-hidden="true">◎</span> Uruchom skan <span aria-hidden="true">→</span></button></div>
           </div>
           </div><div class="panel scan-progress-panel" id="scanProgressPanel" hidden aria-live="polite">
             <div class="progress-heading"><div><strong id="progressMessage">Przygotowywanie skanu...</strong><small id="progressDetail">Oczekiwanie na backend</small></div><span id="progressElapsed">0 s</span></div>
