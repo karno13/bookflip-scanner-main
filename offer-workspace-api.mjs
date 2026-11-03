@@ -6,7 +6,7 @@ export function listOfferWorkspace(repository) {
  FROM offer_workspace w JOIN offers o ON o.id=w.offer_id ORDER BY w.updated_at DESC`).all()
  .map(row => ({...row,watched:Boolean(row.watched),targetReached:
    Boolean(row.watched) && row.targetPrice !== null && row.currency === 'PLN' &&
-   Number.isFinite(row.currentPrice) && row.currentPrice <= row.targetPrice
+   Number.isSafeInteger(row.currentPrice) && row.currentPrice <= Math.round(row.targetPrice * 100)
  }));
 }
 export function setOfferWorkspace(repository, offerId, input) {
@@ -18,10 +18,11 @@ export function setOfferWorkspace(repository, offerId, input) {
    throw Object.assign(Error('INVALID_OFFER_WORKSPACE'),{statusCode:400});
  const watched=input.watched;
  const status=input.status;
+ // API targetPrice is user-entered PLN; offer current_price is stored in grosze.
  const target=input.targetPrice;
  const note=input.note;
  if(typeof watched !== 'boolean' || !statuses.has(status) ||
-    (target !== null && (!Number.isFinite(target) || target < 0 || target > 100000000)) ||
+    (target !== null && (!Number.isFinite(target) || target < 0 || target > 100000000 || Math.abs(Math.round(target * 100) - target * 100) > 1e-7)) ||
     typeof note !== 'string' || note.length > 2000)
     throw Object.assign(Error('INVALID_OFFER_WORKSPACE'),{statusCode:400});
  const now=new Date().toISOString();
