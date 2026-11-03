@@ -48,10 +48,10 @@ function renderSourceRows() {
     ? rows
         .map(
           (row) =>
-            `<tr><td><strong>${escapeHtml(row.source)}</strong><span class="offer-subtitle">${row.completed}/${row.tasks} zadan</span></td><td><span class="status-pill ${row.error ? 'error' : row.completed === row.tasks ? 'success' : row.status === 'Oczekuje' ? 'neutral' : 'warning'}">${escapeHtml(row.status)}</span></td><td>${row.offers}</td><td>-</td><td>${shortTime(row.finishedAt)}</td><td>${escapeHtml(row.error || '-')}</td></tr>`,
+            `<tr><td><strong>${escapeHtml(row.source)}</strong><span class="offer-subtitle">${row.completed}/${row.tasks} zadań</span></td><td><span class="status-pill ${row.error ? 'error' : row.completed === row.tasks ? 'success' : row.status === 'Oczekuje' ? 'neutral' : 'warning'}">${escapeHtml(row.status)}</span></td><td>${row.offers}</td><td>-</td><td>${shortTime(row.finishedAt)}</td><td>${escapeHtml(row.error || '-')}</td></tr>`,
         )
         .join('')
-    : '<tr><td colspan="6" class="empty-cell">Uruchom skan, aby zobaczyc statusy zrodel.</td></tr>';
+    : '<tr><td colspan="6" class="empty-cell">Uruchom skan, aby zobaczyć statusy źródeł.</td></tr>';
 }
 
 function updateProgress(event) {
@@ -59,7 +59,7 @@ function updateProgress(event) {
   if (event.type === 'source-start' && row) {
     row.status = 'Skanowanie';
     $('#progressMessage').textContent = `${event.source}: ${event.query}`;
-    $('#progressDetail').textContent = 'Laczenie ze zrodlem';
+    $('#progressDetail').textContent = 'Łączenie ze źródłem';
   }
   if (event.type === 'page-start') {
     $('#progressMessage').textContent = `${event.source}: ${event.query}`;
@@ -69,25 +69,25 @@ function updateProgress(event) {
     $('#progressDetail').textContent = `Strona ${event.page}: ${event.count} ofert`;
   }
   if (event.type === 'language-progress')
-    $('#progressDetail').textContent = `Weryfikacja jezyka ${event.checked}/${event.total}`;
+    $('#progressDetail').textContent = `Weryfikacja języka ${event.checked}/${event.total}`;
   if (event.type === 'retry' && row) {
     row.status = 'Ponawianie';
-    row.error = event.code || 'Blad tymczasowy';
+    row.error = event.code || 'Błąd tymczasowy';
     $('#progressDetail').textContent = `Ponowienie ${event.attempt}/${event.maxAttempts}`;
   }
   if (event.type === 'source-error' && row) {
     row.error = event.code || 'SOURCE_ERROR';
-    row.status = event.partial ? 'Czesciowy' : 'Blad';
+    row.status = event.partial ? 'Częściowy' : 'Błąd';
   }
   if (event.type === 'source-done' && row) {
     row.completed += 1;
     row.offers += Number(event.offers || 0);
     row.status =
       event.status === 'ok' && row.completed === row.tasks
-        ? 'Zakonczony'
+        ? 'Zakończony'
         : event.status === 'ok'
           ? 'Skanowanie'
-          : 'Czesciowy';
+          : 'Częściowy';
     row.finishedAt = new Date().toISOString();
     state.scan.completed += 1;
   }
@@ -98,7 +98,7 @@ function updateProgress(event) {
     ? Math.min(100, Math.round((state.scan.completed / state.scan.total) * 100))
     : 0;
   $('#progressBar').style.width = `${percent}%`;
-  $('#progressDetail').textContent += ` - ${state.scan.completed}/${state.scan.total} zadan`;
+  $('#progressDetail').textContent += ` - ${state.scan.completed}/${state.scan.total} zadań`;
   renderSourceRows();
 }
 
@@ -106,11 +106,11 @@ async function startSearch() {
   if (state.scan.running) return;
   const queries = readQueries(),
     sources = selectedSources();
-  if (!queries.length) return toast('Dodaj przynajmniej jedna fraze.');
-  if (!sources.length) return toast('Wybierz przynajmniej jedno zrodlo.');
+  if (!queries.length) return toast('Dodaj przynajmniej jedną frazę.');
+  if (!sources.length) return toast('Wybierz przynajmniej jedno źródło.');
   const fingerprint = JSON.stringify({ queries, sources: [...sources].sort() });
   if (state.scan.fingerprint === fingerprint && Date.now() - state.scan.lastStart < 5000)
-    return toast('Ten sam skan zostal przed chwila uruchomiony.');
+    return toast('Ten sam skan został przed chwila uruchomiony.');
   state.scan.running = true;
   state.scan.fingerprint = fingerprint;
   state.scan.lastStart = Date.now();
@@ -141,7 +141,7 @@ async function startSearch() {
     state.scan.result = await readSearchStream(response, updateProgress);
     state.scan.completed = state.scan.total;
     $('#progressBar').style.width = '100%';
-    $('#progressMessage').textContent = 'Skan zakonczony';
+    $('#progressMessage').textContent = 'Skan zakończony';
     const summary = state.scan.result.summary || {},
       last = state.scan.result.lastScan || {};
     $('#statFound').textContent = summary.offers || last.found || 0;
@@ -151,12 +151,12 @@ async function startSearch() {
     $('#statErrors').textContent = (state.scan.result.results || []).filter(
       (row) => row.status !== 'ok',
     ).length;
-    $('#scanStateBadge').textContent = 'Zakonczony';
+    $('#scanStateBadge').textContent = 'Zakończony';
     $('#scanStateBadge').className = 'state-badge neutral';
     $('#goToOffers').disabled = false;
     await Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]);
     renderSourceRows();
-    toast(`Skan zakonczony: ${summary.offers || 0} ofert.`);
+    toast(`Skan zakończony: ${summary.offers || 0} ofert.`);
   } catch (error) {
     if (error.message === 'SCAN_CANCELLED') {
       $('#progressMessage').textContent = 'Skan anulowany';
@@ -168,9 +168,9 @@ async function startSearch() {
     }
     $('#progressMessage').textContent = 'Nie udało się potwierdzić zakończenia skanu';
     $('#progressDetail').textContent = error.message;
-    $('#scanStateBadge').textContent = 'Blad';
+    $('#scanStateBadge').textContent = 'Błąd';
     $('#scanStateBadge').className = 'state-badge warning';
-    toast(`Nie udalo sie wykonac skanu: ${error.message}`);
+    toast(`Nie udało się wykonac skanu: ${error.message}`);
   } finally {
     clearInterval(state.scan.timer);
     state.scan.running = false;
