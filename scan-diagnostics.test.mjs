@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { publicAssetPath } from './static-asset-path.mjs';
 import { createScanDiagnostics, addScanEvent, scanProgress, scanTelemetry } from './scan-diagnostics.mjs';
 
 test('diagnostics track source completion, errors and retries without storing offer contents', () => {
@@ -30,7 +31,8 @@ test('dashboard endpoint and view are wired to the local app', async () => {
   const frontend = await readFile(new URL('./app/app.js', import.meta.url),'utf8');
   assert.match(app, /\/api\/scan\/diagnostics/);
   assert.match(app, /addScanEvent\(currentScan\.diagnostics/);
-  assert.match(app, /views\/scan-insights\.js/);
+  assert.match(app, /publicAssetPath\(url\.pathname\)/);
+  assert.equal(publicAssetPath('/views/scan-insights.js'), 'views/scan-insights.js');
   assert.match(html, /id="scanInsightsSources"/);
   assert.match(frontend, /scanInsights\.refresh\(\)/);
 });
