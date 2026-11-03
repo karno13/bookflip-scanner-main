@@ -1,3 +1,4 @@
+import { historyBookLabels } from './history-brief.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
 import { listOfferWorkspace, setOfferWorkspace } from './offer-workspace-api.mjs';
 import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
@@ -548,6 +549,11 @@ export function createLocalAppServer({
       }
       if (request.method === 'GET' && url.pathname === '/api/sources')
         return send(response, 200, JSON.stringify({ sources: Object.keys(localSourceHosts) }));
+      if (request.method === 'GET' && url.pathname === '/api/history/brief') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify(historyBookLabels(catalog.repository)));
+      }
       if (request.method === 'GET' && url.pathname === '/api/history') {
         const history = await readHistoryForUi({ catalog: getProductionCatalog() });
         return send(response, 200, JSON.stringify(historySnapshot(history)));
