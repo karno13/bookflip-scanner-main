@@ -1,0 +1,30 @@
+name: SQLite scan benchmarks (synthetic)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/scan-benchmark.yml'
+      - 'scripts/benchmark-scan.mjs'
+      - 'sqlite-single-store.mjs'
+      - 'sqlite-history-read.mjs'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/scan-benchmark.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Scan 1000 synthetic offers
+        run: node scripts/benchmark-scan.mjs --offers 1000
+      - name: Scan 10000 synthetic offers
+        run: node scripts/benchmark-scan.mjs --offers 10000
