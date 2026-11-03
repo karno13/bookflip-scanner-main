@@ -380,6 +380,15 @@ async function loadCatalogStatus() {
     $('#identificationProgressDetails').textContent =
       `W kolejce: ${Number(statuses.queued || 0)} · Przetwarzane: ${Number(statuses.running || 0)} · Ponawiane: ${Number(statuses.retry_wait || 0)} · Do weryfikacji: ${Number(statuses.review_required || 0)} · Błędy: ${Number(statuses.failed || 0)}`;
 
+    const scheduler = state.catalog.scheduler || {};
+    const running = scheduler.running === true;
+    const active = scheduler.active === true;
+    $('#identificationStart').disabled = scheduler.available === false || running || identificationControlPending;
+    $('#identificationStop').disabled = scheduler.available === false || !running || identificationControlPending;
+    $('#identificationRunState').textContent = scheduler.available === false
+      ? 'Sterowanie niedostępne'
+      : running ? 'Pracuje' : active ? 'Zatrzymywanie po bieżącej partii' : 'Wstrzymano';
+
     $('#catalogIncomplete').textContent = Number(statuses.review_required || 0);
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled
       ? 'Baza lokalna jest dostepna.'
@@ -591,6 +600,33 @@ document.querySelectorAll('#view-offers [data-offer-sort]').forEach((button) =>
   }),
 );
 $('#offerSearch').addEventListener('input', () => scheduleGlobalCatalogSearch('offers'));
+let identificationControlPending = false;
+async function controlIdentification(action) {
+  if (identificationControlPending) return;
+  identificationControlPending = true;
+  $('#identificationStart').disabled = true;
+  $('#identificationStop').disabled = true;
+  $('#identificationRunState').textContent = action === 'start' ? 'Uruchamianie…' : 'Wstrzymywanie…';
+  try {
+    await json('/api/identification/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    await loadCatalogStatus();
+    toast(action === 'start'
+      ? 'Wznowiono identyfikację.'
+      : 'Wstrzymano pobieranie nowych zadań. Bieżąca partia może jeszcze się kończyć.');
+  } catch (error) {
+    toast('Sterowanie identyfikacją: ' + error.message);
+  } finally {
+    identificationControlPending = false;
+    await loadCatalogStatus();
+  }
+}
+$('#identificationStart').addEventListener('click', () => void controlIdentification('start'));
+$('#identificationStop').addEventListener('click', () => void controlIdentification('stop'));
+
 $('#offerPrev').addEventListener('click', () => {
   state.offerPage -= 1;
   renderOffers();

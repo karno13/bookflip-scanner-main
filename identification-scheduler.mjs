@@ -14,9 +14,10 @@ export function createIdentificationScheduler({
     throw Error('INVALID_SCHEDULER_INTERVAL');
   let timer = null,
     active = null,
-    stopped = false;
+    stopped = false,
+    paused = false;
   const tick = () => {
-    if (stopped || active) return active || Promise.resolve(null);
+    if (stopped || paused || active) return active || Promise.resolve(null);
     active = Promise.resolve()
       .then(runBatch)
       .then((result) => {
@@ -37,6 +38,7 @@ export function createIdentificationScheduler({
   return {
     start() {
       if (stopped) throw Error('SCHEDULER_STOPPED');
+      paused = false;
       if (timer !== null) return;
       timer = setIntervalFn(() => {
         void tick();
@@ -45,6 +47,19 @@ export function createIdentificationScheduler({
       void tick();
     },
     tick,
+    status() {
+      return { running: !stopped && !paused && timer !== null, active: Boolean(active), paused };
+    },
+    pause() {
+      if (stopped) throw Error('SCHEDULER_STOPPED');
+      paused = true;
+      if (timer !== null) {
+        clearIntervalFn(timer);
+        timer = null;
+      }
+      // An already active batch is allowed to finish safely.
+      return this.status();
+    },
     async stop() {
       stopped = true;
       if (timer !== null) {
