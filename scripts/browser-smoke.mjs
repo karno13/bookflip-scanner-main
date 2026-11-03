@@ -74,7 +74,12 @@ try {
   await page.locator('.sidebar [data-view="catalog"]').click();
   await page.locator('#catalogList [data-catalog-id]').first().click();
   await page.locator('#catalogDetail [data-edition-detail]').first().click();
-  assert.equal(await page.locator('#backToWork').isVisible(), true, 'edition details must open');
+  try {
+    await page.locator('#backToWork').waitFor({state:'visible',timeout:6000});
+  } catch (error) {
+    throw new Error('Edition detail failed: ' + (await page.locator('#catalogDetail').textContent()) +
+      ' / ' + error.message);
+  }
 
   await page.locator('.sidebar [data-view="offers"]').click();
   await page.locator('#offersTableBody [data-offer-id]').first().click();
