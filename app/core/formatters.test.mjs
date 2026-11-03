@@ -21,4 +21,5 @@ test('złoty inputs and grosze stored prices share an explicit money conversion'
   assert.equal(zlotyToGrosze(-1), null);
   assert.match(moneyFromZloty(25), /25,00/);
   assert.match(moneyFromZloty(29.99), /29,99/);
+  assert.match(moneyFromZloty(-12.5), /-12,50|−12,50/);
 });
