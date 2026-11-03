@@ -30,7 +30,7 @@ function visibleCatalogRows(kind, rows) {
   const visible = state.visibleRows[kind] || 100;
   const slice = rows.slice(0, visible);
   const view = document.querySelector('#view-' + (kind === 'works' ? 'catalog' : 'review'));
-  if (view) {
+  if (view && kind !== 'jobs') {
     let button = view.querySelector('[data-show-loaded-kind="' + kind + '"]');
     if (!button) {
       button = document.createElement('button');
@@ -57,6 +57,7 @@ function renderReview() {
   $('#reviewNavCount').textContent = `${reviewOffers().length} pozycji`;
   if (state.selectedReviewId && !rows.some((row) => row.id === state.selectedReviewId))
     state.selectedReviewId = null;
+  const reviewListScroll = $('#reviewList').scrollTop;
   $('#reviewList').innerHTML = rows.length
     ? visibleCatalogRows('jobs', rows)
         .map((job) => {
@@ -65,7 +66,8 @@ function renderReview() {
         })
         .join('')
     : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
-  $$('[data-review-id]').forEach((button) =>
+  $('#reviewList').scrollTop = reviewListScroll;
+  $('[data-review-id]').forEach((button) =>
     button.addEventListener('click', async () => {
       state.selectedReviewId = button.dataset.reviewId;
       state.reviewDetail = null;
