@@ -29,8 +29,9 @@ export function groszeToZloty(value) {
   return value == null ? null : Number(value) / 100;
 }
 export function moneyFromZloty(value) {
-  const grosze = zlotyToGrosze(value);
-  return grosze === null ? '-' : money(grosze);
+  const amount = Number(value);
+  const grosze = Math.round(amount * 100);
+  return Number.isFinite(amount) && Number.isSafeInteger(grosze) ? money(grosze) : '-';
 }
 
 // Never interpolate untrusted non-HTTPS URLs into actionable links from legacy records.
