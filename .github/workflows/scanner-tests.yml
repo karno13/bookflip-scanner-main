@@ -24,6 +24,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
+        node: ['22.13.0', '24']
     runs-on: ${{ matrix.os }}
     timeout-minutes: 12
     steps:
@@ -32,7 +33,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24'
+          node-version: ${{ matrix.node }}
       - name: Install pinned quality tools
         run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
       - name: ESLint correctness rules
