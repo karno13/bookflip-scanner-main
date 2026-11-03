@@ -79,15 +79,30 @@ function filteredOffers() {
       (!watchedOnly || isWatchedOffer(offer.id)) &&
       (!status || (status === 'matched') === Boolean(offer.match || offer.bookId)),
   );
-  return rows.sort((a, b) =>
-    sort === 'price-asc'
-      ? a.currentPrice - b.currentPrice
-      : sort === 'price-desc'
-        ? b.currentPrice - a.currentPrice
-        : sort === 'title'
-          ? (a.title || a.originalTitle).localeCompare(b.title || b.originalTitle, 'pl')
-          : String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)),
-  );
+  // The server sorts the complete SQLite dataset before pagination.
+  // Keep the loaded-page sort consistent so watched-only filtering remains predictable.
+  const textTitle = (row) => String(row.title || row.originalTitle || '');
+  const priceValue = (row) => row.currentPrice == null ? null : Number(row.currentPrice);
+  const byPrice = (a, b, direction) => {
+    const left = priceValue(a), right = priceValue(b);
+    if (left === null) return right === null ? 0 : 1;
+    if (right === null) return -1;
+    return direction * (left - right);
+  };
+  return rows.sort((a, b) => {
+    let result = 0;
+    switch (sort) {
+      case 'price-asc': result = byPrice(a, b, 1); break;
+      case 'price-desc': result = byPrice(a, b, -1); break;
+      case 'title': result = textTitle(a).localeCompare(textTitle(b), 'pl'); break;
+      case 'title-desc': result = textTitle(b).localeCompare(textTitle(a), 'pl'); break;
+      case 'source': result = String(a.source || '').localeCompare(String(b.source || ''), 'pl'); break;
+      case 'source-desc': result = String(b.source || '').localeCompare(String(a.source || ''), 'pl'); break;
+      case 'oldest': result = String(a.lastSeenAt || '').localeCompare(String(b.lastSeenAt || '')); break;
+      default: result = String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || ''));
+    }
+    return result || String(a.id || '').localeCompare(String(b.id || ''));
+  });
 }
 
 function renderOffers() {
@@ -130,6 +145,18 @@ function renderOffers() {
         })
         .join('')
     : '<tr><td colspan="7" class="empty-cell">Brak ofert zgodnych z filtrami.</td></tr>';
+  const activeSort = $('#offerSort').value;
+  document.querySelectorAll('#view-offers [data-offer-sort]').forEach((button) => {
+    const isActive = activeSort === button.dataset.offerSort || activeSort === button.dataset.offerSortReverse;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-label', button.textContent.trim() + (isActive ? ' — aktywne sortowanie' : ' — kliknij, aby sortować'));
+    button.closest('th')?.setAttribute('aria-sort', !isActive ? 'none' :
+      ['newest', 'title-desc', 'source-desc', 'price-desc'].includes(activeSort) ? 'descending' : 'ascending');
+    const arrow = button.querySelector('.offer-sort-arrow');
+    if (arrow) arrow.textContent = isActive
+      ? (['newest', 'title-desc', 'source-desc', 'price-desc'].includes(activeSort) ? '↓' : '↑')
+      : '↕';
+  });
   $('#offerPageLabel').textContent = `Strona ${state.offerPage} z ${pages}`;
   $('#offerPrev').disabled = state.offerPage <= 1;
   $('#offerNext').disabled = state.offerPage >= pages;
