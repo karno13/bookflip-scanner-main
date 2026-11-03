@@ -251,7 +251,7 @@ async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait,
     }
     seenPages.add(current.page);
     onProgress({ type: 'page-start', page: current.page });
-    const read = await retryRead(() => scanner(current), {
+    const read = await retryRead(() => scanner(current, {signal}), {
       onProgress,
       waiter,
       signal,
@@ -323,7 +323,7 @@ async function filterVintedPolishOffers(
     } finally {
       release();
     }
-    const read = await retryRead(() => languageReader(url), {
+    const read = await retryRead(() => languageReader(url, {signal}), {
       onProgress,
       waiter,
       signal,

@@ -146,13 +146,12 @@ async function readBody(response, limit = 4000000) {
 }
 export async function readSourceHtml(
   raw,
-  { fetcher = fetch, source, pause = wait, now = Date.now, gate = sharedMarketplaceGate } = {},
+  { fetcher = fetch, source, pause = wait, now = Date.now, gate = sharedMarketplaceGate, signal = null } = {},
 ) {
   const config = sources[source];
   if (!config) throw Error('UNTRUSTED_MARKETPLACE_TASK');
   const allowed = (h) => h === config.host || h === config.host.replace(/^www\./, '');
   let url = new URL(raw);
-  const signal = AbortSignal.timeout(18000);
   for (let hop = 0; hop < 4; hop++) {
     if (
       url.protocol !== 'https:' ||
@@ -162,11 +161,14 @@ export async function readSourceHtml(
       url.port
     )
       throw Error('UNSAFE_SOURCE_REDIRECT');
+    // Provider cooldown can outlive the HTTP timeout; count only the actual request.
     await gate.acquire(source, {now, pause, signal});
+    const requestTimeout = AbortSignal.timeout(18000);
+    const requestSignal = signal ? AbortSignal.any([signal, requestTimeout]) : requestTimeout;
     const response = await fetcher(url, {
       headers: { Accept: 'text/html', 'User-Agent': 'BookFlip/1.0 (book price comparison)' },
       redirect: 'manual',
-      signal,
+      signal: requestSignal,
     });
     if ([403, 429].includes(response.status)) {
       const retryAfter = retryAfterSeconds(response.headers.get('retry-after'), now());
