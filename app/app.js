@@ -8,7 +8,7 @@ import { createOffersView } from './views/offers.js';
 import { json } from './core/api.js';
 import { escapeHtml, money, date, shortTime } from './core/formatters.js';
 import { createSettingsView } from './views/settings.js';
-import { createScannerView } from './views/scanner.js';
+import { createScannerView, requestScanCancellation } from './views/scanner.js';
 import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -566,6 +566,7 @@ $('#toggleSources').addEventListener('click', () => {
   });
 });
 $('#startSearch').addEventListener('click', startSearch);
+$('#cancelSearch').addEventListener('click', () => requestScanCancellation({ $, toast }));
 $('#goToOffers').addEventListener('click', () => showView('offers'));
 for (const selector of ['#reviewSource', '#reviewIsbn', '#reviewSort'])
   $(selector).addEventListener('change', () => scheduleGlobalCatalogSearch('jobs'));
@@ -605,7 +606,13 @@ async function restoreLastScanStatus() {
     if (status.status === 'running') {
       $('#scanStateBadge').textContent = 'Skan trwa';
       $('#scanStateBadge').className = 'state-badge warning';
-      $('#scanGuardMessage').textContent = 'Skan działa na serwerze. Nie uruchamiaj kolejnego.';
+      $('#scanGuardMessage').textContent = 'Skan działa na serwerze także po zamknięciu karty. Możesz go anulować.';
+      $('#cancelSearch').hidden = false;
+      $('#cancelSearch').disabled = false;
+    } else if (status.status === 'cancelled') {
+      $('#scanStateBadge').textContent = 'Skan anulowany';
+      $('#scanStateBadge').className = 'state-badge neutral';
+      $('#cancelSearch').hidden = true;
     } else if (status.status === 'interrupted') {
       $('#scanStateBadge').textContent = 'Skan przerwany';
       $('#scanStateBadge').className = 'state-badge warning';
