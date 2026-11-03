@@ -147,6 +147,7 @@ export async function searchOffers(
             scanner,
             (event) => onProgress({ ...event, source, query }),
             retryWait,
+            signal,
           );
           let offers = scan.offers,
             diagnostic = scan.diagnostic;
@@ -245,6 +246,7 @@ async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait,
     const read = await retryRead(() => scanner(current), {
       onProgress,
       waiter,
+      signal,
       context: { scope: 'page', page: current.page },
     });
     if (read.error) {
@@ -295,18 +297,21 @@ async function filterVintedPolishOffers(
     cached = 0,
     diagnostic = null;
   for (const offer of offers) {
+    scanCancelled(signal);
     let detail = cache.get(offer.url);
     if (detail) cached++;
     else {
       const read = await retryRead(() => languageReader(offer.url), {
         onProgress,
         waiter,
+        signal,
         context: { scope: 'vinted-language', item: checked + 1, total: offers.length },
       });
       if (read.error) {
         diagnostic = errorDiagnostic(read.error);
         break;
       }
+      scanCancelled(signal);
       detail = read.value;
       cache.set(offer.url, detail);
     }
@@ -539,6 +544,7 @@ export function createLocalAppServer({
   storageMode();
   const getProductionCatalog = catalogProvider;
   let scanInFlight = false;
+  let scanAbortController = null;
   let currentScan = null;
   const server = createServer(async (request, response) => {
     try {
@@ -772,6 +778,12 @@ export function createLocalAppServer({
         const result = await withHistoryWriteLock(async () => linkSqliteOffer(catalog, input));
         return send(response, 200, JSON.stringify(historySnapshot(result)));
       }
+      if (request.method === 'POST' && url.pathname === '/api/search/cancel') {
+        if (!scanInFlight || !scanAbortController || scanAbortController.signal.aborted)
+          return send(response, 409, JSON.stringify({ error: 'NO_ACTIVE_SCAN' }));
+        scanAbortController.abort();
+        return send(response, 202, JSON.stringify({ status: 'cancelling' }));
+      }
       if (request.method === 'POST' && url.pathname === '/api/search') {
         if (scanInFlight)
           return send(response, 409, JSON.stringify({ error: 'SCAN_ALREADY_RUNNING' }));
@@ -780,6 +792,7 @@ export function createLocalAppServer({
         try {
           const scanInput = validateSearchInput(await readJson(request));
           scanStarted = true;
+          scanAbortController = new AbortController();
           currentScan = { status: 'running', startedAt: new Date().toISOString(),
             diagnostics: createScanDiagnostics({ queries: scanInput.queries || [], sources: scanInput.sources || [] }) };
           await persistScanStatus(currentScan);
@@ -794,13 +807,14 @@ export function createLocalAppServer({
               const result = await searchAndStore(scanInput, emit, {
                 catalogProvider,
                 search,
+                signal: scanAbortController.signal,
               });
               currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
               await persistScanStatus(currentScan);
               if (!response.destroyed) response.write(JSON.stringify({ type: 'result', result }) + '\n');
               if (!response.destroyed) response.end();
             } catch (error) {
-              currentScan = { ...currentScan, status: 'failed', finishedAt: new Date().toISOString() };
+              currentScan = { ...currentScan, status: error.message === 'SCAN_CANCELLED' ? 'cancelled' : 'failed', finishedAt: new Date().toISOString() };
               await persistScanStatus(currentScan);
               if (!response.destroyed) response.write(
                 JSON.stringify({
@@ -815,6 +829,7 @@ export function createLocalAppServer({
           const result = await searchAndStore(scanInput, (event) => addScanEvent(currentScan.diagnostics, recordProgress(event)), {
             catalogProvider,
             search,
+            signal: scanAbortController.signal,
           });
           currentScan = { ...currentScan, status: 'completed', finishedAt: new Date().toISOString(), summary: result.summary };
           await persistScanStatus(currentScan);
@@ -826,6 +841,7 @@ export function createLocalAppServer({
           }
           throw error;
         } finally {
+          scanAbortController = null;
           scanInFlight = false;
         }
       }
