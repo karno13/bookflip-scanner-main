@@ -619,8 +619,13 @@ export function createLocalAppServer({
         return send(response, 200, JSON.stringify(historySnapshot(history)));
       }
       if (request.method === 'GET' && url.pathname === '/api/book') {
-        const history = await readHistoryForUi({ catalog: getProductionCatalog() }),
-          data = bookHistory(history, url.searchParams.get('id'));
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const bookId = url.searchParams.get('id');
+        if (!bookId || bookId.length > 200)
+          return send(response, 404, JSON.stringify({ error: 'BOOK_NOT_FOUND' }));
+        const history = sqliteHistoryModel(catalog.repository, { bookId });
+        const data = bookHistory(history, bookId);
         return data
           ? send(response, 200, JSON.stringify(data))
           : send(response, 404, JSON.stringify({ error: 'BOOK_NOT_FOUND' }));
@@ -636,7 +641,9 @@ export function createLocalAppServer({
           created.created ? 201 : 200,
           JSON.stringify({
             book: created.book,
-            catalog: historySnapshot(sqliteHistoryModel(catalog.repository)),
+            catalog: url.searchParams.get('compact') === '1'
+              ? historyBookLabels(catalog.repository)
+              : historySnapshot(sqliteHistoryModel(catalog.repository)),
             catalogSync: { mode: 'sqlite' },
           }),
         );
