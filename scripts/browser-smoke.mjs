@@ -70,6 +70,52 @@ try {
     await page.locator(`.sidebar [data-view="${view}"]`).click();
     await assert.equal(await page.locator(`#view-${view}`).isVisible(), true, `view ${view}`);
   }
+  // Exercise real P0 flows instead of merely checking that views appear.
+  await page.locator('.sidebar [data-view="catalog"]').click();
+  await page.locator('#catalogList [data-catalog-id]').first().click();
+  await page.locator('#catalogDetail [data-edition-detail]').first().click();
+  try {
+    await page.locator('#backToWork').waitFor({state:'visible',timeout:6000});
+  } catch (error) {
+    throw new Error('Edition detail failed: ' + (await page.locator('#catalogDetail').textContent()) +
+      ' / ' + error.message);
+  }
+
+  await page.locator('.sidebar [data-view="offers"]').click();
+  await page.locator('#offersTableBody [data-offer-id]').first().click();
+  await page.locator('#offerDrawerContent .offer-workspace').waitFor();
+  assert.equal(await page.locator('#scenarioPurchase').inputValue(), '25', '2500 grosze displays as 25 PLN');
+  await page.locator('#scenarioShipping').fill('5');
+  await page.locator('#scenarioOther').fill('2');
+  await page.locator('#scenarioResale').fill('40');
+  const scenario = await page.locator('#scenarioResult').textContent();
+  assert.match(scenario, /32,00/, 'purchase + delivery + costs in PLN');
+  assert.match(scenario, /8,00/, 'profit in PLN');
+  await page.locator('#scenarioResale').fill('20');
+  assert.match(await page.locator('#scenarioResult').textContent(), /[-−]12,00/, 'loss stays signed');
+  await page.locator('.offer-workspace input[type="number"]').fill('30');
+  await page.locator('.offer-workspace button').click();
+  await page.waitForFunction(() => document.querySelector('.offer-workspace small[role="status"]')?.textContent?.includes('Zapisano'));
+  const workspace = await (await page.request.get(url + '/api/offer-workspace')).json();
+  assert.equal(workspace.items.length, 1);
+  assert.equal(workspace.items[0].targetReached, false, 'target signal requires watched offer');
+  await page.locator('.offer-workspace input[type="checkbox"]').check();
+  await page.waitForFunction(async () => {
+    const r = await fetch('/api/offer-workspace');
+    return (await r.json()).items?.[0]?.targetReached === true;
+  });
+
+  // P1: scanner profiles must be durable across a browser reload.
+  await page.locator('.sidebar [data-view="scanner"]').click();
+  await page.locator('#queries').fill('Solaris');
+  await page.locator('#sourceGrid input[type="checkbox"]').first().check();
+  await page.locator('.scan-profiles input[aria-label="Nazwa nowego profilu"]').fill('Profil testowy');
+  await page.locator('.scan-profiles button').filter({hasText:'Zapisz profil'}).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.scan-profiles select option')].some(o => o.value === 'Profil testowy'));
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => [...document.querySelectorAll('.scan-profiles select option')].some(o => o.value === 'Profil testowy'));
+  const stored = await (await page.request.get(url + '/api/offer-workspace')).json();
+  assert.equal(stored.items[0].targetReached, true, 'target price survives reload');
   await page.locator('.sidebar [data-view="review"]').click();
   await assert.equal(await page.locator('#reviewList .review-item').count() > 0, true, 'nonempty review');
   await page.setViewportSize({ width: 390, height: 844 });
