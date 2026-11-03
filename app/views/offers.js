@@ -28,28 +28,37 @@ function ensureWatchFilter() {
   importButton.addEventListener('click', async () => {
     if (!confirm('Przenieść lokalne notatki do SQLite? Istniejące wpisy w bazie zostaną pominięte.')) return;
     importButton.disabled = true;
-    let copied=0, skipped=0, failed=0;
+    let imported = 0, skipped = 0, missing = 0, invalid = 0;
     try {
-      await ensureWorkspaceLoaded();
-      const old=readOfferNotes();
-      for(const [id,entry] of Object.entries(old)) {
-        if(Object.hasOwn(allSavedOfferNotes(),id)) { skipped++; continue; }
-        try {
-          await json('/api/offer-workspace/'+encodeURIComponent(id),{
-            method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              watched:Boolean(entry.watched),
-              status:['watching','check','negotiating','bought','rejected'].includes(entry.status)?entry.status:'watching',
-              targetPrice:Number.isFinite(entry.targetPrice)&&entry.targetPrice>=0?entry.targetPrice:null,
-              note:String(entry.note||'').slice(0,2000),
-            })
-          });
-          copied++;
-        } catch {failed++;}
+      const old = readOfferNotes();
+      const entries = Object.entries(old).map(([offerId, entry]) => ({
+        offerId,
+        record: {
+          watched: Boolean(entry?.watched),
+          status: ['watching','check','negotiating','bought','rejected'].includes(entry?.status)
+            ? entry.status : 'watching',
+          targetPrice: Number.isFinite(entry?.targetPrice) && entry.targetPrice >= 0
+            ? entry.targetPrice : null,
+          note: String(entry?.note || '').slice(0, 2000),
+        },
+      }));
+      for (let index = 0; index < entries.length; index += 10) {
+        const outcome = await json('/api/offer-workspace/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries: entries.slice(index, index + 10) }),
+        });
+        imported += outcome.imported;
+        skipped += outcome.skipped;
+        missing += outcome.missing;
+        invalid += outcome.invalid;
       }
       await loadOfferWorkspace(json);
       renderOffers();
-      alert(`Import: ${copied} zapisanych, ${skipped} pominiętych, ${failed} błędów. Dane lokalne zachowano.`);
-    } catch (error) { alert('Nie udało się załadować danych SQLite: '+error.message); }
+      alert(`Import: ${imported} zapisanych, ${skipped} bez zmian, ${missing} nieistniejących ofert, ${invalid} błędnych wpisów. Dane przeglądarki zachowano.`);
+    } catch (error) {
+      alert('Import nie został ukończony: ' + error.message + '. Dane przeglądarki zachowano.');
+    }
     finally {importButton.disabled=false;}
   });
   parent.append(importButton);

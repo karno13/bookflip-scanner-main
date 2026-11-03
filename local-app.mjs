@@ -4,7 +4,7 @@ import { retryIdentificationJobs } from './identification-retry.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
-import { listOfferWorkspace, setOfferWorkspace } from './offer-workspace-api.mjs';
+import { listOfferWorkspace, setOfferWorkspace, importOfferWorkspace } from './offer-workspace-api.mjs';
 import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
 import { createScanDiagnostics, addScanEvent, scanProgress, scanTelemetry } from './scan-diagnostics.mjs';
 import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from './offer-sets.mjs';
@@ -697,6 +697,12 @@ export function createLocalAppServer({
         const catalog=getProductionCatalog();
         if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
         return send(response,200,JSON.stringify({items:listOfferWorkspace(catalog.repository)}));
+      }
+      if (request.method === 'POST' && url.pathname === '/api/offer-workspace/import') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error:'CATALOG_DISABLED' }));
+        const input = await readJson(request);
+        return send(response, 200, JSON.stringify(importOfferWorkspace(catalog.repository, input?.entries)));
       }
       if (request.method === 'PUT' && url.pathname.startsWith('/api/offer-workspace/')) {
         const catalog=getProductionCatalog();
