@@ -56,7 +56,17 @@ export async function benchmarkScan({ offerCount = 1000 } = {}) {
       initial: first,
       repeat,
       priceObservations: historyCount,
-      databaseBytes: (await stat(dbPath)).size,
+      // WAL mode may keep nearly all newly written pages outside the main .sqlite.
+      databaseBytes: (await stat(dbPath)).size +
+        (await stat(dbPath + '-wal').then(info => info.size).catch(error => {
+          if (error.code === 'ENOENT') return 0;
+          throw error;
+        })),
+      mainDatabaseBytes: (await stat(dbPath)).size,
+      walBytes: await stat(dbPath + '-wal').then(info => info.size).catch(error => {
+        if (error.code === 'ENOENT') return 0;
+        throw error;
+      }),
       rssBytes: process.memoryUsage().rss,
     };
   } finally {
