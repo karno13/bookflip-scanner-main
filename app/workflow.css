@@ -91,3 +91,13 @@
 
 .lean-review-selected{margin:0;padding:4px 2px;color:var(--green-dark);font-size:10px;font-weight:650;overflow-wrap:anywhere}
 .lean-review-selected:empty{display:none}
+
+/* Visible offer sorting, including keyboard-accessible table headers */
+#view-offers .offer-sort-label{font-size:11px;font-weight:650;color:var(--muted);white-space:nowrap}
+#view-offers #offerSort{min-width:165px}
+#view-offers .offer-sort-header{display:inline-flex;align-items:center;gap:5px;background:transparent;border:0;border-radius:5px;padding:5px 2px;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left}
+#view-offers .offer-sort-header:hover,#view-offers .offer-sort-header.active{color:var(--green-dark);text-decoration:underline}
+#view-offers .offer-sort-header:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+#view-offers .offer-sort-arrow{font-size:12px;line-height:1;opacity:.55}
+#view-offers .offer-sort-header.active .offer-sort-arrow{opacity:1}
+@media(max-width:760px){#view-offers .offer-sort-label{display:none}#view-offers #offerSort{flex:1;min-width:145px}}
