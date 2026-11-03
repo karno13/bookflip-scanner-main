@@ -124,6 +124,13 @@ function renderReviewDetail() {
         .find((x) => x.edition.id === result.editionId)
     : null;
   const candidate = reviewCandidateMarkup(offer, suggested);
+  const observedCandidateIsbn = normalizedIsbn(offer.observedIsbn);
+  const suggestedIsbns = (suggested?.edition.identifiers || [])
+    .filter((identifier) => String(identifier.scheme).startsWith('isbn'))
+    .map((identifier) => normalizedIsbn(identifier.value));
+  const suggestedIsbnConflict = Boolean(
+    observedCandidateIsbn && suggestedIsbns.length && !suggestedIsbns.includes(observedCandidateIsbn),
+  );
 
   $('#reviewDetail').innerHTML =
     `<div class="lean-review">
@@ -138,7 +145,7 @@ function renderReviewDetail() {
           <p id="reviewIsbnCheckResult" class="lean-review-result" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p>
         </div>
         <section class="lean-review-match"><div class="lean-review-section-title"><strong>Proponowane wydanie</strong><span>${suggested ? 'Sprawdź zgodność przed zatwierdzeniem' : 'Brak automatycznego dopasowania'}</span></div>
-          <details class="lean-review-candidate" ${suggested ? '' : 'open'}><summary>${suggested ? escapeHtml(suggested.work.title) + ' · ' + escapeHtml(suggested.edition.publisher || 'wydawca nieznany') : 'Brak propozycji — wybierz wydanie ręcznie'}</summary>${candidate}</details>
+          <details class="lean-review-candidate" ${suggested ? '' : 'open'}><summary>${suggested ? (suggestedIsbnConflict ? '⚠ Konflikt ISBN · ' : '') + escapeHtml(suggested.work.title) + ' · ' + escapeHtml(suggested.edition.publisher || 'wydawca nieznany') : 'Brak propozycji — wybierz wydanie ręcznie'}</summary>${candidate}</details>
         </section>
         <section class="lean-review-choice"><label for="reviewBookSearch" class="lean-review-section-title"><strong>Przypisz do wydania</strong><span>Wyszukaj tylko wtedy, gdy propozycja jest nieprawidłowa</span></label>
           <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Wpisz tytuł, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div>
