@@ -11,6 +11,8 @@ test('BN selection requires a unique ISBN-confirmed record and noncritical sourc
 test('manual retry excludes protected manual assignments', async () => {
   const server = await readFile(new URL('./local-app.mjs', import.meta.url), 'utf8');
   assert.match(server, /\/api\/identification\/retry/);
-  assert.match(server, /m\.method IN \('manual','legacy_manual'\)/);
-  assert.match(server, /INVALID_RETRY_MODE/);
+  assert.match(server, /retryIdentificationJobs\(catalog\.repository, input\?\.mode\)/);
+  const retries = await readFile(new URL('./identification-retry.mjs', import.meta.url), 'utf8');
+  assert.match(retries, /m\.method IN \('manual','legacy_manual'\)/);
+  assert.match(retries, /INVALID_RETRY_MODE/);
 });
