@@ -8,7 +8,7 @@ import { createOffersView } from './views/offers.js';
 import { json } from './core/api.js';
 import { escapeHtml, money, date, shortTime } from './core/formatters.js';
 import { createSettingsView } from './views/settings.js';
-import { createScannerView } from './views/scanner.js';
+import { createScannerView, requestScanCancellation } from './views/scanner.js';
 import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -420,7 +420,7 @@ async function loadCatalogStatus() {
   }
 }
 
-const { startSearch, cancelSearch, renderSourceRows } = createScannerView({
+const { startSearch, renderSourceRows } = createScannerView({
   state, $, escapeHtml, shortTime, readQueries, selectedSources, toast,
   loadHistory, loadCatalogStatus, loadCatalogData,
 });
@@ -566,7 +566,7 @@ $('#toggleSources').addEventListener('click', () => {
   });
 });
 $('#startSearch').addEventListener('click', startSearch);
-$('#cancelSearch').addEventListener('click', cancelSearch);
+$('#cancelSearch').addEventListener('click', () => requestScanCancellation({ $, toast }));
 $('#goToOffers').addEventListener('click', () => showView('offers'));
 for (const selector of ['#reviewSource', '#reviewIsbn', '#reviewSort'])
   $(selector).addEventListener('change', () => scheduleGlobalCatalogSearch('jobs'));
