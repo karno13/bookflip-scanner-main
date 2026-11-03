@@ -1,3 +1,4 @@
+import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
@@ -9,8 +10,8 @@ import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from 
 import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createServer } from 'node:http';
-import { readFile, appendFile, writeFile, mkdir, rename, stat, rm } from 'node:fs/promises';
-import { extname, join, dirname } from 'node:path';
+import { readFile, appendFile, writeFile, mkdir, rename, stat, rm, realpath } from 'node:fs/promises';
+import { extname, join, dirname, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -849,32 +850,19 @@ export function createLocalAppServer({
       }
       if (request.method !== 'GET')
         return send(response, 405, JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
-      const files = {
-          '/': 'index.html',
-          '/index.html': 'index.html',
-          '/styles.css': 'styles.css',
-          '/workflow.css': 'workflow.css',
-          '/app.js': 'app.js',
-          '/frontend-utils.js': 'frontend-utils.js',
-          '/scan-stream.js': 'scan-stream.js',
-          '/views/scanner.js': 'views/scanner.js',
-          '/views/scan-insights.js': 'views/scan-insights.js',
-          '/views/settings.js': 'views/settings.js',
-          '/views/sets.js': 'views/sets.js',
-          '/views/review.js': 'views/review.js',
-          '/views/catalog.js': 'views/catalog.js',
-          '/views/offers.js': 'views/offers.js',
-          '/views/dashboard.js': 'views/dashboard.js',
-          '/views/series.js': 'views/series.js',
-          '/views/offer-workspace.js': 'views/offer-workspace.js',
-          '/views/scan-profiles.js': 'views/scan-profiles.js',
-          '/core/formatters.js': 'core/formatters.js',
-          '/core/metadata-comparison.js': 'core/metadata-comparison.js',
-          '/core/api.js': 'core/api.js',
-        },
-        file = files[url.pathname];
+      const file = publicAssetPath(url.pathname);
       if (!file) return send(response, 404, 'Nie znaleziono', 'text/plain; charset=utf-8');
-      const body = await readFile(join(appDirectory, file));
+      const root = await realpath(appDirectory);
+      let requested;
+      try {
+        requested = await realpath(join(root, file));
+      } catch (error) {
+        if (error.code === 'ENOENT') return send(response, 404, 'Nie znaleziono', 'text/plain; charset=utf-8');
+        throw error;
+      }
+      if (!requested.startsWith(root + sep))
+        return send(response, 404, 'Nie znaleziono', 'text/plain; charset=utf-8');
+      const body = await readFile(requested);
       return send(response, 200, body, contentTypes[extname(file)] || 'application/octet-stream');
     } catch (error) {
       send(
