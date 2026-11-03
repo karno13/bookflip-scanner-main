@@ -88,3 +88,16 @@ obserwowane oferty, notatki i serie (oraz profile skanowania w wersjach obsługu
 
 Kopie warto trzymać także na innym dysku; backup i przywracanie nie oznaczają
 automatycznego harmonogramu tworzenia kopii.
+
+## Pomiar wydajności skanowania SQLite (bez internetu)
+
+Uruchom `npm run bench:scan -- --offers 1000`, a następnie
+`npm run bench:scan -- --offers 10000`, aby porównać zapis nowych ofert
+z ponownym skanem zmieniającym 10% cen. Narzędzie tworzy osobną
+**syntetyczną** bazę w katalogu tymczasowym, nie łączy się z marketplace'ami,
+nie dotyka prywatnego katalogu i po pomiarze usuwa dane testowe.
+
+Wynik JSON zawiera czas obu operacji w milisekundach, liczbę ofert, zmian cen,
+obserwacji cenowych, rozmiar SQLite i RSS. Porównuj wyniki w podobnych warunkach:
+systemie, wersji Node i obciążeniu komputera. To nie jest pomiar rzeczywistego
+Vinted ani obietnica konkretnej szybkości na sprzęcie użytkownika.
