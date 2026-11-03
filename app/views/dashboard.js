@@ -1,4 +1,4 @@
-import { readOfferNotes } from './offer-workspace.js';
+import { allSavedOfferNotes } from './offer-workspace.js';
 import { readSeries, seriesSummary } from './series.js';
 export function installDashboard({ state, showView }) {
   const scanner = document.querySelector('#view-scanner');
@@ -25,14 +25,16 @@ export function installDashboard({ state, showView }) {
   panel.append(heading,hint,stats,links);
   scanner.querySelector('.view-heading')?.after(panel);
   function refresh() {
-    const watched = Object.values(readOfferNotes()).filter(item => item?.watched).length;
+    const watched = Object.values(allSavedOfferNotes()).filter(item => item?.watched).length;
+    const atTarget = Object.values(allSavedOfferNotes()).filter(item => item?.targetReached).length;
     const series = seriesSummary(state.catalogWorks || [], readSeries());
     const metrics = [
       ['Oferty wczytane',state.sqliteOffers?.length || 0],
       ['Do weryfikacji (wczytane)',state.reviewJobs?.length || 0],
       ['Dzieła wczytane',state.catalogWorks?.length || 0],
-      ['Obserwowane lokalnie',watched],
-      ['Serie oznaczone lokalnie',series.length]
+      ['Obserwowane w SQLite',watched],
+      ['Próg cenowy osiągnięty',atTarget],
+      ['Serie oznaczone lokalnie (stare dane)',series.length]
     ];
     stats.replaceChildren();
     for (const [name,value] of metrics) {
