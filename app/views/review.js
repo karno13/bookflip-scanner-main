@@ -142,7 +142,7 @@ function renderReviewDetail() {
       <div class="lean-review-body">
         <div class="lean-review-isbn">
           <label for="reviewIsbnCheckInput"><strong>ISBN</strong><span>${escapeHtml(offer.observedIsbn || 'nie wykryto — wpisz ręcznie')}</span></label>
-          <div class="lean-review-isbn-tools"><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 / ISBN-13" aria-label="ISBN do weryfikacji"><button class="button primary" type="button" id="reviewIsbnMatchButton">Dopasuj po ISBN</button><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">BN / Open Library</button></div>
+          <div class="lean-review-isbn-tools"><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 / ISBN-13" aria-label="ISBN do weryfikacji"><button class="button primary" type="button" id="reviewIsbnMatchButton">Dopasuj i przypisz</button><button class="button secondary" type="button" id="reviewIsbnCheckButton">Sprawdź ISBN</button><button class="button secondary" type="button" id="reviewExternalIsbnButton">BN / Open Library</button></div>
           <p id="reviewIsbnCheckResult" class="lean-review-result" role="status" aria-live="polite">Sprawdzenie nie zmienia przypisania ani danych katalogu.</p>
         </div>
         <section class="lean-review-match"><div class="lean-review-section-title"><strong>Proponowane wydanie</strong><span class="lean-review-match-status ${suggestedIsbnConflict ? 'is-conflict' : ''}">${suggestedIsbnConflict ? '⚠ Konflikt ISBN' : suggested && observedCandidateIsbn && suggestedIsbns.includes(observedCandidateIsbn) ? '✓ ISBN zgodny' : 'Weryfikacja wymagana'}</span></div><small class="lean-review-guidance">Sprawdź zgodność przed zatwierdzeniem.</small>
@@ -229,42 +229,56 @@ function renderReviewDetail() {
     $('#reviewIsbnCheckResult').textContent = 'ISBN zmieniony — dopasuj ponownie przed zatwierdzeniem.';
   });
   $('#reviewIsbnMatchButton').addEventListener('click', async () => {
+    if (reviewDecisionPending) return;
     const button = $('#reviewIsbnMatchButton');
     const output = $('#reviewIsbnCheckResult');
     const isbn = $('#reviewIsbnCheckInput').value.trim();
     if (!isbn) {
-      output.textContent = 'Wpisz ISBN książki, aby znaleźć pasujące wydanie.';
+      output.textContent = 'Nie wykryto ISBN. Wyszukaj wydanie po tytule poniżej lub wpisz numer ręcznie.';
+      $('#reviewManualChoice').open = true;
+      $('#reviewBookSearch').focus();
       return;
     }
     button.disabled = true;
-    output.textContent = 'Szukanie wydania po ISBN w katalogu…';
+    output.textContent = 'Dopasowuję ofertę z katalogiem i sprawdzam BN / Open Library…';
     try {
-      const response = await json('/api/catalog/isbn-check', {
+      const response = await json(`/api/identification-jobs/${encodeURIComponent(job.id)}/match-isbn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isbn }),
       });
       if (state.selectedReviewId !== job.id) return;
-      if (!response.found || !response.edition?.id) {
-        output.textContent = 'Brak tego ISBN w katalogu. Możesz sprawdzić BN / Open Library lub wyszukać wydanie ręcznie.';
+      if (response.matched) {
+        state.selectedReviewId = null;
+        state.reviewDetail = null;
+        const refreshed = await loadCatalogData();
+        toast(refreshed === false
+          ? 'Dopasowano i zapisano w SQLite, ale odświeżenie listy się nie powiodło.'
+          : response.decision === 'matched_existing'
+            ? 'Oferta przypisana do istniejącego wydania.'
+            : 'Utworzono wydanie w katalogu i przypisano ofertę.');
         return;
       }
-      const input = $('#reviewBookSearch');
-      const options = $('#reviewBookOptions');
-      input.value = response.edition.workTitle || response.edition.title;
-      input.dataset.editionId = response.edition.id;
-      $('#reviewChosenEdition').textContent = `Wybrane po ISBN: ${response.edition.workTitle || response.edition.title} — ${response.edition.title}`;
-      input.setAttribute('aria-expanded', 'false');
-      options.innerHTML = '';
-      options.classList.remove('is-open');
-      $('#reviewManualChoice').open = false;
-      $('#approveReview').disabled = false;
-      output.textContent = `Dopasowano ISBN ${response.isbn} do wydania „${response.edition.title}”. Sprawdź dane i kliknij „Zatwierdź wydanie”, aby przypisać ofertę.`;
+      const reasons = {
+        isbn_not_found_in_metadata_sources: 'Brak ISBN w Bibliotece Narodowej i Open Library.',
+        metadata_source_temporary_error: 'Zewnętrzne API jest chwilowo niedostępne. Spróbuj ponownie.',
+        metadata_sources_conflict: 'Źródła podają sprzeczne informacje. Weryfikacja ręczna jest konieczna.',
+        offer_metadata_conflict: 'Dane ogłoszenia są sprzeczne z metadanymi książki.',
+        offer_catalog_conflict: 'Dane ogłoszenia są sprzeczne z istniejącym wydaniem.',
+        insufficient_offer_context: 'Za mało zgodnych informacji, żeby bezpiecznie przypisać ofertę.',
+        metadata_invalid_or_incomplete: 'Metadane z zewnętrznych katalogów są niekompletne.',
+        multiple_conflicting_isbn: 'Ogłoszenie ma sprzeczne numery ISBN.',
+      };
+      output.textContent = response.reason?.map((code) => reasons[code] || code).join(' · ')
+        || 'Nie można bezpiecznie dopasować. Wybierz wydanie ręcznie.';
+      $('#reviewManualChoice').open = true;
     } catch (error) {
       if (state.selectedReviewId === job.id)
         output.textContent = error.message === 'INVALID_ISBN'
           ? 'Nieprawidłowy ISBN — popraw numer i spróbuj ponownie.'
-          : 'Nie udało się dopasować ISBN: ' + error.message;
+          : error.message === 'ISBN_REQUIRED'
+            ? 'Wpisz ISBN lub wyszukaj wydanie ręcznie.'
+            : 'Nie udało się dopasować: ' + error.message;
     } finally {
       if (button.isConnected) button.disabled = false;
     }
