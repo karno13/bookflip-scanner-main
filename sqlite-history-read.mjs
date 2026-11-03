@@ -1,7 +1,7 @@
 // Read-only compatibility adapter for the legacy /api/history contract.
 // This does not alter the catalog or infer bibliographic identity without
 // an active edition assignment.
-export function sqliteHistoryModel(repository, { bookId = null } = {}) {
+export function sqliteHistoryModel(repository, { bookId = null, includePriceHistory = true } = {}) {
   const db = repository.database;
   const editions = db
     .prepare(
@@ -85,7 +85,7 @@ export function sqliteHistoryModel(repository, { bookId = null } = {}) {
       seenCount: row.seen_count,
     };
   }
-  const priceHistory = bookId && !matchedOfferIds.length ? [] : db
+  const priceHistory = !includePriceHistory || (bookId && !matchedOfferIds.length) ? [] : db
     .prepare('SELECT offer_id,price,observed_at FROM offer_price_history' +
       (bookId ? ' WHERE offer_id IN (' + matchedOfferIds.map(() => '?').join(',') + ')' : '') +
       ' ORDER BY observed_at,id')
