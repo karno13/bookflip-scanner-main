@@ -16,8 +16,27 @@ function isTrackingParameter(name) {
   return trackingParameters.has(name.toLowerCase()) || /^utm_/i.test(name);
 }
 
+const allowedMarketplaces = new Map([
+  ['Vinted',['vinted.pl']],
+  ['Allegro',['allegro.pl']],
+  ['Allegro Lokalnie',['allegrolokalnie.pl']],
+  ['OLX',['olx.pl']],
+  ['Empik',['empik.com']],
+  ['Tezeusz.pl',['tezeusz.pl']],
+  ['Dedalus.pl',['dedalus.pl']],
+]);
+export function trustedOfferUrl(source, raw) {
+  const normalized = normalizeOfferUrl(raw);
+  const url = new URL(normalized);
+  const domains = allowedMarketplaces.get(source);
+  if (domains && !domains.some(host => url.hostname === host || url.hostname === 'www.' + host))
+    throw Error('UNTRUSTED_OFFER_HOST');
+  return normalized;
+}
 export function normalizeOfferUrl(raw) {
   const url = new URL(raw);
+  if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.port)
+    throw Error('UNSAFE_OFFER_URL');
   url.hash = '';
   url.hostname = url.hostname.toLowerCase();
   url.pathname = url.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
@@ -56,7 +75,7 @@ export function sourceOfferId(source, rawUrl, explicitExternalId = null) {
 
 export function identifyOffer(offer) {
   if (!offer?.source || !offer?.url) throw Error('INVALID_OFFER_IDENTITY');
-  const url = normalizeOfferUrl(offer.url),
+  const url = trustedOfferUrl(offer.source, offer.url),
     externalId = offerExternalId(offer);
   return {
     id: sourceOfferId(offer.source, url, externalId),
