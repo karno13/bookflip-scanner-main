@@ -1,3 +1,4 @@
+import { safeOfferHref } from '../core/formatters.js';
 import { mountSeriesEditor, readSeries, seriesSummary } from './series.js';
 // catalog workspace, preserving existing behavior while isolating its implementation.
 export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows }) {
@@ -190,7 +191,7 @@ async function openEditionDetail(id) {
         .filter((item) => item.scheme.startsWith('isbn'))
         .map((item) => item.value)
         .join(', ') || 'brak',
-    )}</small></span><span><b>Wydawca</b><small>${escapeHtml(row.publisher || '-')}</small></span><span><b>Rok</b><small>${escapeHtml(row.publicationYear || '-')}</small></span><span><b>Język / oprawa</b><small>${escapeHtml([row.language, row.binding].filter(Boolean).join(' / ') || '-')}</small></span></div></section><section class="detail-section"><h4>Analiza cen wydania</h4>${offerPriceSummaryMarkup(row.offers)}</section><section class="detail-section"><h4>Powiązane oferty</h4><div class="price-list">${row.offers.map((item) => `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer"><span>${escapeHtml(item.title)}<small>${escapeHtml(item.source)}</small></span><b>${money(item.currentPrice)}</b></a>`).join('') || '<p>Brak ofert.</p>'}</div></section>`;
+    )}</small></span><span><b>Wydawca</b><small>${escapeHtml(row.publisher || '-')}</small></span><span><b>Rok</b><small>${escapeHtml(row.publicationYear || '-')}</small></span><span><b>Język / oprawa</b><small>${escapeHtml([row.language, row.binding].filter(Boolean).join(' / ') || '-')}</small></span></div></section><section class="detail-section"><h4>Analiza cen wydania</h4>${offerPriceSummaryMarkup(row.offers)}</section><section class="detail-section"><h4>Powiązane oferty</h4><div class="price-list">${row.offers.map((item) => `<a href="${escapeHtml(safeOfferHref(item.url))}" target="_blank" rel="noreferrer"><span>${escapeHtml(item.title)}<small>${escapeHtml(item.source)}</small></span><b>${money(item.currentPrice)}</b></a>`).join('') || '<p>Brak ofert.</p>'}</div></section>`;
     $('#backToWork').addEventListener('click', () => openCatalogDetail(row.workId));
   } catch (error) {
     detail.innerHTML = `<div class="empty-detail"><p>${escapeHtml(error.message)}</p></div>`;
