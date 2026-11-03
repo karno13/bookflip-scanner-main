@@ -70,3 +70,21 @@ Szczegóły: [Katalog i konfiguracja](PRODUCTION-CATALOG.md), [Przechowywanie i 
 Nieaktywny runner GitHub Actions został usunięty, ponieważ nie był wykorzystywany przez lokalny BookFlip. Zachowano odrębnie testowane parsery źródeł i narzędzia importu starej historii JSON, które mogą służyć diagnostyce. Historyczne raporty UI i zrzuty usunięto z bieżącej gałęzi; pozostają w historii Git. Dokument historycznej migracji JSON zachowano w `docs/archive/`.
 
 Nie commituj prawdziwych baz SQLite, historii skanów, cookies, kluczy ani innych danych prywatnych.
+
+
+## Przywracanie katalogu SQLite
+
+Kopia utworzona poleceniem `npm run backup` zawiera katalog, historię cen,
+obserwowane oferty, notatki i serie (oraz profile skanowania w wersjach obsługujących tę funkcję).
+
+1. Zamknij aplikację BookFlip przed przełączaniem plików katalogu.
+2. Uruchom `npm run restore -- "ścieżka/do/kopii.sqlite" "ścieżka/do/odzyskanego.sqlite"`.
+3. Narzędzie sprawdza integralność i wymagane tabele, a następnie tworzy **nowy** plik.
+   Odmawia nadpisania istniejącej bazy, więc oryginał pozostaje nietknięty.
+4. Uruchom aplikację ze zmienną `BOOKFLIP_CATALOG_DB` wskazującą odzyskany plik
+   i zweryfikuj liczniki oraz przykładowe dane.
+5. Dopiero po sprawdzeniu zdecyduj o zastąpieniu starej bazy. Nie podmieniaj pliku
+   SQLite, kiedy serwer pracuje.
+
+Kopie warto trzymać także na innym dysku; backup i przywracanie nie oznaczają
+automatycznego harmonogramu tworzenia kopii.
