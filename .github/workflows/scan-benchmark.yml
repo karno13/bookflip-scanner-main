@@ -6,6 +6,7 @@ on:
       - 'scripts/benchmark-scan.mjs'
       - 'sqlite-single-store.mjs'
       - 'sqlite-history-read.mjs'
+      - 'price-analysis.mjs'
   push:
     branches: [main]
     paths:
