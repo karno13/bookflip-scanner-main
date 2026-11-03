@@ -1,5 +1,7 @@
 # Mapa repozytorium — aktualny BookFlip
 
+**Kierunek produktu:** [handel książkami, nie zarządzanie prywatną kolekcją](PRODUCT-DIRECTION.md). Katalog, serie i wydania są narzędziami identyfikacji oraz wyceny towaru.
+
 ## Aktywna aplikacja
 
 | Warstwa | Pliki |
