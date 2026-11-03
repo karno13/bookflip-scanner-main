@@ -269,6 +269,20 @@ function renderReviewDetail() {
           : response.decision === 'matched_existing'
             ? 'Oferta przypisana do istniejącego wydania.'
             : 'Utworzono wydanie w katalogu i przypisano ofertę.');
+        if (refreshed !== false) {
+          const rows = filteredReviewOffers();
+          const next = rows[Math.min(Math.max(reviewPosition, 0), rows.length - 1)];
+          if (next) {
+            state.selectedReviewId = next.id;
+            renderReview();
+            try {
+              state.reviewDetail = await json(`/api/offers/${encodeURIComponent(next.offerId)}`);
+              if (state.selectedReviewId === next.id) renderReviewDetail();
+            } catch {
+              // Basic offer data remain visible and can be selected again.
+            }
+          }
+        }
         return;
       }
       const reasons = {
