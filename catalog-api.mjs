@@ -262,7 +262,11 @@ export function listCatalogOffers(repository, options = {}) {
   );
   const offerSort = {
     newest: 'o.last_seen_at DESC,o.id',
-    title: 'lower(o.original_title),o.id',
+    oldest: 'o.last_seen_at ASC,o.id',
+    title: 'lower(o.original_title) ASC,o.id',
+    'title-desc': 'lower(o.original_title) DESC,o.id',
+    source: 'lower(o.source) ASC,o.id',
+    'source-desc': 'lower(o.source) DESC,o.id',
     'price-asc': 'o.current_price IS NULL,o.current_price ASC,o.id',
     'price-desc': 'o.current_price IS NULL,o.current_price DESC,o.id',
   };
