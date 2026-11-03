@@ -27,7 +27,7 @@ function getOrPost(port,{method='GET',hostHeader=host,origin,identity=user,conte
   return new Promise((resolve,reject)=>{
     const headers={Host:hostHeader};
     if(origin!==undefined) headers.Origin=origin;
-    if(identity!==undefined) headers['Tailscale-User-Login']=identity;
+    if(identity != null) headers['Tailscale-User-Login']=identity;
     if(method==='POST') headers['Content-Type']=contentType;
     const req=httpRequest({
       hostname:'127.0.0.1',port,path:method==='POST'?'/api/search/cancel':'/api/sources',
