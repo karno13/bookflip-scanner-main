@@ -43,8 +43,9 @@ test('frontend uses SQLite catalog APIs', () => {
     '/api/search?stream=1',
   ])
     assert.ok(script.includes(endpoint));
-  assert.match(script, /id="markNotBook"/);
-  assert.match(script, /decideReview\('not_book'\)/);
+  assert.match(script, /id="rejectReview"/);
+  assert.match(script, /id="reviewRejectReason"/);
+  assert.match(script, /reason === 'not_book' \? 'not_book' : 'excluded'/);
   assert.match(script, /state\.catalogPreview/);
 });
 
@@ -137,9 +138,9 @@ test('edition price statistics reflect saved asking prices without projecting RO
   assert.match(styles, /\.edition-price-summary/);
 });
 test('review requires explicit edition decision with bibliographic context', () => {
-  assert.match(script, /Dopasowanie dotyczy konkretnego wydania/);
-  assert.match(script, /Wybierz wydanie i zdecyduj/);
-  assert.match(script, /Zatwierdź przypisanie/);
+  assert.match(script, /Sprawdź zgodność przed zatwierdzeniem/);
+  assert.match(script, /Przypisz do wydania/);
+  assert.match(script, /Zatwierdź wydanie/);
 });
 
 test('offer drawer reports price observations without treating them as sales', () => {
