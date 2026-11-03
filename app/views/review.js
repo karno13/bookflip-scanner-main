@@ -246,7 +246,12 @@ function renderReviewDetail() {
       $('#reviewTitleLookupButton').click();
       return;
     }
-    button.disabled = true;
+    reviewDecisionPending = true;
+    const controls = ['reviewIsbnMatchButton', 'reviewIsbnCheckInput', 'approveReview',
+      'rejectReview', 'rejectProposal', 'markAsSet', 'requeueReview', 'reviewPrev', 'reviewNext']
+      .map((id) => $('#' + id)).filter(Boolean);
+    const previousDisabled = controls.map((control) => control.disabled);
+    controls.forEach((control) => { control.disabled = true; });
     output.textContent = 'Dopasowuję ofertę z katalogiem i sprawdzam BN / Open Library…';
     try {
       const response = await json(`/api/identification-jobs/${encodeURIComponent(job.id)}/match-isbn`, {
@@ -287,7 +292,10 @@ function renderReviewDetail() {
             ? 'Wpisz ISBN lub wyszukaj wydanie ręcznie.'
             : 'Nie udało się dopasować: ' + error.message;
     } finally {
-      if (button.isConnected) button.disabled = false;
+      reviewDecisionPending = false;
+      controls.forEach((control, index) => {
+        if (control.isConnected) control.disabled = previousDisabled[index];
+      });
     }
   });
   $('#reviewTitleLookupButton').addEventListener('click', async () => {
