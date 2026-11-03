@@ -6,9 +6,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-node -e "process.exit(Number(process.versions.node.split('.')[0]) >= 24 ? 0 : 1)"
+node -e "const v=process.versions.node.split('.').map(Number); process.exit((v[0]===22 && v[1]>=16) || v[0]>=24 ? 0 : 1)"
 if errorlevel 1 (
-  echo BookFlip wymaga Node.js 24 lub nowszego. Zainstaluj aktualne Node.js LTS.
+  echo BookFlip wymaga Node.js 22.16+ lub 24+. Zalecany Node.js 24 LTS.
   pause
   exit /b 1
 )
