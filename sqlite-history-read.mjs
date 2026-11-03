@@ -1,15 +1,16 @@
 // Read-only compatibility adapter for the legacy /api/history contract.
 // This does not alter the catalog or infer bibliographic identity without
 // an active edition assignment.
-export function sqliteHistoryModel(repository) {
+export function sqliteHistoryModel(repository, { bookId = null } = {}) {
   const db = repository.database;
   const editions = db
     .prepare(
       `SELECT e.id,e.legacy_id,e.title,e.created_at,e.updated_at,
    w.legacy_id AS work_legacy_id,w.verification_status
-   FROM editions e JOIN works w ON w.id=e.work_id`,
+   FROM editions e JOIN works w ON w.id=e.work_id
+   ${bookId ? "WHERE COALESCE(e.legacy_id,w.legacy_id,'edition:' || e.id)=?" : ""}`,
     )
-    .all();
+    .all(...(bookId ? [bookId] : []));
   const books = {},
     editionIds = new Map();
   for (const row of editions) {
@@ -25,24 +26,36 @@ export function sqliteHistoryModel(repository) {
         lastSeenAt: row.updated_at,
       };
   }
-  const isbns = db
+  const selectedEditionIds = [...editionIds.keys()];
+  const isbnFilter = bookId
+    ? ' AND edition_id IN (' + selectedEditionIds.map(() => '?').join(',') + ')'
+    : '';
+  const isbns = bookId && !selectedEditionIds.length ? [] : db
     .prepare(
-      "SELECT edition_id,normalized_value FROM edition_identifiers WHERE scheme IN ('isbn13','isbn10') ORDER BY CASE scheme WHEN 'isbn13' THEN 0 ELSE 1 END,id",
+      "SELECT edition_id,normalized_value FROM edition_identifiers WHERE scheme IN ('isbn13','isbn10')" +
+      isbnFilter + " ORDER BY CASE scheme WHEN 'isbn13' THEN 0 ELSE 1 END,id",
     )
-    .all();
+    .all(...(bookId ? selectedEditionIds : []));
   for (const row of isbns) {
     const book = books[editionIds.get(row.edition_id)];
     if (book && !book.isbn) book.isbn = row.normalized_value;
   }
-  const active = db
+  const active = bookId && !selectedEditionIds.length ? [] : db
     .prepare(
-      "SELECT offer_id,edition_id,method FROM offer_matches WHERE status='active' ORDER BY valid_from DESC,created_at DESC,id DESC",
+      "SELECT offer_id,edition_id,method FROM offer_matches WHERE status='active'" +
+      (bookId ? ' AND edition_id IN (' + selectedEditionIds.map(() => '?').join(',') + ')' : '') +
+      " ORDER BY valid_from DESC,created_at DESC,id DESC",
     )
-    .all();
+    .all(...(bookId ? selectedEditionIds : []));
   const assignments = new Map();
   for (const row of active) if (!assignments.has(row.offer_id)) assignments.set(row.offer_id, row);
   const offers = {};
-  const rows = db.prepare('SELECT * FROM offers ORDER BY last_seen_at DESC,id').all();
+  const matchedOfferIds = [...assignments.keys()];
+  const rows = bookId && !matchedOfferIds.length ? [] : db.prepare(
+    'SELECT * FROM offers' +
+    (bookId ? ' WHERE id IN (' + matchedOfferIds.map(() => '?').join(',') + ')' : '') +
+    ' ORDER BY last_seen_at DESC,id'
+  ).all(...(bookId ? matchedOfferIds : []));
   for (const row of rows) {
     const assignment = assignments.get(row.id),
       bookId = assignment ? editionIds.get(assignment.edition_id) || null : null;
@@ -72,9 +85,11 @@ export function sqliteHistoryModel(repository) {
       seenCount: row.seen_count,
     };
   }
-  const priceHistory = db
-    .prepare('SELECT offer_id,price,observed_at FROM offer_price_history ORDER BY observed_at,id')
-    .all()
+  const priceHistory = bookId && !matchedOfferIds.length ? [] : db
+    .prepare('SELECT offer_id,price,observed_at FROM offer_price_history' +
+      (bookId ? ' WHERE offer_id IN (' + matchedOfferIds.map(() => '?').join(',') + ')' : '') +
+      ' ORDER BY observed_at,id')
+    .all(...(bookId ? matchedOfferIds : []))
     .map((row) => ({
       offerId: row.offer_id,
       price: row.price,
