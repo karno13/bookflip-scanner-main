@@ -11,6 +11,7 @@ test('synthetic benchmark verifies new/changed prices without network access',as
   assert.equal(result.priceObservations,22);
   assert.ok(Number.isFinite(result.initial.elapsedMs));
   assert.ok(result.databaseBytes>0);
+  assert.equal(result.databaseBytes,result.mainDatabaseBytes+result.walBytes);
 });
 test('benchmark bounds the number of generated records',async()=>{
   await assert.rejects(benchmarkScan({offerCount:0}),/INVALID_BENCHMARK_OFFER_COUNT/);
