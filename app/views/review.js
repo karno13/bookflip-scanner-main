@@ -67,7 +67,7 @@ function renderReview() {
         .join('')
     : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
   $('#reviewList').scrollTop = reviewListScroll;
-  $('[data-review-id]').forEach((button) =>
+  $$('[data-review-id]').forEach((button) =>
     button.addEventListener('click', async () => {
       state.selectedReviewId = button.dataset.reviewId;
       state.reviewDetail = null;
