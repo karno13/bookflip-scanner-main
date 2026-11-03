@@ -296,48 +296,80 @@ async function filterVintedPolishOffers(
   signal = null,
 ) {
   offers = [...new Map(offers.map((offer) => [offer.url, offer])).values()];
-  const accepted = [];
-  let checked = 0,
-    unknown = 0,
-    cached = 0,
-    diagnostic = null;
-  for (const offer of offers) {
-    scanCancelled(signal);
-    let detail = cache.get(offer.url);
-    if (detail) cached++;
-    else {
-      const read = await retryRead(() => languageReader(offer.url), {
-        onProgress,
-        waiter,
-        signal,
-        context: { scope: 'vinted-language', item: checked + 1, total: offers.length },
-      });
-      if (read.error) {
-        diagnostic = errorDiagnostic(read.error);
-        break;
-      }
+  // At most two requests in flight, with one new Vinted request per second.
+  // Cache hits require no network request and do not consume rate-limit slots.
+  const accepted = new Array(offers.length);
+  let next = 0, checked = 0, unknown = 0, cached = 0;
+  let diagnostic = null, stopped = false, lastRequestAt = 0;
+  let startGate = Promise.resolve();
+
+  async function startDetailRead(url, index) {
+    let release;
+    const previous = startGate;
+    startGate = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
+      if (stopped) return { stopped: true };
       scanCancelled(signal);
-      detail = read.value;
-      cache.set(offer.url, detail);
+      const delay = Math.max(0, lastRequestAt + 1000 - Date.now());
+      if (delay) await awaitScan(waiter(delay), signal);
+      if (stopped) return { stopped: true };
+      scanCancelled(signal);
+      lastRequestAt = Date.now();
+      // Release start gate before waiting for the network response.
+    } finally {
+      release();
     }
-    checked++;
-    if (/^(?:pl|pol|polish|polski|język polski)$/i.test(String(detail.language || '')))
-      accepted.push({
-        ...offer,
-        language: 'Polski',
-        ...(detail.isbn ? { isbn: detail.isbn, isbnEvidence: 'Vinted — szczegóły oferty' } : {}),
-      });
-    else if (!detail.language) unknown++;
-    onProgress({
-      type: 'language-progress',
-      checked,
-      total: offers.length,
-      accepted: accepted.length,
-      unknown,
-      cached,
+    const read = await retryRead(() => languageReader(url), {
+      onProgress,
+      waiter,
+      signal,
+      context: { scope: 'vinted-language', item: index + 1, total: offers.length },
     });
+    return read;
   }
-  return { offers: accepted, diagnostic };
+
+  async function worker() {
+    while (!stopped) {
+      scanCancelled(signal);
+      const index = next++;
+      if (index >= offers.length) return;
+      const offer = offers[index];
+      let detail = cache.get(offer.url);
+      if (detail) cached++;
+      else {
+        const read = await startDetailRead(offer.url, index);
+        if (read.stopped) return;
+        if (read.error) {
+          diagnostic ||= errorDiagnostic(read.error);
+          stopped = true;
+          return;
+        }
+        scanCancelled(signal);
+        detail = read.value;
+        cache.set(offer.url, detail);
+      }
+      checked++;
+      if (/^(?:pl|pol|polish|polski|język polski)$/i.test(String(detail.language || '')))
+        accepted[index] = {
+          ...offer,
+          language: 'Polski',
+          ...(detail.isbn ? { isbn: detail.isbn, isbnEvidence: 'Vinted — szczegóły oferty' } : {}),
+        };
+      else if (!detail.language) unknown++;
+      onProgress({
+        type: 'language-progress',
+        checked,
+        total: offers.length,
+        accepted: accepted.filter(Boolean).length,
+        unknown,
+        cached,
+      });
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, offers.length) }, () => worker()));
+  scanCancelled(signal);
+  return { offers: accepted.filter(Boolean), diagnostic };
 }
 
 async function readJson(request) {
