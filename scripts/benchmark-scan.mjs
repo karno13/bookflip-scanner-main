@@ -5,7 +5,7 @@
 import { performance } from 'node:perf_hooks';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createProductionCatalog } from '../catalog-production.mjs';
 import { persistSqliteScan } from '../sqlite-single-store.mjs';
@@ -64,7 +64,7 @@ export async function benchmarkScan({ offerCount = 1000 } = {}) {
     await rm(dir, { recursive: true, force: true });
   }
 }
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const arg = process.argv.indexOf('--offers');
   const count = arg < 0 ? 1000 : Number(process.argv[arg + 1]);
   benchmarkScan({ offerCount: count })
