@@ -638,7 +638,7 @@ const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtm
 
 const refreshWorkflowDashboard = installDashboard({ state, showView });
 showView(new URLSearchParams(location.search).get('view') || 'scanner');
-Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
+Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast, json })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
   (error) => {
     $('#connectionLabel').textContent = 'Błąd połączenia';
     toast(`Nie udało się wczytać aplikacji: ${error.message}`);

@@ -1,3 +1,4 @@
+import { listScanProfiles, putScanProfile, deleteScanProfile } from './scan-profiles-api.mjs';
 import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs';
 import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
@@ -606,6 +607,27 @@ export function createLocalAppServer({
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
         return send(response, 200, JSON.stringify(catalog.repository.counts()));
+      }
+      if (request.method === 'GET' && url.pathname === '/api/scan-profiles') {
+        const catalog=getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        return send(response,200,JSON.stringify({items:listScanProfiles(catalog.repository)}));
+      }
+      if (request.method === 'POST' && url.pathname === '/api/scan-profiles/import') {
+        const catalog=getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        const input=await readJson(request);
+        return send(response,200,JSON.stringify(putScanProfile(catalog.repository,input?.name,input,{onlyIfAbsent:true})));
+      }
+      if ((request.method === 'PUT' || request.method === 'DELETE') &&
+          url.pathname.startsWith('/api/scan-profiles/')) {
+        const catalog=getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        const name=decodeURIComponent(url.pathname.slice('/api/scan-profiles/'.length));
+        if (request.method === 'DELETE')
+          return send(response,200,JSON.stringify(deleteScanProfile(catalog.repository,name)));
+        const input=await readJson(request);
+        return send(response,200,JSON.stringify(putScanProfile(catalog.repository,name,input)));
       }
       if (request.method === 'GET' && url.pathname === '/api/sources')
         return send(response, 200, JSON.stringify({ sources: Object.keys(localSourceHosts) }));
