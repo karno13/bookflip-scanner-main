@@ -157,8 +157,8 @@ function renderReviewDetail() {
           <details class="lean-review-candidate"><summary>Dowody i porównanie metadanych</summary>${candidate}</details>
         </section>
         <section class="lean-review-choice"><details id="reviewManualChoice" class="lean-review-manual" ${suggested ? '' : 'open'}><summary>Zmień / wyszukaj inne wydanie</summary>
-          <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Wpisz tytuł, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div><p id="reviewChosenEdition" class="lean-review-selected" role="status" aria-live="polite"></p>
-        </details></section>
+          <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Wpisz tytuł, autora lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div>
+        </details><p id="reviewChosenEdition" class="lean-review-selected" role="status" aria-live="polite"></p></section>
         <details class="lean-review-evidence"><summary>Dane oferty i diagnostyka</summary><div class="detail-grid"><span><b>Źródło</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN z ogłoszenia</b><small>${escapeHtml(offer.observedIsbn || 'Brak')}</small></span><span><b>Klasyfikacja</b><small>${escapeHtml(evidence.map((row) => row.classification).join(', ') || 'brak dowodu')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span></div><p class="lean-review-diagnostic">${escapeHtml(result.reason?.join?.(', ') || job.lastError || 'Brak dodatkowych informacji')}</p></details>
       </div>
       <footer class="lean-review-footer">
