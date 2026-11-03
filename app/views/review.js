@@ -463,5 +463,16 @@ async function decideReview(action, editionId = null, reason = null) {
   }
 }
 
+// Navigation shortcuts intentionally never submit decisions or capture typing fields.
+document.addEventListener('keydown', (event) => {
+  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  const view = document.querySelector('#view-review');
+  if (!view || view.hidden) return;
+  if (event.target?.closest?.('input,select,textarea,[contenteditable="true"]')) return;
+  event.preventDefault();
+  navigateReview(event.key === 'ArrowDown' ? 1 : -1);
+});
+
 return { filteredReviewOffers, visibleCatalogRows, renderReview, normalizedIsbn, reviewCandidateMarkup, renderReviewDetail, renderReviewBookChoices, approveReview, decideReview };
 }
