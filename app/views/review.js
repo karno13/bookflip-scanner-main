@@ -71,6 +71,7 @@ function renderReview() {
     button.addEventListener('click', async () => {
       state.selectedReviewId = button.dataset.reviewId;
       state.reviewDetail = null;
+      $('#reviewDetail').dataset.jobId = '';
       renderReview();
       $('#reviewList').querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
       const job = state.reviewJobs.find((row) => row.id === state.selectedReviewId);
@@ -86,7 +87,7 @@ function renderReview() {
       }
     }),
   );
-  renderReviewDetail();
+  if ($('#reviewDetail').dataset.jobId !== (state.selectedReviewId || '')) renderReviewDetail();
 }
 
 function normalizedIsbn(value) {
@@ -115,9 +116,12 @@ function reviewCandidateMarkup(offer, suggested) {
 
 function renderReviewDetail() {
   const job = reviewOffers().find((row) => row.id === state.selectedReviewId);
-  if (!job)
+  if (!job) {
+    $('#reviewDetail').dataset.jobId = '';
     return ($('#reviewDetail').innerHTML =
       '<div class="empty-detail"><h3>Wybierz ofertę</h3><p>Po lewej pojawia się lista ofert wymagajacych decyzji.</p></div>');
+  }
+  $('#reviewDetail').dataset.jobId = job.id;
   const offer = state.reviewDetail || job.offer,
     evidence = state.reviewDetail?.evidence || [],
     result = job.result || {};
