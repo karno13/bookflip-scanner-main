@@ -414,7 +414,7 @@ async function loadCatalogStatus() {
   } catch {
     state.catalog = null;
     $('#databaseStatus').textContent = 'SQLite: niedostepny';
-    $('#settingsDatabaseCopy').textContent = 'Nie udalo sie odczytac statusu bazy.';
+    $('#settingsDatabaseCopy').textContent = 'Nie udało się odczytać statusu bazy.';
     $('#connectionDot').classList.remove('online');
     $('#connectionLabel').textContent = 'Błąd połączenia';
     return false;
@@ -508,7 +508,7 @@ async function submitCatalog(event) {
   event.target.reset();
   await loadHistory();
   renderCatalog();
-  toast('Ręczny rekord katalogowy zostal zapisany.');
+  toast('Ręczny rekord katalogowy został zapisany.');
 }
 
 $$('.nav-item, .mobile-nav-item').forEach((button) =>
