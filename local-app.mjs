@@ -1,3 +1,4 @@
+import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
 import { listOfferWorkspace, setOfferWorkspace } from './offer-workspace-api.mjs';
 import { listWorkSeries, updateWorkSeries } from './work-series-api.mjs';
@@ -88,11 +89,12 @@ function retryDelay(error, attempt) {
     fallback = 1000 * 2 ** (attempt - 1);
   return Math.min(30000, Math.max(1000, Number.isFinite(suggested) ? suggested : fallback));
 }
-async function retryRead(read, { onProgress = () => {}, waiter = wait, context = {} } = {}) {
+async function retryRead(read, { onProgress = () => {}, waiter = wait, context = {}, signal = null } = {}) {
   for (let attempt = 1; attempt <= retryLimit; attempt++)
     try {
-      return { value: await read(), error: null };
+      return { value: await awaitScan(read(), signal), error: null };
     } catch (error) {
+      scanCancelled(signal);
       if (attempt === retryLimit || !isRetryable(error)) return { value: null, error };
       const delayMs = retryDelay(error, attempt);
       onProgress({
@@ -103,7 +105,7 @@ async function retryRead(read, { onProgress = () => {}, waiter = wait, context =
         delayMs,
         code: safeCode(error),
       });
-      await waiter(delayMs);
+      await awaitScan(waiter(delayMs), signal);
     }
   return { value: null, error: Error('SOURCE_REQUEST_FAILED') };
 }
@@ -117,6 +119,7 @@ export async function searchOffers(
     onProgress = () => {},
     detailCache = new Map(),
     retryWait = wait,
+    signal = null,
   } = {},
 ) {
   const { queries, sources } = validateSearchInput(input),
@@ -125,6 +128,7 @@ export async function searchOffers(
   await Promise.all(
     sources.map(async (source) => {
       for (const query of queries) {
+        scanCancelled(signal);
         const task = {
           source,
           host: localSourceHosts[source],
@@ -154,6 +158,7 @@ export async function searchOffers(
               (event) => onProgress({ ...event, source, query }),
               languageCache,
               retryWait,
+              signal,
             );
             offers = filtered.offers;
             diagnostic = diagnostic || filtered.diagnostic;
@@ -192,6 +197,7 @@ export async function searchOffers(
       }
     }),
   );
+  scanCancelled(signal);
   const offersByUrl = new Map();
   for (const row of results) {
     for (const offer of row.offers) {
@@ -222,13 +228,14 @@ export async function searchOffers(
     results: results.map(({ offers, ...row }) => ({ ...row, count: offers.length })),
   };
 }
-async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait) {
+async function scanAllPages(task, scanner, onProgress = () => {}, waiter = wait, signal = null) {
   const offers = [],
     seenPages = new Set(),
     pages = [];
   let current = { ...task },
     diagnostic = null;
   for (let pageIndex = 0; pageIndex < 50; pageIndex++) {
+    scanCancelled(signal);
     if (seenPages.has(current.page)) {
       diagnostic = errorDiagnostic(Error('PAGINATION_LOOP'));
       break;
@@ -279,6 +286,7 @@ async function filterVintedPolishOffers(
   onProgress = () => {},
   cache = new Map(),
   waiter = wait,
+  signal = null,
 ) {
   offers = [...new Map(offers.map((offer) => [offer.url, offer])).values()];
   const accepted = [];
@@ -471,7 +479,9 @@ async function searchAndStore(
   storageMode();
   const catalog = catalogProvider();
   if (!catalog) throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
-  const result = await search(input, { onProgress, detailCache: sharedVintedDetailCache });
+  scanCancelled(signal);
+  const result = await awaitScan(search(input, { onProgress, detailCache: sharedVintedDetailCache, signal }), signal);
+  scanCancelled(signal);
   const errors = result.results
     .filter((row) => row.status !== 'ok')
     .map((row) => ({
@@ -479,9 +489,10 @@ async function searchAndStore(
       query: row.query,
       code: row.diagnostic?.code || 'SOURCE_REQUEST_FAILED',
     }));
-  const saved = await withHistoryWriteLock(async () =>
-    persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors }),
-  );
+  const saved = await withHistoryWriteLock(async () => {
+    scanCancelled(signal);
+    return persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors });
+  });
   if (String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0')
     scheduleCatalogResolution(catalog);
   return {
