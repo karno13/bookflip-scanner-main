@@ -1,3 +1,4 @@
+import { tailscaleAccessFromEnv, validateBookflipRequest } from './tailscale-access.mjs';
 import { listScanProfiles, putScanProfile, deleteScanProfile } from './scan-profiles-api.mjs';
 import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs';
 import { publicAssetPath } from './static-asset-path.mjs';
@@ -557,36 +558,10 @@ async function searchAndStore(
   };
 }
 
-function validateLocalRequest(request) {
-  const expectedPort = String(request.socket.localPort || 4317);
-  const allowedHosts = new Set([`127.0.0.1:${expectedPort}`, `localhost:${expectedPort}`]);
-  const host = String(request.headers.host || '').toLowerCase();
-  if (!allowedHosts.has(host)) return { status: 403, error: 'INVALID_HOST' };
-  const origin = request.headers.origin;
-  if (origin) {
-    let parsed;
-    try {
-      parsed = new URL(origin);
-    } catch {
-      return { status: 403, error: 'INVALID_ORIGIN' };
-    }
-    if (parsed.protocol !== 'http:' || !allowedHosts.has(parsed.host.toLowerCase()))
-      return { status: 403, error: 'INVALID_ORIGIN' };
-  }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
-    if (!origin) return { status: 403, error: 'ORIGIN_REQUIRED' };
-    const type = String(request.headers['content-type'] || '')
-      .split(';', 1)[0]
-      .trim()
-      .toLowerCase();
-    if (type !== 'application/json') return { status: 415, error: 'JSON_REQUIRED' };
-  }
-  return null;
-}
-
 export function createLocalAppServer({
   catalogProvider = getProductionCatalog,
   search = searchOffers,
+  tailscaleAccess = tailscaleAccessFromEnv(),
 } = {}) {
   storageMode();
   const getProductionCatalog = catalogProvider;
@@ -595,7 +570,7 @@ export function createLocalAppServer({
   let currentScan = null;
   const server = createServer(async (request, response) => {
     try {
-      const rejected = validateLocalRequest(request);
+      const rejected = validateBookflipRequest(request, tailscaleAccess);
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
