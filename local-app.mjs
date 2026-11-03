@@ -1,3 +1,4 @@
+import { retryIdentificationJobs } from './identification-retry.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
@@ -679,17 +680,8 @@ export function createLocalAppServer({
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
         const input = await readJson(request);
-        const mode = input?.mode;
-        if (!['failed', 'not_found', 'review_required'].includes(mode))
-          return send(response, 400, JSON.stringify({ error: 'INVALID_RETRY_MODE' }));
-        const repo = catalog.repository;
-        const now = new Date().toISOString();
-        const updated = repo.transaction(() => repo.database.prepare(
-          mode === 'not_found'
-            ? "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status='completed' AND json_valid(result_json) AND json_extract(result_json,'$.decision')='not_found' AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual')) AND NOT EXISTS (SELECT 1 FROM offer_sets s WHERE s.offer_id=identification_jobs.offer_id)"
-            : "UPDATE identification_jobs SET status='queued',run_after=NULL,lease_token=NULL,lease_expires_at=NULL,last_error=NULL,updated_at=? WHERE status=? AND NOT EXISTS (SELECT 1 FROM offer_matches m WHERE m.offer_id=identification_jobs.offer_id AND m.status='active' AND m.method IN ('manual','legacy_manual')) AND NOT EXISTS (SELECT 1 FROM offer_sets s WHERE s.offer_id=identification_jobs.offer_id)",
-        ).run(...(mode === 'not_found' ? [now] : [now, mode])).changes);
-        return send(response, 200, JSON.stringify({ queued: Number(updated) }));
+        const result = retryIdentificationJobs(catalog.repository, input?.mode);
+        return send(response, 200, JSON.stringify(result));
       }
       if (url.pathname === '/api/sets' && request.method === 'GET') {
         const catalog = getProductionCatalog();
@@ -756,16 +748,20 @@ export function createLocalAppServer({
       if (request.method === 'POST' && url.pathname === '/api/catalog/lookup-preview') {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const isbn = normalizeISBN((await readJson(request))?.isbn);
+        if (!isbn) return send(response, 400, JSON.stringify({ error: 'INVALID_ISBN' }));
         return send(
           response,
           200,
-          JSON.stringify(await catalog.lookupIsbn((await readJson(request)).isbn)),
+          JSON.stringify(await catalog.lookupIsbn(isbn)),
         );
       }
       if (request.method === 'POST' && url.pathname === '/api/catalog/lookup-confirm') {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
-        const result = await catalog.resolveIsbn((await readJson(request)).isbn);
+        const isbn = normalizeISBN((await readJson(request))?.isbn);
+        if (!isbn) return send(response, 400, JSON.stringify({ error: 'INVALID_ISBN' }));
+        const result = await catalog.resolveIsbn(isbn);
         return send(
           response,
           ['created_edition', 'created_work_and_edition', 'matched_existing'].includes(

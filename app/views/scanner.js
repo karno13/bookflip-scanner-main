@@ -5,7 +5,7 @@ export async function requestScanCancellation({ $, toast }) {
   button.disabled = true;
   button.textContent = 'Anulowanie…';
   try {
-    const response = await fetch('/api/search/cancel', { method: 'POST' });
+    const response = await fetch('/api/search/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     if (!response.ok) throw Error('CANCEL_HTTP_' + response.status);
     $('#scanGuardMessage').textContent = 'Trwa zatrzymywanie skanu. Wcześniej zapisane oferty pozostają w katalogu.';
   } catch (error) {
