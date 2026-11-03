@@ -1,8 +1,6 @@
 import { readSearchStream } from '../scan-stream.js';
 
-// Scanner view owns its progress state and UI; dependencies are injected by the shell.
-export function createScannerView({ state, $, escapeHtml, shortTime, readQueries, selectedSources, toast, loadHistory, loadCatalogStatus, loadCatalogData, storage = globalThis.localStorage }) {
-async function cancelSearch() {
+export async function requestScanCancellation({ $, toast }) {
   const button = $('#cancelSearch');
   button.disabled = true;
   button.textContent = 'Anulowanie…';
@@ -16,6 +14,10 @@ async function cancelSearch() {
     button.textContent = 'Anuluj skan';
   }
 }
+
+
+// Scanner view owns its progress state and UI; dependencies are injected by the shell.
+export function createScannerView({ state, $, escapeHtml, shortTime, readQueries, selectedSources, toast, loadHistory, loadCatalogStatus, loadCatalogData, storage = globalThis.localStorage }) {
 function resetScanUi(queries, sources) {
   state.scan.total = queries.length * sources.length;
   state.scan.completed = 0;
@@ -180,5 +182,5 @@ async function startSearch() {
 }
 
 
-  return { startSearch, cancelSearch, resetScanUi, renderSourceRows, updateProgress };
+  return { startSearch, resetScanUi, renderSourceRows, updateProgress };
 }
