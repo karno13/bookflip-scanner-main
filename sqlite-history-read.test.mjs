@@ -125,3 +125,33 @@ test('invalid summary timestamp rolls back offer changes and scanner metadata', 
     c.close();
   }
 });
+
+
+test('book-scoped legacy projection excludes unrelated offers and their price histories', () => {
+  const catalog = createProductionCatalog({ databasePath: ':memory:' });
+  try {
+    const at = '2026-10-30T10:00:00Z';
+    catalog.ingestOffers([
+      { source: 'Vinted', url: 'https://www.vinted.pl/items/800-book', title:'Volume 1', price: 100 },
+      { source: 'Vinted', url: 'https://www.vinted.pl/items/801-book', title:'Volume 2', price: 200 },
+    ], at);
+    const all = sqliteHistoryModel(catalog.repository);
+    const ids = Object.keys(all.offers);
+    for (const [index, offerId] of ids.entries()) {
+      const workId='work_scoped_'+index, editionId='edition_scoped_'+index;
+      catalog.repository.createWork({id:workId,title:'Test '+index,verificationStatus:'manual',at});
+      catalog.repository.createEdition({id:editionId,workId,title:'Test '+index,verificationStatus:'manual',at});
+      catalog.repository.assignOfferToEdition(offerId,editionId,{
+        method:'manual',createdBy:'local_user',status:'active',at,
+      });
+    }
+    const full = sqliteHistoryModel(catalog.repository);
+    const desired = full.offers[ids[0]].bookId;
+    const scoped = sqliteHistoryModel(catalog.repository,{bookId:desired});
+    assert.deepEqual(Object.keys(scoped.offers),[ids[0]]);
+    assert.deepEqual(scoped.priceHistory.map(p=>p.offerId),[ids[0]]);
+    assert.equal(bookHistory(scoped,desired).offers.length,1);
+    assert.equal(Object.keys(full.offers).length,2);
+    assert.deepEqual(sqliteHistoryModel(catalog.repository,{bookId:'nonexistent'}).offers,{});
+  } finally { catalog.close(); }
+});
