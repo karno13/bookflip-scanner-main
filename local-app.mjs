@@ -10,6 +10,7 @@ import { listOfferSets, markOfferAsSet, updateSetEdition, unmarkOfferSet } from 
 import { defaultCatalogPath } from './catalog-data-location.mjs';
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFile, appendFile, writeFile, mkdir, rename, stat, rm, realpath } from 'node:fs/promises';
 import { extname, join, dirname, sep } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -368,9 +369,13 @@ const logPath = join(runtimeDataDirectory, 'local-app.log');
 const scanStatusPath = join(runtimeDataDirectory, 'scan-status.json');
 async function persistScanStatus(status) {
   await mkdir(runtimeDataDirectory, { recursive: true });
-  const tempPath = scanStatusPath + '.tmp';
-  await writeFile(tempPath, JSON.stringify(status));
-  await rename(tempPath, scanStatusPath);
+  const tempPath = scanStatusPath + '.' + process.pid + '.' + randomUUID() + '.tmp';
+  try {
+    await writeFile(tempPath, JSON.stringify(status));
+    await rename(tempPath, scanStatusPath);
+  } finally {
+    await rm(tempPath, { force: true });
+  }
 }
 async function readScanStatus() {
   try {
