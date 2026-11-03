@@ -110,7 +110,7 @@
   #view-review .view-heading h2{font-size:18px;margin:0}
   #view-review .identification-progress{flex-shrink:0;margin-bottom:7px!important}
   #view-review .filterbar{flex-shrink:0;margin-bottom:7px}
-  #view-review .split-workspace{display:grid;grid-template-columns:minmax(280px,38%) minmax(0,62%);flex:1 1 auto;height:auto;min-height:0;gap:10px}
+  #view-review .split-workspace{display:grid;grid-template-columns:minmax(280px,38fr) minmax(0,62fr);flex:1 1 auto;height:auto;min-height:0;gap:10px}
   #view-review .review-list,#view-review .detail-panel{min-height:0;max-height:none;height:100%;overflow:auto}
   #view-review .lean-review{min-height:0;height:auto}
   #view-review .lean-review-footer{position:static;margin-top:0;box-shadow:none}
