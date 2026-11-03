@@ -33,3 +33,40 @@ export function setOfferWorkspace(repository, offerId, input) {
  .run(offerId,watched?1:0,status,target,note,now);
  return {offerId,watched,status,targetPrice:target,note,updatedAt:now};
 }
+
+// Transactional import: existing SQLite notes must never be overwritten by a stale browser.
+// Legacy targetPrice values are already in złote; offer.current_price stays in grosze.
+export function importOfferWorkspace(repository, entries) {
+ if (!Array.isArray(entries) || entries.length > 200)
+   throw Object.assign(Error('INVALID_IMPORT_BATCH'), {statusCode:400});
+ const statuses = new Set(['watching','check','negotiating','bought','rejected']);
+ const exists = repository.database.prepare('SELECT 1 FROM offers WHERE id=?');
+ const insert = repository.database.prepare(`INSERT OR IGNORE INTO offer_workspace
+  (offer_id, watched, purchase_status, target_price, note, updated_at)
+  VALUES(?,?,?,?,?,?)`);
+ const result = { imported:0, skipped:0, missing:0, invalid:0 };
+ repository.transaction(() => {
+   for (const item of entries) {
+     const offerId = item?.offerId;
+     const entry = item?.record;
+     if (typeof offerId !== 'string' || !offerId || offerId.length > 200 ||
+         !entry || typeof entry !== 'object' || Array.isArray(entry) ||
+         typeof entry.watched !== 'boolean' || !statuses.has(entry.status) ||
+         typeof entry.note !== 'string' || entry.note.length > 2000 ||
+         (entry.targetPrice !== null && (
+           !Number.isFinite(entry.targetPrice) || entry.targetPrice < 0 ||
+           entry.targetPrice > 100000000 ||
+           Math.abs(Math.round(entry.targetPrice * 100) - entry.targetPrice * 100) > 1e-7
+         ))) {
+       result.invalid++;
+       continue;
+     }
+     if (!exists.get(offerId)) { result.missing++; continue; }
+     const changed = insert.run(offerId, entry.watched ? 1 : 0, entry.status,
+       entry.targetPrice, entry.note, new Date().toISOString()).changes;
+     if (changed) result.imported++;
+     else result.skipped++;
+   }
+ });
+ return result;
+}
