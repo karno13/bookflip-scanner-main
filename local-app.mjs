@@ -1,4 +1,5 @@
 import { tailscaleAccessFromEnv, validateBookflipRequest } from './tailscale-access.mjs';
+import { tradingRoute } from './trading-api.mjs';
 import { listScanProfiles, putScanProfile, deleteScanProfile } from './scan-profiles-api.mjs';
 import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs';
 import { publicAssetPath } from './static-asset-path.mjs';
@@ -33,7 +34,7 @@ import {
   listIdentificationJobs,
   matchIdentificationJobByIsbn,
 } from './catalog-api.mjs';
-import { analyzedOffers, bookHistory, bookStatistics } from './price-analysis.mjs';
+import { analyzedOffers, bookHistory, allBookStatistics } from './price-analysis.mjs';
 import { sqliteHistoryModel } from './sqlite-history-read.mjs';
 import {
   storageMode,
@@ -68,6 +69,13 @@ export function validateSearchInput(input) {
     sources.some((source) => !localSourceHosts[source])
   )
     throw Object.assign(Error('INVALID_SOURCES'), { statusCode: 400 });
+  if (input?.tasks !== undefined) {
+    if (!Array.isArray(input.tasks) || !input.tasks.length || input.tasks.length>70 ||
+        input.tasks.some(task=>!queries.includes(task?.query)||!sources.includes(task?.source)))
+      throw Object.assign(Error('INVALID_SCAN_TASKS'),{statusCode:400});
+    const tasks=[...new Map(input.tasks.map(task=>[JSON.stringify([task.source,task.query]),{source:task.source,query:task.query}])).values()];
+    return {queries,sources,tasks};
+  }
   return { queries, sources };
 }
 
@@ -132,12 +140,13 @@ export async function searchOffers(
     signal = null,
   } = {},
 ) {
-  const { queries, sources } = validateSearchInput(input),
+  const { queries, sources, tasks } = validateSearchInput(input),
     results = [],
     languageCache = detailCache;
   await Promise.all(
     sources.map(async (source) => {
       for (const query of queries) {
+        if(tasks && !tasks.some(task=>task.source===source && task.query===query)) continue;
         scanCancelled(signal);
         const task = {
           source,
@@ -201,9 +210,11 @@ export async function searchOffers(
             status,
           });
         } catch (error) {
+          scanCancelled(signal);
           const diagnostic = errorDiagnostic(error);
           onProgress({ type: 'source-error', source, query, code: diagnostic.code, partial: 0 });
           results.push({ source, query, status: 'unavailable', offers: [], diagnostic });
+          onProgress({type:'source-done',source,query,offers:0,pages:0,status:'unavailable'});
         }
       }
     }),
@@ -377,16 +388,17 @@ async function filterVintedPolishOffers(
   return { offers: accepted.filter(Boolean), diagnostic };
 }
 
-async function readJson(request) {
-  let size = 0,
-    text = '';
+export async function readJson(request) {
+  let size = 0;
+  const chunks = [];
   for await (const chunk of request) {
-    size += chunk.length;
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
     if (size > 32768) throw Object.assign(Error('REQUEST_TOO_LARGE'), { statusCode: 413 });
-    text += chunk;
+    chunks.push(buffer);
   }
   try {
-    return JSON.parse(text || '{}');
+    return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
   } catch {
     throw Object.assign(Error('INVALID_JSON'), { statusCode: 400 });
   }
@@ -469,14 +481,28 @@ function historySnapshot(history) {
   return {
     updatedAt: history.updatedAt,
     lastScan: history.lastScan,
-    books: Object.values(history.books)
-      .map((book) => bookStatistics(history, book.id))
-      .filter(Boolean)
+    books: allBookStatistics(history)
       .sort((a, b) => String(b.book.lastSeenAt).localeCompare(String(a.book.lastSeenAt))),
     offers: analyzedOffers(history).sort((a, b) =>
       String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)),
     ),
   };
+}
+
+// Keep the legacy full-snapshot response without loading every historical
+// price observation. SQL reduces history to one minimum per offer first.
+export function catalogHistorySnapshot(repository) {
+  const history = sqliteHistoryModel(repository, { includePriceHistory: false });
+  const snapshot = historySnapshot(history);
+  const books = new Map(snapshot.books.map(row => [row.book.id, row]));
+  for (const point of repository.database.prepare(
+    'SELECT offer_id, min(price) AS price FROM offer_price_history GROUP BY offer_id',
+  ).all()) {
+    const book = books.get(history.offers[point.offer_id]?.bookId);
+    if (book) book.historicalMinimum = book.historicalMinimum === null
+      ? point.price : Math.min(book.historicalMinimum, point.price);
+  }
+  return snapshot;
 }
 let historyWriteTail = Promise.resolve();
 export async function withHistoryWriteLock(work) {
@@ -545,7 +571,8 @@ async function searchAndStore(
     }));
   const saved = await withHistoryWriteLock(async () => {
     scanCancelled(signal);
-    return persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors });
+    return persistSqliteScan(catalog, { offers: result.offers, searchedAt: result.searchedAt, errors,
+      scanContext: { queries: input.queries, sources: input.sources, results: result.results } });
   });
   if (String(process.env.BOOKFLIP_CATALOG_AUTO_RESOLVE ?? '1') !== '0' && shouldAutoResolve())
     scheduleCatalogResolution(catalog);
@@ -576,6 +603,15 @@ export function createLocalAppServer({
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
+      if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
+          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        const data = await tradingRoute({repo:catalog.repository,method:request.method,path:url.pathname,
+          input:['PUT','POST'].includes(request.method) ? await readJson(request) : null});
+        if(data!==undefined) return send(response,200,JSON.stringify(data));
+        return send(response,405,JSON.stringify({error:'METHOD_NOT_ALLOWED'}));
+      }
       if (request.method === 'GET' && url.pathname === '/api/scan/diagnostics') {
         const scan = currentScan || await readScanStatus();
         return send(response, 200, JSON.stringify({ ...scan, progress: scanProgress(scan.diagnostics), telemetry: scanTelemetry(scan.diagnostics, { running: scan.status === 'running' }) }));
@@ -598,6 +634,13 @@ export function createLocalAppServer({
         const input=await readJson(request);
         return send(response,200,JSON.stringify(putScanProfile(catalog.repository,input?.name,input,{onlyIfAbsent:true})));
       }
+      if (request.method === 'POST' && url.pathname === '/api/scan-profiles') {
+        const catalog=getProductionCatalog();
+        if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
+        const input=await readJson(request);
+        const result=putScanProfile(catalog.repository,input?.name,input,{onlyIfAbsent:true});
+        return send(response,result.created?201:409,JSON.stringify(result.created?result:{error:'PROFILE_ALREADY_EXISTS'}));
+      }
       if ((request.method === 'PUT' || request.method === 'DELETE') &&
           url.pathname.startsWith('/api/scan-profiles/')) {
         const catalog=getProductionCatalog();
@@ -616,8 +659,9 @@ export function createLocalAppServer({
         return send(response, 200, JSON.stringify(historyBookLabels(catalog.repository)));
       }
       if (request.method === 'GET' && url.pathname === '/api/history') {
-        const history = await readHistoryForUi({ catalog: getProductionCatalog() });
-        return send(response, 200, JSON.stringify(historySnapshot(history)));
+        const catalog = getProductionCatalog();
+        if (!catalog) throw Error('SQLITE_HISTORY_REQUIRES_CATALOG');
+        return send(response, 200, JSON.stringify(catalogHistorySnapshot(catalog.repository)));
       }
       if (request.method === 'GET' && url.pathname === '/api/book') {
         const catalog = getProductionCatalog();
@@ -642,9 +686,10 @@ export function createLocalAppServer({
           created.created ? 201 : 200,
           JSON.stringify({
             book: created.book,
+            editionId: created.editionId,
             catalog: url.searchParams.get('compact') === '1'
               ? historyBookLabels(catalog.repository)
-              : historySnapshot(sqliteHistoryModel(catalog.repository)),
+              : catalogHistorySnapshot(catalog.repository),
             catalogSync: { mode: 'sqlite' },
           }),
         );
@@ -652,15 +697,24 @@ export function createLocalAppServer({
       if (request.method === 'POST' && url.pathname === '/api/identification/control') {
         const catalog = getProductionCatalog();
         if (!catalog || !identificationControl) return send(response, 503, JSON.stringify({ error: 'IDENTIFICATION_UNAVAILABLE' }));
-        const { action } = await readJson(request);
-        if (action === 'start') identificationControl.start();
+        const { action, retryUnresolved = false } = await readJson(request);
+        let retried = null;
+        if (action === 'start') {
+          if (retryUnresolved)
+            retried = retryIdentificationJobs(catalog.repository, 'unresolved');
+          const startedAt = new Date().toISOString();
+          catalog.beginIdentificationRun(startedAt);
+          identificationControl.start({ newRun: true, startedAt });
+          void identificationControl.tick();
+        }
         else if (action === 'stop') identificationControl.pause();
         else return send(response, 400, JSON.stringify({ error: 'INVALID_IDENTIFICATION_ACTION' }));
-        return send(response, 200, JSON.stringify(identificationControl.status()));
+        return send(response, 200, JSON.stringify({ ...identificationControl.status(), retried }));
       }
       if (request.method === 'GET' && url.pathname === '/api/catalog/status') {
         const catalog = getProductionCatalog();
-        return send(response, 200, JSON.stringify(catalog ? { ...catalog.status(), scheduler: identificationControl?.status() ?? { available: false } } : { enabled: false }));
+        const scheduler = identificationControl?.status() ?? { available: false };
+        return send(response, 200, JSON.stringify(catalog ? { ...catalog.status({ runStartedAt: scheduler.runStartedAt }), scheduler } : { enabled: false }));
       }
       if (request.method === 'GET' && url.pathname === '/api/catalog/series') {
         const catalog = getProductionCatalog();
@@ -746,6 +800,10 @@ export function createLocalAppServer({
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
         const input = await readJson(request);
         const result = retryIdentificationJobs(catalog.repository, input?.mode);
+        if (result.queued > 0 && identificationControl) {
+          identificationControl.start();
+          void identificationControl.tick();
+        }
         return send(response, 200, JSON.stringify(result));
       }
       if (url.pathname === '/api/sets' && request.method === 'GET') {
@@ -792,10 +850,16 @@ export function createLocalAppServer({
         const catalog = getProductionCatalog(),
           id = decodeURIComponent(url.pathname.split('/')[3]);
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const input = await readJson(request);
+        const result = decideIdentificationJob(catalog.repository, id, input);
+        if (input.action === 'requeued' && identificationControl) {
+          identificationControl.start();
+          void identificationControl.tick();
+        }
         return send(
           response,
           200,
-          JSON.stringify(decideIdentificationJob(catalog.repository, id, await readJson(request))),
+          JSON.stringify(result),
         );
       }
       if (
@@ -872,8 +936,8 @@ export function createLocalAppServer({
         const input = await readJson(request);
         const catalog = getProductionCatalog();
         if (!catalog) throw Error('SQLITE_STORAGE_REQUIRES_CATALOG');
-        const result = await withHistoryWriteLock(async () => linkSqliteOffer(catalog, input));
-        return send(response, 200, JSON.stringify(historySnapshot(result)));
+        await withHistoryWriteLock(async () => linkSqliteOffer(catalog, input, { returnHistory: false }));
+        return send(response, 200, JSON.stringify(catalogHistorySnapshot(catalog.repository)));
       }
       if (request.method === 'POST' && url.pathname === '/api/search/cancel') {
         if (!scanInFlight || !scanAbortController || scanAbortController.signal.aborted)
@@ -891,7 +955,7 @@ export function createLocalAppServer({
           scanStarted = true;
           scanAbortController = new AbortController();
           currentScan = { status: 'running', startedAt: new Date().toISOString(),
-            diagnostics: createScanDiagnostics({ queries: scanInput.queries || [], sources: scanInput.sources || [] }) };
+            diagnostics: createScanDiagnostics({ queries: scanInput.queries || [], sources: scanInput.sources || [], tasks: scanInput.tasks || null }) };
           await persistScanStatus(currentScan);
           if (url.searchParams.get('stream') === '1') {
             streamHeaders(response);

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { extractOfferISBN } from './isbn.mjs';
 import { isbnKeys, normalizeISBN } from './isbn-normalization.mjs';
-import { compareMetadataResults, persistMetadataResults } from './metadata-lookup.mjs';
+import { persistMetadataResults } from './metadata-lookup.mjs';
 
 const TRUSTED = new Set(['structured', 'labelled_description']);
 const REVIEW_ONLY = new Set(['unlabelled_description', 'ocr', 'uncertain', 'legacy']);
@@ -199,28 +199,10 @@ function externalWork(repository, record) {
   );
 }
 
-function mergeRecords(result, preferBn = false) {
-  const all = (preferBn ? [result.bn, result.openLibrary] : [result.openLibrary, result.bn])
-    .filter((entry) => entry.status === 'found')
-    .flatMap((entry) => entry.records);
-  const primary = all[0];
-  if (!primary) return null;
-  const merged = { ...primary };
-  for (const record of all)
-    for (const field of [
-      'isbn10',
-      'isbn13',
-      'title',
-      'publisher',
-      'publicationYear',
-      'language',
-      'binding',
-      'materialType',
-    ])
-      if (merged[field] == null) merged[field] = record[field];
-  if (!merged.authors?.length)
-    merged.authors = all.find((record) => record.authors?.length)?.authors ?? [];
-  return { record: merged, records: all };
+function mergeRecords(result) {
+  const source = result.bn?.status === 'not_found' ? result.openLibrary : result.bn;
+  const records = source?.status === 'found' ? source.records ?? [] : [];
+  return records.length === 1 ? { record: records[0], records } : null;
 }
 
 function decision(type, reason, evidence, ids = {}, extra = {}) {
@@ -333,56 +315,22 @@ export class CatalogResolver {
         workExternalId: record.workExternalId,
         payloadHash: record.payloadHash,
       }));
-    const comparison =
-      metadata.comparison ?? compareMetadataResults(metadata.bn, metadata.openLibrary);
-    if ([metadata.bn?.status, metadata.openLibrary?.status].includes('temporary_error'))
+    const source = metadata.bn?.status === 'not_found' ? metadata.openLibrary : metadata.bn;
+    if (source?.status === 'temporary_error')
       return decision('retry_pending', ['metadata_source_temporary_error'], proof);
-    const bnRecords = metadata.bn?.status === 'found' ? metadata.bn.records || [] : [];
+    if (source?.status === 'not_found')
+      return decision('not_found', ['isbn_not_found_in_metadata_sources'], proof);
+    if (source?.status !== 'found' || !source.records?.length)
+      return decision('review_required', ['metadata_invalid_or_incomplete'], proof);
+    if (source.records.length > 1)
+      return decision('review_required', ['multiple_metadata_records'], proof);
+    const selected = mergeRecords(metadata);
     const isbnMatches = (record) => [record.isbn10, record.isbn13]
       .flatMap((value) => value ? isbnKeys(value) : [])
       .some((key) => isbnKeys(isbn).includes(key));
-    const bnPreferred = bnRecords.length === 1 && isbnMatches(bnRecords[0]) &&
-      (comparison.status === 'conflict' || comparison.status === 'single_source' ||
-        comparison.status === 'consistent') &&
-      (comparison.conflicts || []).every((item) =>
-        item.type === 'field_conflict' &&
-        ['title', 'authors', 'publicationYear'].includes(item.field));
-    if (comparison.status === 'conflict' && !bnPreferred)
-      return decision(
-        'review_required',
-        ['metadata_sources_conflict'],
-        proof,
-        {},
-        { conflicts: comparison.conflicts },
-      );
-    if (comparison.status === 'incomplete')
-      return decision('review_required', ['metadata_invalid_or_incomplete'], proof);
-    if (comparison.status === 'not_found')
-      return decision('not_found', ['isbn_not_found_in_metadata_sources'], proof);
-
-    const selected = mergeRecords(metadata, bnPreferred);
-    if (!selected) return decision('not_found', ['no_matching_metadata_record'], proof);
-    const context =
-      offerId || offer
-        ? compareOfferContext(currentOffer, selected.record)
-        : { matches: ['catalog_only'], conflicts: [], sufficient: true };
-    // A single BN record with an exact ISBN is stronger than a shortened marketplace
-    // title, an untranslated author credit or missing offer metadata. Explicit
-    // publisher, language and binding conflicts still require human review.
-    const safeBnContext = bnPreferred &&
-      isbnEvidence.classification === 'structured' &&
-      (context.matches.includes('title') || !context.context?.title ||
-        text(context.context.title).split(' ').some((token) =>
-          token.length >= 5 && text(selected.record.title).split(' ').includes(token))) &&
-      context.conflicts.every((item) => ['title', 'authors', 'publicationYear'].includes(item.field));
-    if (!safeBnContext && (context.conflicts.length || !context.sufficient))
-      return decision(
-        'review_required',
-        context.conflicts.length ? ['offer_metadata_conflict'] : ['insufficient_offer_context'],
-        proof,
-        {},
-        { context },
-      );
+    if (!isbnMatches(selected.record))
+      return decision('review_required', ['metadata_isbn_mismatch'], proof);
+    const context = { matches: ['isbn'], conflicts: [], sufficient: true };
 
     const linkedEdition = externalEdition(this.repository, selected.records);
     if (linkedEdition)
@@ -409,23 +357,7 @@ export class CatalogResolver {
   }
 
   #matchExisting(edition, offer, offerId, isbnEvidence, proof, dryRun, precomputed = null) {
-    const catalogRecord = localRecord(this.repository, edition);
-    const context = precomputed ?? compareOfferContext(offer, catalogRecord);
-    const offerTokens = new Set(text(context.context?.title).split(' ').filter((word) => word.length >= 5));
-    const titleOverlap = text(catalogRecord.title).split(' ').some((word) => offerTokens.has(word));
-    const verifiedIsbn = isbnEvidence.autoAssignable &&
-      ['structured', 'labelled_description'].includes(isbnEvidence.classification) &&
-      this.repository.findEditionByISBN(isbnEvidence.isbn ?? isbnEvidence.candidateIsbn)?.id === edition.id;
-    const tolerableContext = verifiedIsbn && titleOverlap &&
-      context.conflicts.every((item) => ['title', 'publicationYear'].includes(item.field));
-    if (!tolerableContext && (context.conflicts.length || !context.sufficient))
-      return decision(
-        'review_required',
-        context.conflicts.length ? ['offer_catalog_conflict'] : ['insufficient_offer_context'],
-        proof,
-        { workId: edition.work_id, editionId: edition.id },
-        { context },
-      );
+    const context = { matches: ['isbn'], conflicts: [], sufficient: true };
     const current = activeMatch(this.repository, offerId);
     if (
       current &&
@@ -509,7 +441,11 @@ export class CatalogResolver {
           editionId,
           offerMatchId: offerId ? stableId('resolver_match', offerId, editionId) : null,
         },
-        { context, dryRun: true },
+        { context, dryRun: true, candidate: {
+          title: selected.record.title, authors: selected.record.authors,
+          publisher: selected.record.publisher, publicationYear: selected.record.publicationYear,
+          language: selected.record.language, isbn,
+        } },
       );
 
     return this.repository.transaction(() => {

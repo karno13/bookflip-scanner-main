@@ -1,3 +1,7 @@
+import { installDetailNavigation, openDetailView } from './core/detail-navigation.js';
+import { allowDiscard, statusLabel } from './core/ux.js';
+import { identificationProgress } from './core/identification-progress.js';
+import { installTradingControls } from './views/trading-controls.js';
 import { installDashboard } from './views/dashboard.js';
 import { installScanProfiles } from './views/scan-profiles.js';
 import { createScanInsights } from './views/scan-insights.js';
@@ -15,16 +19,20 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 const state = {
-  activeView: 'scanner',
+  activeView: 'catalog',
   sources: [],
   history: null,
   catalog: null,
   catalogWorks: [],
   reviewJobs: [],
   sqliteOffers: [],
+  scannerOffers: [],
+  scannerTotal: 0,
   reviewDetail: null,
   catalogMode: 'manual',
   catalogPreview: null,
+  catalogReturnToReview: null,
+  reviewPendingEdition: null,
   scan: {
     running: false,
     startedAt: null,
@@ -38,6 +46,9 @@ const state = {
   },
   selectedReviewId: null,
   selectedCatalogId: null,
+  offerView: 'all',
+  reviewScan: '',
+  scanRuns: [],
   offerPage: 1,
   pageSize: 25,
   catalogPages: {
@@ -51,12 +62,25 @@ const state = {
 const savedSearch = readSavedSearch(localStorage);
 $('#queries').value = savedSearch?.queries?.join('\n') || '';
 
-function toast(message) {
+function toast(message, action = null) {
   const node = document.createElement('div');
   node.className = 'toast';
-  node.textContent = message;
+  const copy = document.createElement('span');
+  copy.textContent = message;
+  node.append(copy);
+  if (action?.label && typeof action.onClick === 'function') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = action.label;
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try { await action.onClick(); node.remove(); }
+      catch (error) { button.disabled = false; action.onError?.(error); }
+    });
+    node.append(button);
+  }
   $('#toastRegion').append(node);
-  setTimeout(() => node.remove(), 4200);
+  setTimeout(() => node.remove(), action ? 8000 : 4200);
 }
 function selectedSources() {
   return $$('#sourceGrid input:checked').map((input) => input.value);
@@ -69,7 +93,7 @@ function readQueries() {
         .map((value) => value.trim())
         .filter(Boolean),
     ),
-  ].slice(0, 10);
+  ];
 }
 function bookFor(id) {
   return (state.history?.books || []).find((row) => row.book.id === id)?.book || null;
@@ -83,10 +107,10 @@ function reviewOffers() {
 function renderScannerOffers() {
   const mount = $('#scannerOfferList');
   if (!mount) return;
-  const all = [...allOffers()];
+  const all = [...state.scannerOffers];
   const sourceSelect = $('#scannerOfferSource');
   const activeSource = sourceSelect.value;
-  const sources = [...new Set(all.map((item) => item.source).filter(Boolean))].sort((a, b) =>
+  const sources = [...new Set([...state.sources,...all.map((item) => item.source)].filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pl'),
   );
   sourceSelect.innerHTML =
@@ -108,7 +132,7 @@ function renderScannerOffers() {
     .sort((a, b) => String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || '')));
   const offers = filtered.slice(0, 12);
   $('#scannerOfferCount').textContent =
-    `Pokazano ${offers.length} z ${filtered.length} pasujących ofert`;
+    `Pokazano ${offers.length} z ${state.scannerTotal} pasujących ofert`;
   $('#scannerDiscoverSummary').textContent =
     'Ostatnio zapisane oferty SQLite. Nie są to wyniki bieżącego skanu.';
   mount.innerHTML = offers.length
@@ -129,6 +153,7 @@ function renderScannerOffers() {
 
 function showView(name) {
   if (!['scanner', 'review', 'catalog', 'sets', 'offers', 'settings'].includes(name)) name = 'scanner';
+  if (!allowDiscard()) return;
   state.activeView = name;
   $$('.view').forEach((view) => {
     view.hidden = view.id !== `view-${name}`;
@@ -143,11 +168,13 @@ function showView(name) {
   $('#viewTitle').textContent = $(`#view-${name}`).dataset.title;
   history.replaceState(null, '', name === 'scanner' ? '/' : `/?view=${name}`);
   if (name === 'scanner') refreshWorkflowDashboard?.();
-  if (name === 'review') renderReview();
+  if(['sets','settings'].includes(name)) $('#mobileMore')?.setAttribute('aria-current','page');
+  else $('#mobileMore')?.removeAttribute('aria-current');
+  if (name === 'review') { renderReview(); void tradingControls?.refreshDecisions(); }
   if (name === 'catalog') renderCatalog();
   if (name === 'offers') renderOffers();
-  if (name === 'scanner') renderScannerOffers();
-  if (name === 'settings') renderSettings();
+  if (name === 'scanner') { renderScannerOffers(); void refreshScannerOffers(); }
+  if (name === 'settings') { renderSettings(); void tradingControls?.refreshSettings(); }
   if (name === 'sets') void setsView.refreshSets().catch(error => toast(error.message));
 }
 
@@ -163,7 +190,7 @@ async function loadSources() {
       )
       .join('') || '<span class="loading-copy">Brak aktywnych adapterow.</span>';
   $('#settingsSources').innerHTML = state.sources
-    .map((source) => `<span><b>${escapeHtml(source)}</b><small>Aktywny adapter</small></span>`)
+    .map((source) => `<span><b>${escapeHtml(source)}</b><small>Dostępny w programie · brak potwierdzenia działania</small></span>`)
     .join('');
   fillSourceFilters();
 }
@@ -188,6 +215,16 @@ async function loadHistory() {
   renderCatalog();
   renderOffers();
   renderScannerOffers();
+  await refreshScannerOffers();
+}
+let scannerSearchSerial=0;
+async function refreshScannerOffers() {
+  const serial=++scannerSearchSerial;
+  try {
+    const data=await json('/api/offers?'+new URLSearchParams({limit:'12',query:$('#scannerOfferSearch').value.trim(),source:$('#scannerOfferSource').value}));
+    if(serial!==scannerSearchSerial)return;
+    state.scannerOffers=data.items;state.scannerTotal=data.total;renderScannerOffers();
+  }catch(error){$('#scannerOfferCount').textContent='Nie udało się pobrać ofert. Spróbuj odświeżyć.';}
 }
 
 // API pages are limited to 250 rows. Read subsequent pages rather than silently
@@ -211,52 +248,67 @@ function catalogQuery(kind) {
 }
 function catalogFilters(kind) {
   const query = catalogQuery(kind);
-  if (kind === 'works') return { query, sort: $('#catalogSort').value };
+  if (kind === 'works') return { query, sort: $('#catalogSort').value, language:$('#catalogLanguage').value.trim(),publisher:$('#catalogPublisher').value.trim(),year:$('#catalogYear').value,binding:$('#catalogBinding').value.trim() };
   if (kind === 'jobs')
     return {
       query,
       source: $('#reviewSource').value,
+      scan: state.reviewScan,
       isbn: $('#reviewIsbn').value,
+      status:'review_required',
+      offerId:state.reviewOffer || '',
       sort: $('#reviewSort').value,
     };
   return {
     query,
     source: $('#offerSource').value,
     status: $('#offerStatus').value,
+    watched:state.offerView==='watched'?'1':'',target:state.offerView==='target'?'1':'',
+    purchaseStatus:['check','negotiating','bought','rejected'].includes(state.offerView)?state.offerView:'',
+    scan:$('#offerScan').value,scanChange:$('#offerScanChange').value,
+    minPrice:$('#offerMinPrice').value,maxPrice:$('#offerMaxPrice').value,
     sort: $('#offerSort').value,
   };
 }
 
 // Fetch one page at a time. A large catalog must not block the UI by
 // attempting to download every row on startup.
-async function loadCatalogPage(kind, { reset = false } = {}) {
+async function loadCatalogPage(kind, { reset = false, pageNumber = null } = {}) {
   const source = catalogSources[kind];
   if (!source) return false;
   if (reset) catalogAbortControllers.get(kind)?.abort();
   else if (loadingCatalogPages.has(kind)) return false;
   const page = state.catalogPages[kind];
-  if (!reset && page.offset >= page.total) return false;
+  if (!reset && pageNumber === null && page.offset >= page.total) return false;
   loadingCatalogPages.add(kind);
   const controller = new AbortController();
   catalogAbortControllers.set(kind, controller);
   updateCatalogLoadControls();
   try {
-    const offset = reset ? 0 : page.offset;
+    const limit = kind === 'offers' ? state.pageSize : catalogPageSize;
+    const requestedPage = pageNumber ?? (reset ? 1 : state.offerPage + 1);
+    let offset = kind === 'offers' ? (requestedPage - 1) * limit : reset ? 0 : page.offset;
     const filters = reset ? catalogFilters(kind) : page.filters || { query: page.query || '' };
     const query = filters.query;
-    const params = new URLSearchParams({ limit: String(catalogPageSize), offset: String(offset) });
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
     const response = await fetch(`${source.endpoint}?${params}`, { signal: controller.signal });
-    const data = await response.json();
+    let data = await response.json();
     if (!response.ok) throw Error(data.error || `HTTP_${response.status}`);
     if (controller.signal.aborted) return false;
-    validateCatalogPage(data, catalogPageSize, offset);
-    if (!reset && data.total !== page.total) throw Error('CATALOG_CHANGED_DURING_PAGINATION');
+    if (kind === 'offers' && offset >= data.total && offset > 0) {
+      offset = Math.max(0,Math.ceil(data.total/limit)-1)*limit;
+      params.set('offset',String(offset));
+      data=await json(source.endpoint+'?'+params);
+    }
+    validateCatalogPage(data, limit, offset);
+    if (!reset && kind !== 'offers' && data.total !== page.total) throw Error('CATALOG_CHANGED_DURING_PAGINATION');
     if (data.items.length === 0 && offset < data.total) throw Error('INCOMPLETE_CATALOG_PAGE');
-    if (reset) {
+    if (reset || kind === 'offers') {
       state[source.stateKey] = data.items;
       if (kind === 'works' || kind === 'jobs') state.visibleRows[kind] = 100;
     } else state[source.stateKey] = [...state[source.stateKey], ...data.items];
+    if (kind === 'offers') state.offerPage = Math.floor(offset / limit) + 1;
     state.catalogPages[kind] = {
       total: data.total,
       offset: offset + data.items.length,
@@ -278,6 +330,7 @@ function scheduleGlobalCatalogSearch(kind) {
   clearTimeout(catalogSearchTimers.get(kind));
   const timer = setTimeout(async () => {
     try {
+      if(kind==='offers') state.offerPage=1;
       const changed = await loadCatalogPage(kind, { reset: true });
       if (changed) {
         if (kind === 'works') renderCatalog();
@@ -300,7 +353,7 @@ function updateCatalogLoadControls() {
     const view = document.querySelector('#view-' + source.view);
     if (!view) continue;
     let control = view.querySelector('[data-load-catalog-kind="' + kind + '"]');
-    if (kind === 'jobs') {
+    if (kind === 'jobs' || kind === 'offers') {
       control?.remove();
       continue; // Review list loads more as it is scrolled.
     }
@@ -343,10 +396,9 @@ async function loadCatalogData() {
     const loaded = await Promise.all([
       loadCatalogPage('works', { reset: true }),
       loadCatalogPage('jobs', { reset: true }),
-      loadCatalogPage('offers', { reset: true }),
+      loadCatalogPage('offers', { reset: true, pageNumber:state.offerPage }),
     ]);
     if (loaded.some((value) => value !== true)) throw Error('CATALOG_PAGE_LOAD_IN_PROGRESS');
-    state.offerPage = 1;
     $('#offersNavCount').textContent = `${state.catalogPages.offers.total} zapisanych`;
     $('#reviewNavCount').textContent = `${state.catalogPages.jobs.total} pozycji`;
     renderReview();
@@ -365,35 +417,58 @@ async function loadCatalogData() {
 async function loadCatalogStatus() {
   try {
     state.catalog = await json('/api/catalog/status');
+    scanInsights.refreshIsbn(state.catalog);
     const counts = state.catalog.counts || {};
-    $('#databaseStatus').textContent =
-      `SQLite: ${counts.works || 0} dzieł / ${counts.editions || 0} wydań`;
+    $('#databaseStatus').textContent = `${counts.offers || 0} ofert · dane dostępne`;
     $('#catalogWorks').textContent = counts.works || 0;
     $('#catalogEditions').textContent = counts.editions || 0;
-    const statuses = state.catalog.identification?.statuses || {};
-    const total = Object.values(statuses).reduce((sum, count) => sum + Number(count || 0), 0);
-    const done = Number(statuses.completed || 0);
-    const percent = total ? Math.round(done / total * 100) : 0;
+    const identification = state.catalog.identification || {};
+    const run = identification.run;
+    const runHasTasks = Object.values(run?.statuses || {}).some((value) => Number(value) > 0);
+    const scope = runHasTasks ? run : identification;
+    const statuses = scope.statuses || {};
+    const progress=identificationProgress(statuses);
+    const {total,processed,percent}=progress;
+    $('#identificationProgressScope').textContent = runHasTasks ? 'Bieżące uruchomienie' : 'Wszystkie zapisane zadania';
     $('#identificationProgressBar').value = percent;
     $('#identificationProgressLabel').textContent = total
-      ? `${percent}% · ${done} z ${total}` : 'Brak zadań';
+      ? `${percent}% · ${processed} / ${total}` : 'Brak zadań';
     $('#identificationProgressDetails').textContent =
       `W kolejce: ${Number(statuses.queued || 0)} · Przetwarzane: ${Number(statuses.running || 0)} · Ponawiane: ${Number(statuses.retry_wait || 0)} · Do weryfikacji: ${Number(statuses.review_required || 0)} · Błędy: ${Number(statuses.failed || 0)}`;
 
     const scheduler = state.catalog.scheduler || {};
     const running = scheduler.running === true;
     const active = scheduler.active === true;
-    $('#identificationStart').disabled = scheduler.available === false || running || identificationControlPending;
-    $('#identificationStop').disabled = scheduler.available === false || !running || identificationControlPending;
+    const paused = scheduler.paused === true;
+    const decisions = scope.decisions || {};
+    const unresolved = Number(identification.statuses?.review_required || 0) +
+      Number(identification.statuses?.failed || 0) + Number(identification.decisions?.not_found || 0);
+    $('#identificationStart').disabled = scheduler.available === false || active ||
+      (running && progress.pending > 0) || identificationControlPending;
+    $('#identificationStart').textContent = !progress.pending && unresolved ? 'Uruchom ponownie' : 'Start';
+    $('#identificationStop').disabled = scheduler.available === false || paused ||
+      (!active && progress.pending === 0) || identificationControlPending;
     $('#identificationRunState').textContent = scheduler.available === false
       ? 'Sterowanie niedostępne'
-      : running ? 'Pracuje' : active ? 'Zatrzymywanie po bieżącej partii' : 'Wstrzymano';
+      : scheduler.stopping ? 'Zatrzymywanie — kończę rozpoczętą partię'
+      : active ? 'Identyfikacja w toku'
+      : paused ? 'Zatrzymano'
+      : !progress.pending && total ? `Zakończono · ${progress.review} do decyzji · ${progress.failed} błędów`
+      : running ? 'Oczekuje na zadania' : 'Gotowe do uruchomienia';
 
-    $('#catalogIncomplete').textContent = Number(statuses.review_required || 0);
+    $('#catalogIncomplete').textContent = Number(identification.statuses?.review_required || 0);
     $('#settingsDatabaseCopy').textContent = state.catalog.enabled
       ? 'Baza lokalna jest dostepna.'
       : 'Integracja katalogu jest wylaczona.';
-    const identification = state.catalog.identification || {};
+    $('#identificationAssigned').textContent = Number(scope.assigned || 0);
+    $('#identificationPending').textContent = progress.pending;
+    $('#identificationFailed').textContent = progress.failed;
+    $('#scanIsbnMatched').textContent = Number(decisions.matched_existing || 0);
+    $('#scanIsbnCreated').textContent = Number(decisions.created_edition || 0) +
+      Number(decisions.created_work_and_edition || 0);
+    $('#scanIsbnReview').textContent = progress.review;
+    $('#scanIsbnNotFound').textContent = Number(decisions.not_found || 0);
+    $('#scanIsbnUpdated').textContent = runHasTasks ? 'Bieżące uruchomienie' : 'Wszystkie zapisane zadania';
     const labels = {
       queued: 'W kolejce', running: 'Przetwarzane', retry_wait: 'Ponowna próba',
       review_required: 'Wymaga decyzji', failed: 'Błędy', completed: 'Zakończone',
@@ -423,6 +498,7 @@ async function loadCatalogStatus() {
       .join('');
     $('#connectionDot').classList.add('online');
     $('#connectionLabel').textContent = 'Aplikacja online';
+    if(state.activeView==='scanner') void refreshWorkflowDashboard?.();
     return true;
   } catch {
     state.catalog = null;
@@ -464,6 +540,48 @@ function setCatalogMode(mode) {
   $('#catalogFormMessage').textContent = '';
 }
 
+function openCatalogForReview({ jobId, isbn = '' }) {
+  state.catalogReturnToReview = { jobId, isbn, job: state.reviewJobs.find((item) => item.id === jobId) };
+  $('#catalogDialog').showModal();
+  $('[data-catalog-mode="isbn"]').click();
+  $('#catalogIsbn').value = isbn;
+  $('#catalogIsbn').focus();
+}
+
+async function restoreReviewAfterCatalog({ editionId = null, isbn = '', title = '' } = {}) {
+  const context = state.catalogReturnToReview;
+  state.catalogReturnToReview = null;
+  if (!context) return;
+  const normalized = String(isbn || context.isbn || '').replace(/[^0-9Xx]/g, '').toUpperCase();
+  let match = state.catalogWorks.flatMap((work) =>
+    work.editions.map((edition) => ({ work, edition })),
+  ).find(({ work, edition }) => edition.id === editionId ||
+    (normalized && edition.identifiers.some((item) =>
+      String(item.value || '').replace(/[^0-9Xx]/g, '').toUpperCase() === normalized)) ||
+    (!normalized && title && work.title === title));
+  if (!match && editionId) {
+    try {
+      const edition = await json('/api/catalog/editions/' + encodeURIComponent(editionId));
+      const work = await json('/api/catalog/works/' + encodeURIComponent(edition.workId));
+      const workIndex = state.catalogWorks.findIndex((item) => item.id === work.id);
+      if (workIndex < 0) state.catalogWorks.push(work);
+      else state.catalogWorks[workIndex] = work;
+      const selectedEdition = work.editions.find((item) => item.id === editionId);
+      if (selectedEdition) match = { work, edition: selectedEdition };
+    } catch {
+      // The record is saved; the user can find it manually if loading fails.
+    }
+  }
+  if (context.job && !state.reviewJobs.some((item) => item.id === context.jobId))
+    state.reviewJobs.unshift(context.job);
+  state.selectedReviewId = context.jobId;
+  state.reviewPendingEdition = match ? { jobId: context.jobId, editionId: match.edition.id } : null;
+  state.reviewDetail = null;
+  showView('review');
+  renderReview();
+  if (!match) toast('Pozycja została dodana. Wyszukaj ją w katalogu i zatwierdź.');
+}
+
 async function submitCatalog(event) {
   event.preventDefault();
   if (state.catalogMode === 'isbn') {
@@ -474,12 +592,18 @@ async function submitCatalog(event) {
     $('#catalogFormMessage').textContent =
       'Sprawdzanie katalogu lokalnego oraz metadanych BN/OL...';
     try {
-      if (!state.catalogPreview) {
-        state.catalogPreview = await json('/api/catalog/lookup-preview', {
+      if (!state.catalogPreview || state.catalogPreviewIsbn !== isbn) {
+        const preview = await json('/api/catalog/lookup-preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isbn }),
         });
+        if ($('#catalogIsbn').value.trim() !== isbn) {
+          $('#catalogFormMessage').textContent = 'ISBN został zmieniony. Sprawdź go ponownie.';
+          return;
+        }
+        state.catalogPreview = preview;
+        state.catalogPreviewIsbn = isbn;
         const records = [state.catalogPreview.bn, state.catalogPreview.openLibrary].flatMap(
           (result) => result?.records || [],
         );
@@ -499,6 +623,7 @@ async function submitCatalog(event) {
       event.target.reset();
       state.catalogPreview = null;
       await Promise.all([loadCatalogData(), loadCatalogStatus()]);
+      await restoreReviewAfterCatalog({ editionId: result.editionId, isbn });
       toast(`Katalog: ${result.decision}.`);
     } catch (error) {
       $('#catalogFormMessage').textContent = `Nie zapisano rekordu: ${error.message}`;
@@ -519,10 +644,18 @@ async function submitCatalog(event) {
   state.history = data.catalog;
   $('#catalogDialog').close();
   event.target.reset();
-  await loadHistory();
+  await Promise.all([loadHistory(),loadCatalogData()]);
+  await restoreReviewAfterCatalog({ editionId: data.editionId, isbn, title });
   renderCatalog();
   toast('Ręczny rekord katalogowy został zapisany.');
 }
+
+$('#catalogIsbn').addEventListener('input', () => {
+  state.catalogPreview = null;
+  state.catalogPreviewIsbn = null;
+  $('#catalogSubmit').textContent = 'Sprawdź ISBN';
+  $('#catalogFormMessage').hidden = true;
+});
 
 $$('.nav-item, .mobile-nav-item').forEach((button) =>
   button.addEventListener('click', () => showView(button.dataset.view)),
@@ -530,10 +663,12 @@ $$('.nav-item, .mobile-nav-item').forEach((button) =>
 $('#scannerBrowseOffers').addEventListener('click', () => showView('offers'));
 $('#scannerOfferSearch').addEventListener('input', renderScannerOffers);
 $('#scannerOfferSource').addEventListener('change', renderScannerOffers);
+let scannerSearchTimer;
+$('#scannerOfferSearch').addEventListener('input',()=>{clearTimeout(scannerSearchTimer);scannerSearchTimer=setTimeout(()=>void refreshScannerOffers(),300);});
+$('#scannerOfferSource').addEventListener('change',()=>void refreshScannerOffers());
 $('#retryIdentification').addEventListener('click', async () => {
   const button = $('#retryIdentification');
   const mode = $('#retryMode').value;
-  if (!confirm('Ponowić identyfikację wybranej grupy? Ręczne przypisania zostaną zachowane.')) return;
   button.disabled = true;
   try {
     const result = await json('/api/identification/retry', {
@@ -541,7 +676,7 @@ $('#retryIdentification').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode }),
     });
-    toast('Dodano do kolejki: ' + result.queued);
+    toast(result.queued > 0 ? 'Wznowiono identyfikację. Dodano do kolejki: ' + result.queued : 'Brak zadań do ponowienia w wybranej grupie. Wybierz „Wszystkie nierozstrzygnięte”.');
     await loadCatalogStatus();
     await loadCatalogData();
   } catch (error) {
@@ -549,6 +684,7 @@ $('#retryIdentification').addEventListener('click', async () => {
   } finally { button.disabled = false; }
 });
 $('#refreshView').addEventListener('click', async () => {
+  if(!allowDiscard())return;
   const button = $('#refreshView');
   button.disabled = true;
   try {
@@ -606,17 +742,18 @@ async function controlIdentification(action) {
   identificationControlPending = true;
   $('#identificationStart').disabled = true;
   $('#identificationStop').disabled = true;
-  $('#identificationRunState').textContent = action === 'start' ? 'Uruchamianie…' : 'Wstrzymywanie…';
+  $('#identificationRunState').textContent = action === 'start' ? 'Uruchamianie…' : 'Zatrzymywanie…';
   try {
+    const pending = identificationProgress(state.catalog?.identification?.statuses).pending;
     await json('/api/identification/control', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, retryUnresolved: action === 'start' && !pending }),
     });
     await loadCatalogStatus();
     toast(action === 'start'
       ? 'Wznowiono identyfikację.'
-      : 'Wstrzymano pobieranie nowych zadań. Bieżąca partia może jeszcze się kończyć.');
+      : 'Zatrzymuję pobieranie nowych zadań. Rozpoczęta partia dokończy bezpieczny zapis.');
   } catch (error) {
     toast('Sterowanie identyfikacją: ' + error.message);
   } finally {
@@ -627,23 +764,16 @@ async function controlIdentification(action) {
 $('#identificationStart').addEventListener('click', () => void controlIdentification('start'));
 $('#identificationStop').addEventListener('click', () => void controlIdentification('stop'));
 
-$('#offerPrev').addEventListener('click', () => {
-  state.offerPage -= 1;
-  renderOffers();
-});
-$('#offerNext').addEventListener('click', () => {
-  state.offerPage += 1;
-  renderOffers();
-});
-$('#closeOfferDrawer').addEventListener('click', () => {
-  $('#offerDrawer').hidden = true;
-});
+$('#offerPrev').addEventListener('click', () => changeOfferPage(state.offerPage-1));
+$('#offerNext').addEventListener('click', () => changeOfferPage(state.offerPage+1));
+$('#closeOfferDrawer').addEventListener('click', () => offersView.closeOfferDrawer());
 $('#openCatalogForm').addEventListener('click', () => {
+  state.catalogReturnToReview = null;
   $('#catalogDialog').showModal();
-  setCatalogMode('manual');
+  setCatalogMode('isbn');
 });
-$('#closeCatalogForm').addEventListener('click', () => $('#catalogDialog').close());
-$('#cancelCatalogForm').addEventListener('click', () => $('#catalogDialog').close());
+$('#closeCatalogForm').addEventListener('click', () => { state.catalogReturnToReview = null; $('#catalogDialog').close(); });
+$('#cancelCatalogForm').addEventListener('click', () => { state.catalogReturnToReview = null; $('#catalogDialog').close(); });
 $$('[data-catalog-mode]').forEach((button) =>
   button.addEventListener('click', () => setCatalogMode(button.dataset.catalogMode)),
 );
@@ -681,7 +811,7 @@ async function restoreLastScanStatus() {
 }
 
 const scanInsights = createScanInsights({ $, json, escapeHtml });
-const setsView = createSetsView({ $, json, escapeHtml, toast });
+const setsView = createSetsView({ $, json, escapeHtml, toast, openOfferDrawer });
 // Review: one scrolling list, no separate page-level loading controls.
 let reviewScrollLoading = false;
 $('#reviewList').addEventListener('scroll', async (event) => {
@@ -707,13 +837,21 @@ $('#reviewList').addEventListener('scroll', async (event) => {
   }
 });
 
-const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog });
-const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows });
-const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats });
+const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog, openCatalogForReview });
+const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData });
+const onFiltersChange = () => void changeOfferPage(state.offerPage);
+const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats, onFiltersChange });
 
+async function changeOfferPage(page) {
+  if(page<1 || page>Math.max(1,Math.ceil(state.catalogPages.offers.total/state.pageSize))) return;
+  try { if(await loadCatalogPage('offers',{reset:true,pageNumber:page})) renderOffers(); }
+  catch(error) {toast('Nie udało się zmienić strony: '+error.message);}
+}
+const tradingControls = installTradingControls({state,$,json,toast,showView,loadCatalogData,loadCatalogStatus,openOfferDrawer,
+  onOfferFilters:()=>scheduleGlobalCatalogSearch('offers'),onCatalogFilters:()=>scheduleGlobalCatalogSearch('works')});
 const refreshWorkflowDashboard = installDashboard({ state, showView });
-showView(new URLSearchParams(location.search).get('view') || 'scanner');
-Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast, json })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus()]).catch(
+showView(new URLSearchParams(location.search).get('view') || 'catalog');
+Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast, json })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus(), tradingControls.refreshRuns()]).catch(
   (error) => {
     $('#connectionLabel').textContent = 'Błąd połączenia';
     toast(`Nie udało się wczytać aplikacji: ${error.message}`);
@@ -727,7 +865,7 @@ setInterval(async () => {
   identificationRefreshBusy = true;
   try {
     await loadCatalogStatus();
-    if (['review', 'catalog', 'offers', 'sets'].includes(state.activeView) &&
+    if (['review'].includes(state.activeView) &&
       !(state.activeView === 'review' && state.selectedReviewId) &&
       Date.now() - lastCatalogDataRefresh >= 12000) {
       lastCatalogDataRefresh = Date.now();
@@ -743,3 +881,12 @@ setInterval(async () => {
 // Live diagnostics are read-only and do not interfere with scan streaming.
 void scanInsights.refresh();
 setInterval(() => { if (!document.hidden) void scanInsights.refresh(); }, 3000);
+
+installDetailNavigation();
+
+document.addEventListener('bookflip-open-edition', event => {
+  if (!event.detail?.editionId) return;
+  showView('catalog');
+  if ($('#catalogDetail').dataset.editionId === event.detail.editionId) openDetailView('catalog');
+  else void catalogView.openEditionDetail(event.detail.editionId);
+});

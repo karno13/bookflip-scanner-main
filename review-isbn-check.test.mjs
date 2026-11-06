@@ -22,9 +22,9 @@ test('manual ISBN lookup recognizes an existing local edition including ISBN-10 
 test('review lookup is read-only and does not silently approve an edition', async () => {
   const frontend = await readFile(new URL('./app/views/review.js', import.meta.url), 'utf8');
   const server = await readFile(new URL('./local-app.mjs', import.meta.url), 'utf8');
-  assert.match(frontend, /id="reviewIsbnCheckButton"/);
-  assert.match(frontend, /\/api\/catalog\/isbn-check/);
-  assert.match(frontend, /Sprawdzenie nie zmienia przypisania/);
+  assert.match(frontend, /id="reviewIsbnMatchButton"/);
+  assert.match(frontend, /preview:true/);
+  assert.match(frontend, /response\.canConfirm/);
   assert.match(server, /url\.pathname === '\/api\/catalog\/isbn-check'/);
   assert.match(server, /repository\.findEditionByISBN\(isbn\)/);
   assert.doesNotMatch(frontend.match(/reviewIsbnCheckButton'\)\.addEventListener[\s\S]*?\n  \}\);/)?.[0] ?? '', /decideReview\(|approveReview\(/);
@@ -34,11 +34,12 @@ test('top ISBN matching uses the offer-aware catalog resolver', async () => {
   const frontend = await readFile(new URL('./app/views/review.js', import.meta.url), 'utf8');
   const server = await readFile(new URL('./local-app.mjs', import.meta.url), 'utf8');
   assert.match(frontend, /id="reviewIsbnMatchButton"/);
-  const handler = frontend.split("$('#reviewIsbnMatchButton').addEventListener('click'")[1]?.split("$('#reviewIsbnCheckButton').addEventListener('click'")[0];
+  const handler = frontend.split("$('#reviewIsbnMatchButton').addEventListener('click'")[1]?.split("$('#reviewBookSearch').addEventListener('input',()=>")[0];
   assert.ok(handler, 'ISBN match handler is present');
   assert.match(handler, /match-isbn/);
-  assert.match(handler, /response\.matched/);
-  assert.match(handler, /await loadCatalogData\(\)/);
+  assert.match(handler, /response\.canConfirm/);
+  assert.match(handler, /preview:true/);
+  assert.doesNotMatch(handler, /confirm:true/);
   assert.doesNotMatch(handler, /decideReview\(|approveReview\(/);
   assert.match(server, /matchIdentificationJobByIsbn\(catalog, id, input\)/);
 });

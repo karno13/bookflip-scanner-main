@@ -31,7 +31,7 @@ test('metadata not_found creates neither a work nor an edition', async () => {
   }
 });
 
-test('labelled description still requires contextual metadata agreement', async () => {
+test('labelled ISBN matches without contextual metadata agreement', async () => {
   const repository = new SqliteCatalogRepository(':memory:');
   try {
     const lookupMetadata = async () => {
@@ -62,8 +62,8 @@ test('labelled description still requires contextual metadata agreement', async 
     const result = await new CatalogResolver({ repository, lookupMetadata }).resolve({
       offer: { description: `ISBN: ${ISBN}`, title: 'A Different Book' },
     });
-    assert.equal(result.decision, 'review_required');
-    assert.deepEqual(result.reason, ['offer_metadata_conflict']);
+    assert.equal(result.decision, 'created_work_and_edition');
+    assert.equal(repository.counts().editions, 1);
   } finally {
     repository.close();
   }

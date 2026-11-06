@@ -1,7 +1,7 @@
 // Compact, bounded scan diagnostics. Never persist offer bodies or credentials.
-export function createScanDiagnostics({ queries = [], sources = [], startedAt = new Date().toISOString() } = {}) {
+export function createScanDiagnostics({ queries = [], sources = [], tasks = null, startedAt = new Date().toISOString() } = {}) {
   return {
-    startedAt, totalTasks: queries.length * sources.length, completedTasks: 0,
+    startedAt, totalTasks: tasks?.length || queries.length * sources.length, completedTasks: 0,
     offersSeen: 0, retryCount: 0, errorCount: 0, active: null, lastActivityAt: startedAt,
     sources: Object.fromEntries(sources.map(source => [source, {
       completed: 0, offers: 0, retries: 0, errors: 0, status: 'pending', lastError: null,

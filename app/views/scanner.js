@@ -18,8 +18,8 @@ export async function requestScanCancellation({ $, toast }) {
 
 // Scanner view owns its progress state and UI; dependencies are injected by the shell.
 export function createScannerView({ state, $, escapeHtml, shortTime, readQueries, selectedSources, toast, loadHistory, loadCatalogStatus, loadCatalogData, storage = globalThis.localStorage }) {
-function resetScanUi(queries, sources) {
-  state.scan.total = queries.length * sources.length;
+function resetScanUi(queries, sources, tasks = null) {
+  state.scan.total = tasks?.length || queries.length * sources.length;
   state.scan.completed = 0;
   state.scan.rows = new Map();
   for (const source of sources)
@@ -28,8 +28,9 @@ function resetScanUi(queries, sources) {
       status: 'Oczekuje',
       offers: 0,
       completed: 0,
-      tasks: queries.length,
+      tasks: tasks ? tasks.filter(task=>task.source===source).length : queries.length,
       error: '',
+      failures: 0,
       finishedAt: null,
     });
   $('#scanProgressPanel').hidden = false;
@@ -76,13 +77,15 @@ function updateProgress(event) {
     $('#progressDetail').textContent = `Ponowienie ${event.attempt}/${event.maxAttempts}`;
   }
   if (event.type === 'source-error' && row) {
+    row.failures += 1;
     row.error = event.code || 'SOURCE_ERROR';
     row.status = event.partial ? 'Częściowy' : 'Błąd';
   }
   if (event.type === 'source-done' && row) {
     row.completed += 1;
     row.offers += Number(event.offers || 0);
-    row.status =
+    if(event.status==='ok' && !row.failures) row.error='';
+    row.status = row.failures ? 'Częściowy' :
       event.status === 'ok' && row.completed === row.tasks
         ? 'Zakończony'
         : event.status === 'ok'
@@ -102,11 +105,13 @@ function updateProgress(event) {
   renderSourceRows();
 }
 
-async function startSearch() {
+async function startSearch(options = {}) {
   if (state.scan.running) return;
-  const queries = readQueries(),
-    sources = selectedSources();
+  const tasks = Array.isArray(options.tasks) ? options.tasks : null;
+  const queries = tasks ? [...new Set(tasks.map(task=>task.query))] : readQueries(),
+    sources = tasks ? [...new Set(tasks.map(task=>task.source))] : selectedSources();
   if (!queries.length) return toast('Dodaj przynajmniej jedną frazę.');
+  if (queries.length > 10) return toast('Wpisano '+queries.length+' fraz. Maksymalnie 10 — usuń nadmiar lub podziel je na profile.');
   if (!sources.length) return toast('Wybierz przynajmniej jedno źródło.');
   const fingerprint = JSON.stringify({ queries, sources: [...sources].sort() });
   if (state.scan.fingerprint === fingerprint && Date.now() - state.scan.lastStart < 5000)
@@ -120,7 +125,7 @@ async function startSearch() {
   } catch {
     // Storage may be unavailable; scanning should still work.
   }
-  resetScanUi(queries, sources);
+  resetScanUi(queries, sources, tasks);
   $('#startSearch').disabled = true;
   $('#cancelSearch').hidden = false;
   $('#cancelSearch').disabled = false;
@@ -135,7 +140,7 @@ async function startSearch() {
     const response = await fetch('/api/search?stream=1', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queries, sources }),
+      body: JSON.stringify({ queries, sources, ...(tasks ? {tasks} : {}) }),
     });
     if (!response.ok) throw Error(`SEARCH_HTTP_${response.status}`);
     state.scan.result = await readSearchStream(response, updateProgress);
@@ -151,8 +156,11 @@ async function startSearch() {
     $('#statErrors').textContent = (state.scan.result.results || []).filter(
       (row) => row.status !== 'ok',
     ).length;
-    $('#scanStateBadge').textContent = 'Zakończony';
-    $('#scanStateBadge').className = 'state-badge neutral';
+    const problems=(state.scan.result.results || []).filter(row=>row.status!=='ok').length;
+    $('#progressMessage').textContent=problems ? `Zapisano ${summary.offers || 0} ofert; ${problems} zadań z problemami` : `Zapisano ${summary.offers || 0} ofert`;
+    document.dispatchEvent(new CustomEvent('bookflip-scan-complete'));
+    $('#scanStateBadge').textContent = problems ? 'Zakończony z problemami' : 'Zakończony';
+    $('#scanStateBadge').className = problems ? 'state-badge warning' : 'state-badge neutral';
     $('#goToOffers').disabled = false;
     await Promise.all([loadHistory(), loadCatalogStatus(), loadCatalogData()]);
     renderSourceRows();
@@ -182,5 +190,6 @@ async function startSearch() {
 }
 
 
+  if(typeof document!=='undefined') document.addEventListener('bookflip-retry-scan',event=>{void startSearch({tasks:event.detail});});
   return { startSearch, resetScanUi, renderSourceRows, updateProgress };
 }

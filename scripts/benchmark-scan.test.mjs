@@ -17,3 +17,11 @@ test('benchmark bounds the number of generated records',async()=>{
   await assert.rejects(benchmarkScan({offerCount:0}),/INVALID_BENCHMARK_OFFER_COUNT/);
   await assert.rejects(benchmarkScan({offerCount:100001}),/INVALID_BENCHMARK_OFFER_COUNT/);
 });
+
+test('benchmark also exercises distinct matched editions', async () => {
+  const result = await benchmarkScan({ offerCount: 20, matched: true });
+  assert.equal(result.matched, true);
+  assert.equal(result.repeat.totalStoredOffers, 20);
+  assert.equal(result.repeat.priceChanges, 2);
+  assert.equal(result.priceObservations, 22);
+});

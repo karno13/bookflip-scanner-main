@@ -35,24 +35,26 @@ export function createProductionCatalog({
   busyTimeout = 10_000,
 } = {}) {
   const repository = new SqliteCatalogRepository(databasePath, { busyTimeout, now });
+  const bnLimiter=new SourceRateLimiter({minIntervalMs:1_000});
+  const openLibraryLimiter=new SourceRateLimiter({minIntervalMs:1_000});
   const bnAdapter = createBnAdapter({
     fetcher,
-    limiter: new SourceRateLimiter({ minIntervalMs: 1_000 }),
+    limiter: bnLimiter,
     timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
   });
   const openLibraryAdapter = createOpenLibraryAdapter({
     fetcher,
-    limiter: new SourceRateLimiter({ minIntervalMs: 1_000 }),
+    limiter: openLibraryLimiter,
     timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
     userAgent: `BookFlip/2.0 (catalog resolver; ${contact})`,
   });
   const titleBnRequest = createJsonRequester({
-    fetcher, limiter: new SourceRateLimiter({ minIntervalMs: 1_000 }),
+    fetcher, limiter: bnLimiter,
     timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
     retries: 1,
   });
   const titleOlRequest = createJsonRequester({
-    fetcher, limiter: new SourceRateLimiter({ minIntervalMs: 1_000 }),
+    fetcher, limiter: openLibraryLimiter,
     timeoutMs: Number(process.env.BOOKFLIP_METADATA_TIMEOUT_MS ?? 8_000),
     retries: 1,
     headers: { 'User-Agent': `BookFlip/2.0 (title lookup; ${contact})` },
@@ -175,10 +177,27 @@ export function createProductionCatalog({
       });
       return report;
     },
-    async processQueued(limit = Number(process.env.BOOKFLIP_CATALOG_BATCH ?? 5)) {
+    async processQueued(limit = Number(process.env.BOOKFLIP_CATALOG_BATCH ?? 25)) {
       return worker.processBatch(limit);
     },
-    status() {
+    beginIdentificationRun(startedAt = new Date().toISOString()) {
+      const db = repository.database;
+      db.exec(`CREATE TEMP TABLE IF NOT EXISTS identification_run_items (
+        job_id TEXT PRIMARY KEY, status TEXT NOT NULL, decision TEXT
+      );
+      CREATE TEMP TRIGGER IF NOT EXISTS identification_run_result
+      AFTER UPDATE OF status ON main.identification_jobs
+      WHEN EXISTS(SELECT 1 FROM identification_run_items WHERE job_id=NEW.id AND status IN ('queued','running','retry_wait'))
+      BEGIN
+        UPDATE identification_run_items SET status=NEW.status,
+          decision=CASE WHEN json_valid(NEW.result_json) THEN COALESCE(json_extract(NEW.result_json,'$.decision'),json_extract(NEW.result_json,'$.manualDecision')) ELSE NULL END
+        WHERE job_id=NEW.id;
+      END;`);
+      db.exec('DELETE FROM temp.identification_run_items');
+      db.prepare("INSERT INTO temp.identification_run_items(job_id,status) SELECT id,status FROM identification_jobs WHERE status IN ('queued','running','retry_wait')").run();
+      this.identificationRunStartedAt = startedAt;
+    },
+    status({ runStartedAt = null } = {}) {
       const counts = repository.counts();
       const cache = Number(
         repository.database.prepare('SELECT count(*) AS count FROM metadata_lookup_cache').get()
@@ -223,10 +242,27 @@ export function createProductionCatalog({
         code: /^[a-z][a-z0-9_]{1,63}$/.test(String(row.code || '')) ? row.code : 'other_reason',
         count: Number(row.count),
       }));
+      let run = null;
+      if (this.identificationRunStartedAt && this.identificationRunStartedAt === runStartedAt) {
+        const runStatuses = Object.fromEntries(repository.database.prepare(
+          'SELECT status,count(*) AS count FROM temp.identification_run_items GROUP BY status',
+        ).all().map((row) => [row.status, Number(row.count)]));
+        const runDecisions = Object.fromEntries(repository.database.prepare(
+          'SELECT decision,count(*) AS count FROM temp.identification_run_items WHERE decision IS NOT NULL GROUP BY decision',
+        ).all().map((row) => [row.decision, Number(row.count)]));
+        run = {
+          startedAt: runStartedAt,
+          statuses: runStatuses,
+          decisions: runDecisions,
+          assigned: Number(runDecisions.matched_existing || 0) + Number(runDecisions.created_edition || 0) + Number(runDecisions.created_work_and_edition || 0),
+        };
+      }
       return {
         enabled: true,
         counts: { ...counts, identification_pending: pending, metadata_lookup_cache: cache },
-        identification: { statuses: identification, decisions, manualDecisions, runnable, waiting, failureReasons, reviewReasons },
+        identification: { statuses: identification, decisions, manualDecisions, runnable, waiting, failureReasons, reviewReasons,
+          assigned: Number(repository.database.prepare("SELECT count(DISTINCT offer_id) AS count FROM offer_matches WHERE status='active'").get().count),
+          batch:worker.lastBatch || null,automaticPending:runnable+waiting+Number(identification.running||0),manualReview:Number(identification.review_required||0),run },
       };
     },
     close() {

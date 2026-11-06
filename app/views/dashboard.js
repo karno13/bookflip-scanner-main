@@ -1,5 +1,5 @@
 import { allSavedOfferNotes } from './offer-workspace.js';
-import { readSeries, seriesSummary } from './series.js';
+import {json} from '../core/api.js';
 export function installDashboard({ state, showView }) {
   const scanner = document.querySelector('#view-scanner');
   if (!scanner || document.querySelector('#workflowDashboard')) return () => {};
@@ -7,9 +7,9 @@ export function installDashboard({ state, showView }) {
   panel.id = 'workflowDashboard';
   panel.className = 'panel workflow-dashboard';
   const heading = document.createElement('h3');
-  heading.textContent = 'Pulpit pracy';
+  heading.textContent = 'Następne kroki zakupowe';
   const hint = document.createElement('p');
-  hint.textContent = 'Podsumowanie wczytanych danych; liczby ofert mogą nie obejmować całej bazy.';
+  hint.textContent = 'Weryfikuj towar i obserwuj oferty przed zakupem.';
   const stats = document.createElement('div');
   stats.className = 'workflow-dashboard-stats';
   const links = document.createElement('div');
@@ -23,18 +23,14 @@ export function installDashboard({ state, showView }) {
     links.append(button);
   }
   panel.append(heading,hint,stats,links);
-  scanner.querySelector('.view-heading')?.after(panel);
-  function refresh() {
-    const watched = Object.values(allSavedOfferNotes()).filter(item => item?.watched).length;
-    const atTarget = Object.values(allSavedOfferNotes()).filter(item => item?.targetReached).length;
-    const series = seriesSummary(state.catalogWorks || [], readSeries());
+  scanner.append(panel);
+  async function refresh() {
+    let summary;
+    try{summary=await json('/api/trading-summary');}catch(error){hint.textContent='Nie udało się odświeżyć podsumowania. Użyj Odśwież.';return;}
+    const watched=summary.watched,atTarget=summary.atTarget;
     const metrics = [
-      ['Oferty wczytane',state.sqliteOffers?.length || 0],
-      ['Do weryfikacji (wczytane)',state.reviewJobs?.length || 0],
-      ['Dzieła wczytane',state.catalogWorks?.length || 0],
-      ['Obserwowane w SQLite',watched],
-      ['Próg cenowy osiągnięty',atTarget],
-      ['Serie oznaczone lokalnie (stare dane)',series.length]
+      ['Wymaga decyzji',summary.review],
+      ['Obserwowane',watched],['Osiągnęły cenę docelową',atTarget]
     ];
     stats.replaceChildren();
     for (const [name,value] of metrics) {

@@ -191,10 +191,28 @@ test('pause allows the current batch to finish without starting another', async 
   await flush();
   scheduler.pause();
   assert.equal(scheduler.status().active, true);
+  assert.equal(scheduler.status().stopping, true);
   callback();
   release();
   await flush();
   assert.equal(runs, 1);
   assert.equal(scheduler.status().paused, true);
+  assert.equal(scheduler.status().stopping, false);
+  await scheduler.stop();
+});
+
+test('explicit start opens a new measurable identification run', async () => {
+  let at = new Date('2026-11-05T10:00:00.000Z');
+  const scheduler = createIdentificationScheduler({
+    runBatch: async () => ({ processed: 0, hasMore: false }),
+    now: () => at,
+    setIntervalFn: () => ({ unref() {} }),
+    clearIntervalFn: () => {},
+  });
+  scheduler.start({ newRun: true });
+  assert.equal(scheduler.status().runStartedAt, at.toISOString());
+  at = new Date('2026-11-05T11:00:00.000Z');
+  scheduler.start({ newRun: true });
+  assert.equal(scheduler.status().runStartedAt, at.toISOString());
   await scheduler.stop();
 });

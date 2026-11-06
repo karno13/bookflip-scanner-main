@@ -1,5 +1,5 @@
 import { normalizeISBN } from '../isbn-normalization.mjs';
-import { createJsonRequester } from '../metadata-http.mjs';
+import { createJsonRequester,createResourceRequester } from '../metadata-http.mjs';
 import {
   buildNormalizedRecord,
   matchingISBNs,
@@ -51,7 +51,7 @@ export function createOpenLibraryAdapter({
   now = () => new Date(),
   userAgent = 'BookFlip/2.0 (metadata lookup; contact not configured)',
 } = {}) {
-  const request =
+  const rawRequest =
     requester ??
     createJsonRequester({
       fetcher,
@@ -61,6 +61,7 @@ export function createOpenLibraryAdapter({
       wait,
       headers: { 'User-Agent': userAgent, Accept: 'application/json' },
     });
+  const request=createResourceRequester(rawRequest,{now:()=>now().getTime()});
 
   return {
     source: 'open_library',

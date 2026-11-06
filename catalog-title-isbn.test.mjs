@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { findTitleIsbnCandidates } from './catalog-title-isbn.mjs';
 
-test('title discovery returns bounded deduplicated ISBN candidates from BN and Open Library', async () => {
+test('title discovery returns bounded deduplicated ISBN candidates from BN without querying Open Library', async () => {
   const requests = [];
   const result = await findTitleIsbnCandidates('Theoretical Physics', {
     requestBn: async (url) => {
@@ -15,14 +15,14 @@ test('title discovery returns bounded deduplicated ISBN candidates from BN and O
     requestOpenLibrary: async (url) => {
       requests.push(url);
       return { status: 'found', payload: { docs: [
-        { title: 'Theoretical Physics', isbn: ['9780306406157','9783161484100'], language: ['eng'] },
+        { title: 'Theoretical Physics', isbn: ['9780306406157'], language: ['eng'] },
       ] } };
     },
   });
-  assert.equal(result.candidates.length, 2);
-  assert.deepEqual(result.candidates.map((item) => item.isbn), ['9780306406157','9783161484100']);
+  assert.equal(result.candidates.length, 1);
+  assert.deepEqual(result.candidates.map((item) => item.isbn), ['9780306406157']);
   assert.ok(requests[0].includes('title=Theoretical+Physics'));
-  assert.ok(requests[1].includes('fields=key%2Ctitle%2Cauthor_name%2Cisbn'));
+  assert.equal(requests.length, 1);
 });
 
 test('title discovery reports unavailable metadata source without inventing ISBN', async () => {

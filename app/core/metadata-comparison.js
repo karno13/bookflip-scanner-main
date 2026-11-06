@@ -18,12 +18,12 @@ export function metadataComparisonMarkup(response, escapeHtml) {
     const duration = Number(source?.timing?.durationMs);
     const seconds = Number.isFinite(duration) && duration >= 0 ? `${Math.round(duration)} ms` : 'czas niedostępny';
     const origin = source?.timing?.cached ? 'cache' : 'sieć';
-    return `${escapeHtml(source?.status || 'brak danych')} · ${seconds} · ${origin}`;
+    return `${escapeHtml(source?.status === 'skipped' ? 'pominięto — pierwszeństwo BN' : source?.status || 'brak danych')} · ${seconds} · ${origin}`;
   };
   const conflicts = response?.comparison?.conflicts || [];
   const comparison = response?.comparison?.status || 'nieustalone';
   const conflictLine = conflicts.length
     ? `<p class="inline-note"><strong>Konflikty:</strong> ${escapeHtml(conflicts.map((item) => item.field || item.type || 'nieznane').join(', '))}</p>`
     : '';
-  return `<div class="metadata-comparison"><p><strong>Porównanie:</strong> ${escapeHtml(comparison)}</p><table><thead><tr><th scope="col">Pole</th><th scope="col">Biblioteka Narodowa<small>${provider(fields[0])}</small></th><th scope="col">Open Library<small>${provider(fields[1])}</small></th></tr></thead><tbody>${rows}</tbody></table>${conflictLine}<p class="inline-note">Wynik informacyjny. Przypisanie wymaga osobnego zatwierdzenia.</p></div>`;
+  return `<div class="metadata-comparison"><p><strong>Wyszukiwanie:</strong> Biblioteka Narodowa → Open Library tylko przy braku wyniku</p><table><thead><tr><th scope="col">Pole</th><th scope="col">Biblioteka Narodowa<small>${provider(fields[0])}</small></th><th scope="col">Open Library<small>${provider(fields[1])}</small></th></tr></thead><tbody>${rows}</tbody></table>${conflictLine}<p class="inline-note">Wynik informacyjny. Przypisanie wymaga osobnego zatwierdzenia.</p></div>`;
 }

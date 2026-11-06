@@ -3,7 +3,6 @@ export function createScanInsights({ $, json, escapeHtml }) {
   const safe = value => escapeHtml(String(value ?? ''));
   let busy = false;
   let lastState = '';
-  let lastIsbnRefresh = 0;
   const reasonLabels = {
     metadata_sources_conflict: 'Niezgodne metadane źródeł',
     offer_catalog_conflict: 'Rozbieżność oferty z katalogiem',
@@ -17,8 +16,7 @@ export function createScanInsights({ $, json, escapeHtml }) {
     manual_assignment_conflicts_with_isbn: 'Konflikt z ręcznym przypisaniem',
     offer_is_set: 'Oferta oznaczona jako zestaw',
   };
-  async function refreshIsbn() {
-    const data = await json('/api/catalog/status');
+  function refreshIsbn(data) {
     if (!data.enabled) {
       $('#scanIsbnUpdated').textContent = 'Katalog wyłączony';
       return;
@@ -45,10 +43,6 @@ export function createScanInsights({ $, json, escapeHtml }) {
     if (busy) return;
     busy = true;
     try {
-      if (Date.now() - lastIsbnRefresh >= 9000) {
-        try { await refreshIsbn(); lastIsbnRefresh = Date.now(); }
-        catch { $('#scanIsbnUpdated').textContent = 'Nie udało się odświeżyć ISBN'; }
-      }
       const data = await json('/api/scan/diagnostics');
       const diagnostics = data.diagnostics || {};
       const progress = data.progress || {};
@@ -105,5 +99,5 @@ export function createScanInsights({ $, json, escapeHtml }) {
       busy = false;
     }
   }
-  return { refresh };
+  return { refresh, refreshIsbn };
 }

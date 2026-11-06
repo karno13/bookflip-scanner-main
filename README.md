@@ -29,6 +29,22 @@ Na Windows zamknij stary serwer BookFlip i uruchom **`Uruchom BookFlip przez Tai
 
 ## Sześć obszarów aplikacji
 
+Po aktualizacji interfejs prowadzi przez wyszukanie, weryfikację i decyzję zakupową.
+Na telefonie Katalog i Ustawienia znajdziesz pod przyciskiem **Więcej**.
+Oferty mają widoki zakupowe, filtry całej bazy i pojedyncze stronicowanie.
+Scenariusze kosztów, faktyczna cena zakupu oraz ilości w zestawach są zapisywane
+w bazie i uwzględniane w kopii zapasowej. Szacunki odsprzedaży pozostają własnymi
+założeniami użytkownika.
+
+Kopię można utworzyć bezpośrednio w **Ustawienia → Dane i kopie zapasowe**.
+Weryfikacja ISBN najpierw pokazuje propozycję; przypisanie następuje po
+zatwierdzeniu. Ostatnie ręczne decyzje można ponownie otworzyć do poprawienia
+w zakładce **Do weryfikacji**, z zachowaniem historii.
+
+Migracja **104** dodaje dane procesu zakupowego. Nie zmieniaj starszych plików
+migracji. Przed aktualizacją istniejącego schematu działa mechanizm kopii
+zapasowej opisany poniżej. Szczegóły zmian: [Przebudowa UX/UI](docs/ZMIANY-UX-UI.md).
+
 | Zakładka | Funkcja |
 | --- | --- |
 | Skaner | Wybór źródeł, zapytania, przebieg skanu i oferty |
@@ -69,6 +85,10 @@ npm run lint
 npm run check:syntax
 ```
 
+`npm test` izoluje katalog SQLite, log i stan skanowania w katalogu tymczasowym
+osobno dla każdego procesu testowego i ogranicza czas testu do 30 sekund.
+Uruchamiaj testy przez ten skrypt, aby nie korzystały z plików stanu użytkownika.
+
 CI: `.github/workflows/scanner-tests.yml` (testy Node na Linux i Windows) oraz `.github/workflows/browser-smoke.yml` (Chromium, sześć widoków, izolowana niepusta baza testowa). Test przeglądarkowy nie zastępuje pełnego testu skanowania rzeczywistych portali.
 
 ## Architektura i dalsza dokumentacja
@@ -107,11 +127,21 @@ automatycznego harmonogramu tworzenia kopii.
 
 ## Pomiar wydajności skanowania SQLite (bez internetu)
 
+Osobny pomiar kolejki identyfikacji: `npm run bench:identification -- --offers 1000`.
+Tworzy syntetyczne oferty bez ISBN w bazie pamięciowej i mierzy ich przekazanie do
+ręcznej weryfikacji. Nie korzysta z danych użytkownika ani z internetu. Wynik nie
+mierzy czasu odpowiedzi BN/Open Library ani skuteczności rozpoznawania książek.
+
 Uruchom `npm run bench:scan -- --offers 1000`, a następnie
 `npm run bench:scan -- --offers 10000`, aby porównać zapis nowych ofert
 z ponownym skanem zmieniającym 10% cen. Narzędzie tworzy osobną
 **syntetyczną** bazę w katalogu tymczasowym, nie łączy się z marketplace'ami,
 nie dotyka prywatnego katalogu i po pomiarze usuwa dane testowe.
+
+Opcja `--matched`, np. `npm run bench:scan -- --offers 1000 --matched`,
+przypisuje przed powtórnym skanem każdą ofertę do osobnego wydania.
+Pozwala sprawdzić koszt analizy wielu grup; przygotowanie przypisań nie jest
+wliczane do mierzonego czasu skanu.
 
 Wynik JSON zawiera czas obu operacji w milisekundach, liczbę ofert, zmian cen,
 obserwacji cenowych, rozmiar SQLite i RSS. Porównuj wyniki w podobnych warunkach:

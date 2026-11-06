@@ -12,8 +12,8 @@
 | SQLite | `catalog-production.mjs`, `sqlite-catalog-repository.mjs`, `catalog-api.mjs`, `offer-sets.mjs` |
 | ISBN / metadane | `catalog-resolver.mjs`, `identification-worker.mjs`, `metadata-lookup.mjs`, `metadata-sources/` |
 | Trwały katalog danych / backup | `catalog-data-location.mjs`, `scripts/backup-catalog.mjs` |
-| Migracje — zachować | `migrations/001_catalog.sql` … `007_offer_sets.sql` |
-| Testy Node | `*.test.mjs`, `.github/workflows/scanner-tests.yml` |
+| Migracje — zachować | `migrations/001_catalog.sql` … `007_offer_sets.sql`, `099`–`104` |
+| Testy Node | `*.test.mjs`, `test/*.test.js`, `scripts/run-tests.mjs`, `.github/workflows/scanner-tests.yml` |
 | Test startu interfejsu | `scripts/browser-smoke.mjs`, `.github/workflows/browser-smoke.yml` |
 | Publiczne demo | Osobna gałąź `gh-pages` — bez produkcyjnego API |
 

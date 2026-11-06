@@ -24,6 +24,34 @@ function defaultWait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+// A bounded process-local cache for shared Open Library work/author resources.
+// ISBN result caching stays in SQLite. Errors never survive a completed request.
+export function createResourceRequester(request, {now=Date.now,ttlMs=3_600_000,maxEntries=1000}={}) {
+  if(typeof request!=='function')throw new TypeError('request must be a function');
+  if(!Number.isFinite(ttlMs)||ttlMs<0||!Number.isSafeInteger(maxEntries)||maxEntries<1)
+    throw new RangeError('Invalid resource cache limits');
+  const cache=new Map(),pending=new Map();
+  return async function resourceRequest(url) {
+    const cached=cache.get(url);
+    if(cached && cached.expiresAt>now()) {
+      cache.delete(url);cache.set(url,cached);
+      return cached.result;
+    }
+    if(cached)cache.delete(url);
+    if(pending.has(url))return pending.get(url);
+    const work=Promise.resolve().then(()=>request(url)).then(result=>{
+      if(result.status==='found' && result.payload && typeof result.payload==='object' &&
+          !Array.isArray(result.payload) && /^https:\/\/openlibrary\.org\/(works|authors)\/[^/]+\.json$/.test(url)) {
+        cache.set(url,{result,expiresAt:now()+ttlMs});
+        while(cache.size>maxEntries)cache.delete(cache.keys().next().value);
+      }
+      return result;
+    });
+    pending.set(url,work);
+    try{return await work;}finally{if(pending.get(url)===work)pending.delete(url);}
+  };
+}
+
 function headerValue(headers, name) {
   if (!headers) return null;
   if (typeof headers.get === 'function') return headers.get(name);

@@ -17,5 +17,5 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.55.1
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Check all five views and populated SQLite
+      - name: Check all six views and populated SQLite
         run: node scripts/browser-smoke.mjs

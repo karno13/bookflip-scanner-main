@@ -34,5 +34,7 @@ test('local Windows launcher requires supported Node and project declares runtim
   assert.equal(pkg.engines.node, '^22.16.0 || >=24.0.0');
   assert.match(cmd, /v\[0\]===22 && v\[1\]>=16/);
   assert.match(cmd, /v\[0\]>=24/);
-  assert.equal(pkg.scripts.test, 'node --test');
+  assert.equal(pkg.scripts.test, 'node scripts/run-tests.mjs');
+  assert.match(read('scripts/run-tests.mjs'), /--test-timeout=30000/);
+  assert.match(read('scripts/isolated-runtime.mjs'), /mkdtempSync/);
 });

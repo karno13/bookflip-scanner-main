@@ -45,7 +45,7 @@ test('trusted BN ISBN creates edition despite translation and year disagreement'
     assert.equal(repo.findEditionByISBN(isbn)?.publication_year, 2019);
   } finally { repo.close(); }
 });
-test('mismatching marketplace title still does not auto-create an edition', async () => {
+test('matching ISBN identifies an edition despite different marketplace title', async () => {
   const repo = new SqliteCatalogRepository(':memory:');
   try {
     const bn = record('bn', 'Completely Different Title', 2019);
@@ -61,6 +61,6 @@ test('mismatching marketplace title still does not auto-create an edition', asyn
         comparison: { status: 'single_source', conflicts: [] },
       }),
     }).resolve({ offerId: offer.id });
-    assert.equal(result.decision, 'review_required');
+    assert.equal(result.decision, 'created_work_and_edition');
   } finally { repo.close(); }
 });
