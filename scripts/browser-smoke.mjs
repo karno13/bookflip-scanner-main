@@ -85,8 +85,9 @@ try {
   }
 
   await page.locator('.sidebar [data-view="offers"]').click();
-  await page.locator('#offersTableBody [data-offer-id]').first().click();
+  await page.locator('#offersMobileList [data-mobile-offer-id]').first().click();
   await page.locator('#offerDrawerContent .offer-workspace').waitFor();
+  await page.locator('.scenario-calculator > summary').click();
   assert.equal(await page.locator('#scenarioPurchase').inputValue(), '25', '2500 grosze displays as 25 PLN');
   await page.locator('#scenarioShipping').fill('5');
   await page.locator('#scenarioOther').fill('2');
@@ -128,7 +129,7 @@ try {
   await assert.equal(await page.locator('#reviewList .review-item').count() > 0, true, 'nonempty review');
   await page.setViewportSize({ width: 390, height: 844 });
   for (const view of ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']) {
-    const secondary=['catalog','settings'].includes(view);
+    const secondary=['sets','settings'].includes(view);
     const tab = page.locator(secondary ? '#mobileMore' : `.mobile-bottom-nav [data-view="${view}"]`);
     assert.equal(await tab.isVisible(), true, `mobile destination ${view} should be reachable`);
     await tab.click();
@@ -146,3 +147,4 @@ try {
   if (server) { server.kill(); await pause(250); }
   await rm(directory, { recursive: true, force: true });
 }
+
