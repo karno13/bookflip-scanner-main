@@ -10,16 +10,16 @@ const reviewScript = await readFile(new URL('./app/views/review.js', import.meta
 const catalogScript = await readFile(new URL('./app/views/catalog.js', import.meta.url), 'utf8');
 const offersScript = await readFile(new URL('./app/views/offers.js', import.meta.url), 'utf8');
 const script = [shellScript, scannerScript, reviewScript, catalogScript, offersScript].join('\n');
-const styles = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
+const styles = (await Promise.all(['styles.css','mobile-repair.css'].map(file => readFile(new URL('./app/' + file, import.meta.url), 'utf8')))).join('\n');
 
 test('desktop shell exposes all six workspaces in order', () => {
   const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(
     (match) => match[1],
   );
-  assert.deepEqual(views, ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']);
+  assert.deepEqual(views, ['catalog', 'review', 'scanner', 'offers', 'sets', 'settings']);
   assert.match(
     html,
-    /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/,
+    /id="view-catalog"[^>]+class="view active"|class="view active"[^>]+id="view-catalog"/,
   );
   assert.doesNotMatch(html, /data-view="history"/);
 });
@@ -44,16 +44,16 @@ test('frontend uses SQLite catalog APIs', () => {
   ])
     assert.ok(script.includes(endpoint));
   assert.match(script, /id="rejectReview"/);
-  assert.match(script, /id="reviewRejectReason"/);
-  assert.match(script, /reason === 'not_book' \? 'not_book' : 'excluded'/);
+  assert.doesNotMatch(script, /id="reviewRejectReason"/);
+  assert.match(script, /decideReview\('excluded'/);
   assert.match(script, /state\.catalogPreview/);
 });
 
 test('layout has fixed desktop navigation and responsive workspaces', () => {
-  assert.match(styles, /grid-template-columns:236px minmax\(0,1fr\)/);
-  assert.match(styles, /height:100vh/);
-  assert.match(styles, /@media\(max-width:1100px\)/);
-  assert.match(styles, /@media\(max-width:760px\)/);
+  assert.match(styles, /\.nav-list\{display:flex/);
+  assert.match(styles, /@media\(max-width:900px\)/);
+  assert.match(styles, /\.mobile-bottom-nav\{display:grid/);
+  assert.match(styles, /\.detail-is-open #reviewDetail/);
 });
 
 test('review catalog picker filters by typed title or ISBN before selection', () => {
@@ -66,7 +66,7 @@ test('review catalog picker filters by typed title or ISBN before selection', ()
 
 test('catalog loads beyond the first SQLite page without silent JSON substitution', () => {
   const compact=script.replace(/\s+/g,'');
-  for(const expression of ['asyncfunctionloadCatalogPage(kind,{reset=false}={})','newURLSearchParams({limit:String(catalogPageSize),offset:String(offset)})','INCOMPLETE_CATALOG_PAGE','data-load-catalog-kind','catalogPageSize=250','CATALOG_CHANGED_DURING_PAGINATION','functionallOffers(){returnstate.sqliteOffers;}','NieudałosięwczytaćkataloguSQLite'])assert.ok(compact.includes(expression),expression);
+  for(const expression of ['asyncfunctionloadCatalogPage(kind,{reset=false,pageNumber=null}={})','newURLSearchParams({limit:String(limit),offset:String(offset)})','INCOMPLETE_CATALOG_PAGE','data-load-catalog-kind','catalogPageSize=250','CATALOG_CHANGED_DURING_PAGINATION','functionallOffers(){returnstate.sqliteOffers;}','NieudałosięwczytaćkataloguSQLite'])assert.ok(compact.includes(expression),expression);
   assert.doesNotMatch(script,/CATALOG_PAGE_LIMIT_EXCEEDED|state\.sqliteOffers\.length\s*\?/);
 });
 
@@ -111,22 +111,16 @@ test('scanner saved-offer search and source filter are separated from scan count
 });
 
 test('desktop workspace preserves functional scanner controls and adds editorial shell', () => {
-  assert.match(html, /class="sidebar-collection"/);
-  assert.match(html, /class="desktop-scanner-grid"/);
-  assert.match(html, /id="sourceGrid"/);
-  assert.match(html, /id="startSearch"/);
-  assert.match(html, /id="scanProgressPanel"/);
-  assert.match(html, /id="scannerOfferList"/);
-  assert.match(styles, /\.scanner-offer-list\{display:grid;grid-template-columns:repeat\(2/);
-  assert.match(styles, /@media\(min-width:761px\)/);
+  for (const id of ['sourceGrid','startSearch','scanProgressPanel','scannerOfferList']) assert.ok(html.includes('id=\"'+id+'\"'));
+  assert.match(styles, /#view-scanner\{display:grid/);
+  assert.match(styles, /#view-scanner>\.scanner-discover\{grid-column:2/);
 });
 
 test('mobile repairs keep scanner filters usable and catalog avoids cramped headers', () => {
-  assert.match(styles, /\.scanner-discover-toolbar\{display:grid!important/);
-  assert.match(styles, /\.catalog-table-header\{display:none!important/);
-  assert.match(styles, /\.catalog-row\{display:grid!important/);
-  assert.match(styles, /\.stats-grid \.metric\{min-height:82px/);
-  assert.match(styles, /@media\(max-width:400px\)/);
+  assert.match(styles, /\.filterbar \.search-field\{flex-basis:100%/);
+  assert.match(styles, /\.catalog-table-header,\.catalog-isbn\{display:none/);
+  assert.match(styles, /\.catalog-row\{display:grid/);
+  assert.match(styles, /\.stats-grid\{display:flex/);
 });
 
 test('edition price statistics reflect saved asking prices without projecting ROI', () => {
@@ -138,9 +132,9 @@ test('edition price statistics reflect saved asking prices without projecting RO
   assert.match(styles, /\.edition-price-summary/);
 });
 test('review requires explicit edition decision with bibliographic context', () => {
-  assert.match(script, /Sprawdź zgodność przed zatwierdzeniem/);
-  assert.match(script, /Przypisz do wydania/);
-  assert.match(script, /Zatwierdź wydanie/);
+  assert.match(script, /Sprawdź ISBN/);
+  assert.match(script, /Pozycja z katalogu/);
+  assert.match(script, /id="approveReview"/);
 });
 
 test('offer drawer reports price observations without treating them as sales', () => {
@@ -178,14 +172,14 @@ test('manual refresh never announces success after SQLite load or status failure
 
 test('price evidence shares one numeric validator with edition summary', () => {
   const compact=script.replace(/\s+/g,'');
-  for(const expression of ['returnpriceStats(offers.map((item)=>item.currentPrice))','conststats=priceStats(observations.map((item)=>item.price))','Number.isFinite(value)&&value>=0'])assert.ok(compact.includes(expression),expression);
+  for(const expression of ["returnpriceStats(offers.filter(item=>item.availability!=='unavailable'&&(!item.currency||item.currency==='PLN')).map((item)=>item.currentPrice))",'conststats=priceStats(observations.map((item)=>item.price))','Number.isFinite(value)&&value>=0'])assert.ok(compact.includes(expression),expression);
   assert.doesNotMatch(script,/const first = prices\.length/);
 });
 
 test('catalog search sends debounced SQLite queries beyond loaded pages', () => {
   const compact=script.replace(/\s+/g,'');
   for(const kind of ['works','jobs','offers'])assert.ok(compact.includes("scheduleGlobalCatalogSearch('"+kind+"')"));
-  for(const expression of ['for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)','catalogAbortControllers.get(kind)?.abort()','newURLSearchParams({limit:String(catalogPageSize),offset:String(offset)})','state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query,filters,}'])assert.ok(compact.includes(expression),expression);
+  for(const expression of ['for(const[key,value]ofObject.entries(filters))if(value)params.set(key,value)','catalogAbortControllers.get(kind)?.abort()','newURLSearchParams({limit:String(limit),offset:String(offset)})','state.catalogPages[kind]={total:data.total,offset:offset+data.items.length,query,filters,}'])assert.ok(compact.includes(expression),expression);
 });
 
 test('review and catalog DOM rendering is bounded despite loading many SQLite pages', () => {

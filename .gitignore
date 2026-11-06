@@ -1,5 +1,8 @@
 # BookFlip local runtime state — never commit user scans or SQLite data.
 scan-results/
+*.sqlite
+*.sqlite3
+*.db
 *.sqlite-shm
 *.sqlite-wal
 *.sqlite-journal

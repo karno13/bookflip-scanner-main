@@ -8,6 +8,8 @@ export function createIdentificationScheduler({
   intervalMs = 30_000,
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  yieldFn = () => new Promise(resolve => setImmediate(resolve)),
+  now = () => new Date(),
 } = {}) {
   if (typeof runBatch !== 'function') throw Error('SCHEDULER_RUN_REQUIRED');
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 1_000 || intervalMs > 3_600_000)
@@ -15,13 +17,20 @@ export function createIdentificationScheduler({
   let timer = null,
     active = null,
     stopped = false,
-    paused = false;
+    paused = false,
+    runStartedAt = null;
   const tick = () => {
     if (stopped || paused || active) return active || Promise.resolve(null);
     active = Promise.resolve()
-      .then(runBatch)
-      .then((result) => {
-        onResult(result);
+      .then(async () => {
+        let result;
+        do {
+          result = await runBatch();
+          onResult(result);
+          if (!result?.hasMore || stopped || paused) break;
+          // Keep HTTP and pause responsive without an idle polling interval.
+          await yieldFn();
+        } while (!stopped && !paused);
         return result;
       })
       .catch((error) => {
@@ -36,19 +45,27 @@ export function createIdentificationScheduler({
     return active;
   };
   return {
-    start() {
+    start({ newRun = false, startedAt = null } = {}) {
       if (stopped) throw Error('SCHEDULER_STOPPED');
+      if (newRun || !runStartedAt) runStartedAt = startedAt || now().toISOString();
       paused = false;
-      if (timer !== null) return;
-      timer = setIntervalFn(() => {
-        void tick();
-      }, intervalMs);
-      if (typeof timer?.unref === 'function') timer.unref();
+      if (timer === null) {
+        timer = setIntervalFn(() => {
+          void tick();
+        }, intervalMs);
+        if (typeof timer?.unref === 'function') timer.unref();
+      }
       void tick();
     },
     tick,
     status() {
-      return { running: !stopped && !paused && timer !== null, active: Boolean(active), paused };
+      return {
+        running: !stopped && !paused && timer !== null,
+        active: Boolean(active),
+        paused,
+        stopping: paused && Boolean(active),
+        runStartedAt,
+      };
     },
     pause() {
       if (stopped) throw Error('SCHEDULER_STOPPED');

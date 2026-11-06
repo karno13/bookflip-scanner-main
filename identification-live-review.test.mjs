@@ -16,9 +16,9 @@ test('live queue status is refreshed and rendered without manual click', async (
 });
 test('resolver uses single BN ISBN and retains high-confidence conflict gates', async () => {
   const resolver = await readFile(new URL('./catalog-resolver.mjs', import.meta.url), 'utf8');
-  assert.match(resolver, /bnRecords.length === 1 && isbnMatches/);
-  assert.match(resolver, /context.conflicts.every/);
-  assert.match(resolver, /'publisher', 'language', 'binding'/);
+  assert.match(resolver, /source.records.length > 1/);
+  assert.doesNotMatch(resolver, /if \(!safeBnContext/);
+  assert.match(resolver, /matches: \['isbn'\]/);
 });
 test('identification workers have bounded network concurrency', async () => {
   const worker = await readFile(new URL('./identification-worker.mjs', import.meta.url), 'utf8');

@@ -4,6 +4,8 @@ const rootFiles = new Set([
   '/index.html',
   '/styles.css',
   '/workflow.css',
+  '/trading.css',
+  '/mobile-repair.css',
   '/app.js',
   '/frontend-utils.js',
   '/scan-stream.js',

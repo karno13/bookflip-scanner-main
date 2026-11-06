@@ -24,7 +24,7 @@ export function availableCatalogMigrations(directory = migrationsDirectory) {
 /**
  * SQLite cannot ALTER a CHECK constraint. Rebuild the decision table once to
  * admit excluded offers, preserving rows, indexes and triggers from the current
- * schema. This runs after versioned SQL migrations and is idempotent.
+ * schema. This runs inside migration 103 and is idempotent.
  */
 function allowExcludedReviewDecisions(database) {
   const table = database.prepare(
@@ -35,34 +35,24 @@ function allowExcludedReviewDecisions(database) {
     /('not_book'\s*,\s*)('requeued')/,
     "$1'excluded',$2",
   );
-  if (expanded === table.sql) return;
+  if (expanded === table.sql) {
+    if (!table.sql.includes("'excluded'")) throw Error('REVIEW_DECISIONS_SCHEMA_UNRECOGNIZED');
+    return;
+  }
   const objects = database.prepare(
     "SELECT sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name='review_decisions' AND sql IS NOT NULL ORDER BY type",
   ).all();
-  database.exec('PRAGMA foreign_keys=OFF');
-  try {
-    database.exec('BEGIN IMMEDIATE');
-    try {
-      const createTemp = expanded.replace(
-        /^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(?:"review_decisions"|`review_decisions`|review_decisions)/i,
-        '$1review_decisions_upgrade',
-      );
-      if (createTemp === expanded) throw Error('REVIEW_DECISIONS_SCHEMA_UNRECOGNIZED');
-      database.exec(createTemp);
-      database.exec('INSERT INTO review_decisions_upgrade SELECT * FROM review_decisions');
-      database.exec('DROP TABLE review_decisions');
-      database.exec('ALTER TABLE review_decisions_upgrade RENAME TO review_decisions');
-      for (const object of objects) database.exec(object.sql);
-      database.exec('COMMIT');
-    } catch (error) {
-      database.exec('ROLLBACK');
-      throw error;
-    }
-  } finally {
-    database.exec('PRAGMA foreign_keys=ON');
-  }
-  if (database.prepare('PRAGMA foreign_key_check').all().length)
-    throw Error('REVIEW_DECISIONS_MIGRATION_FK_FAILED');
+  const createTemp = expanded.replace(
+    /^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(?:"review_decisions"|`review_decisions`|review_decisions)/i,
+    '$1review_decisions_upgrade',
+  );
+  if (createTemp === expanded) throw Error('REVIEW_DECISIONS_SCHEMA_UNRECOGNIZED');
+  database.exec(createTemp);
+  database.exec('INSERT INTO review_decisions_upgrade SELECT * FROM review_decisions');
+  database.exec('DROP TABLE review_decisions');
+  database.exec('ALTER TABLE review_decisions_upgrade RENAME TO review_decisions');
+  for (const object of objects) database.exec(object.sql);
+
 }
 
 export function applyCatalogMigrations(
@@ -90,9 +80,19 @@ export function applyCatalogMigrations(
         throw Error(`MIGRATION_CHECKSUM_MISMATCH:${migration.version}`);
       continue;
     }
-    database.exec('BEGIN IMMEDIATE');
+    const rebuild = migration.name === '103_excluded_review_decisions.sql';
+    const foreignKeys = database.prepare('PRAGMA foreign_keys').get().foreign_keys;
+    if (rebuild) database.exec('PRAGMA foreign_keys=OFF');
+    let started = false;
     try {
+      database.exec('BEGIN IMMEDIATE');
+      started = true;
       database.exec(migration.sql);
+      if (rebuild) {
+        allowExcludedReviewDecisions(database);
+        if (database.prepare('PRAGMA foreign_key_check').all().length)
+          throw Error('REVIEW_DECISIONS_MIGRATION_FK_FAILED');
+      }
       database
         .prepare('INSERT INTO schema_migrations(version,name,checksum,applied_at) VALUES(?,?,?,?)')
         .run(migration.version, migration.name, migration.checksum, now().toISOString());
@@ -100,11 +100,12 @@ export function applyCatalogMigrations(
       completed.push(migration.version);
     } catch (error) {
       try {
-        database.exec('ROLLBACK');
+        if (started) database.exec('ROLLBACK');
       } catch {}
       throw error;
+    } finally {
+      if (rebuild) database.exec('PRAGMA foreign_keys=' + foreignKeys);
     }
   }
-  allowExcludedReviewDecisions(database);
   return completed;
 }

@@ -18,7 +18,7 @@ test('existing verified edition is matched when auction title has additional wor
     assert.equal(result.editionId,edition.id);
   } finally {repo.close();}
 });
-test('unrelated title with valid ISBN stays in review', async () => {
+test('unrelated title with valid ISBN matches local edition', async () => {
   const repo = new SqliteCatalogRepository(':memory:');
   try {
     const work = repo.createWork({title:'Posłaniec śmierci'});
@@ -27,6 +27,6 @@ test('unrelated title with valid ISBN stays in review', async () => {
     const offer = repo.upsertOffer({source:'test',normalizedUrl:'https://example.test/another',originalTitle:'Completely Unrelated Collection',observedIsbn:isbn});
     repo.putMetadataEvidence({id:'evidence-other',offerId:offer.id,fieldName:'isbn',value:isbn,classification:'structured',sourceType:'scanner:test'});
     const result = await new CatalogResolver({repository:repo,lookupMetadata:async()=>{throw Error('LOOKUP_NOT_EXPECTED');}}).resolve({offerId:offer.id});
-    assert.equal(result.decision,'review_required');
+    assert.equal(result.decision,'matched_existing');
   } finally {repo.close();}
 });

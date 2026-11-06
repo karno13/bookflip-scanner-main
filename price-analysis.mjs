@@ -47,6 +47,40 @@ export function bookStatistics(raw, bookId) {
   };
 }
 
+// Build every book's aggregates in one pass over offers and observations.
+export function allBookStatistics(raw) {
+  const history = migrateOfferHistory(raw);
+  const groups = new Map(Object.values(history.books).map(book => [book.id, {
+    book, ids: new Set(), prices: [], sum: 0, lowest: null, historical: null,
+  }]));
+  for (const offer of Object.values(history.offers)) {
+    const group = groups.get(offer.bookId);
+    if (!group) continue;
+    group.ids.add(offer.id);
+    if (offer.currentPrice > 0 && offer.availability !== 'unavailable') {
+      group.prices.push(offer.currentPrice);
+      group.sum += offer.currentPrice;
+      group.lowest = group.lowest === null ? offer.currentPrice : Math.min(group.lowest, offer.currentPrice);
+    }
+  }
+  const offerGroups = new Map();
+  for (const group of groups.values())
+    for (const id of group.ids) offerGroups.set(id, group);
+  for (const point of history.priceHistory) {
+    const group = offerGroups.get(point.offerId);
+    if (group) group.historical = group.historical === null ? point.price : Math.min(group.historical, point.price);
+  }
+  return [...groups.values()].map(group => ({
+    book: group.book,
+    currentOffers: group.prices.length,
+    uniqueOffers: group.ids.size,
+    lowestCurrent: group.lowest,
+    averageCurrent: group.prices.length ? Math.round(group.sum / group.prices.length) : null,
+    medianCurrent: median(group.prices),
+    historicalMinimum: group.historical,
+  }));
+}
+
 function emptyAssessment() {
   return {
     label: 'Brak oceny', code: 'none', reason: 'Za mało danych do oceny',

@@ -219,6 +219,8 @@ export function persistMetadataResults(
   });
 }
 
+// Concurrent offers with equivalent ISBN-10/13 share one provider lookup.
+const inFlightLookups = new WeakMap();
 async function lookupWithCache(adapter, isbn, cache) {
   const startedAt = performance.now();
   const cached = cache?.get(adapter.source, isbn);
@@ -228,11 +230,21 @@ async function lookupWithCache(adapter, isbn, cache) {
       cache: { hit: true, fetchedAt: cached.fetchedAt, expiresAt: cached.expiresAt },
       timing: { durationMs: Math.round(performance.now() - startedAt), cached: true },
     };
-  const result = await adapter.lookup(isbn);
-  const stored = cache?.set(adapter.source, isbn, result) ?? false;
+  let pending=inFlightLookups.get(adapter);
+  if(!pending){pending=new Map();inFlightLookups.set(adapter,pending);}
+  const key=canonicalLookupKey(isbn);
+  const coalesced=pending.has(key);
+  if(!coalesced) {
+    const work=Promise.resolve().then(()=>adapter.lookup(key)).then(result=>({result,stored:cache?.set(adapter.source,key,result) ?? false}));
+    pending.set(key,work);
+  }
+  const work=pending.get(key);
+  let result,stored;
+  try { ({result,stored}=await work); }
+  finally {if(pending.get(key)===work)pending.delete(key);}
   return {
     ...result,
-    cache: { hit: false, stored },
+    cache: { hit: false, stored, coalesced },
     timing: { durationMs: Math.round(performance.now() - startedAt), cached: false },
   };
 }
@@ -243,11 +255,16 @@ export async function lookupISBN(
 ) {
   if (!canonicalLookupKey(isbn)) throw new Error('INVALID_ISBN');
   if (!bnAdapter || !openLibraryAdapter) throw new TypeError('Both metadata adapters are required');
-  const [bn, openLibrary] = await Promise.all([
-    lookupWithCache(bnAdapter, isbn, cache),
-    lookupWithCache(openLibraryAdapter, isbn, cache),
-  ]);
-  const comparison = compareMetadataResults(bn, openLibrary);
+  const bn = await lookupWithCache(bnAdapter, isbn, cache);
+  const openLibrary = bn.status === 'not_found'
+    ? await lookupWithCache(openLibraryAdapter, isbn, cache)
+    : { source: 'open_library', status: 'skipped', records: [], reason: 'bn_has_priority' };
+  const selected = bn.status === 'not_found' ? openLibrary : bn;
+  const comparison = {
+    status: selected.status === 'found' ? 'single_source'
+      : selected.status === 'not_found' ? 'not_found' : 'incomplete',
+    conflicts: [],
+  };
   const persistence = repository
     ? persistMetadataResults(repository, [bn, openLibrary], target)
     : null;

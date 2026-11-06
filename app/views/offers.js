@@ -1,29 +1,25 @@
+import {statusLabel,markDirty,allowDiscard,watchForm} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
 import { groszeToZloty, moneyFromZloty } from '../core/formatters.js';
 import { isWatchedOffer, mountOfferWorkspace, loadOfferWorkspace, allSavedOfferNotes, readOfferNotes } from './offer-workspace.js';
 // offers workspace, preserving existing behavior while isolating its implementation.
-export function createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats }) {
-let watchedOnly = false;
+export function createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats, onFiltersChange }) {
+let drawerSerial=0;
+let drawerTrigger=null;
 let workspaceLoading = null;
 function ensureWorkspaceLoaded() {
   if (!workspaceLoading) workspaceLoading = loadOfferWorkspace(json)
     .then(() => { renderOffers(); })
-    .catch(() => { workspaceLoading = null; });
+    .catch(error => { workspaceLoading = null; throw error; });
   return workspaceLoading;
 }
 function ensureWatchFilter() {
-  const parent = $('#offerSearch')?.closest('.filterbar');
-  if (!parent || parent.querySelector('#watchedOnly')) return;
-  const label = document.createElement('label');
-  label.className = 'offer-watch-filter';
-  const input = document.createElement('input');
-  input.type = 'checkbox';
-  input.id = 'watchedOnly';
-  input.addEventListener('change', () => { watchedOnly = input.checked; state.offerPage = 1; renderOffers(); });
-  label.append(input, document.createTextNode(' Tylko obserwowane'));
-  parent.append(label);
+  const parent = document.querySelector('#legacyImportActions');
+  if(!parent || parent.querySelector('#offerLegacyImport')) return;
   const importButton = document.createElement('button');
   importButton.type = 'button';
+  importButton.id='offerLegacyImport';
+  importButton.hidden=Object.keys(readOfferNotes()).length===0;
   importButton.className = 'button secondary compact';
   importButton.textContent = 'Importuj lokalne notatki';
   importButton.addEventListener('click', async () => {
@@ -65,57 +61,21 @@ function ensureWatchFilter() {
   parent.append(importButton);
 }
 function filteredOffers() {
-  const query = $('#offerSearch').value.trim().toLocaleLowerCase('pl'),
-    source = $('#offerSource').value,
-    status = $('#offerStatus').value,
-    sort = $('#offerSort').value;
-  const rows = allOffers().filter(
-    (offer) =>
-      (!query ||
-        `${offer.title || offer.originalTitle} ${offer.source} ${offer.observedIsbn || offer.isbn || ''}`
-          .toLocaleLowerCase('pl')
-          .includes(query)) &&
-      (!source || offer.source === source) &&
-      (!watchedOnly || isWatchedOffer(offer.id)) &&
-      (!status || (status === 'matched') === Boolean(offer.match || offer.bookId)),
-  );
-  // The server sorts the complete SQLite dataset before pagination.
-  // Keep the loaded-page sort consistent so watched-only filtering remains predictable.
-  const textTitle = (row) => String(row.title || row.originalTitle || '');
-  const priceValue = (row) => row.currentPrice == null ? null : Number(row.currentPrice);
-  const byPrice = (a, b, direction) => {
-    const left = priceValue(a), right = priceValue(b);
-    if (left === null) return right === null ? 0 : 1;
-    if (right === null) return -1;
-    return direction * (left - right);
-  };
-  return rows.sort((a, b) => {
-    let result = 0;
-    switch (sort) {
-      case 'price-asc': result = byPrice(a, b, 1); break;
-      case 'price-desc': result = byPrice(a, b, -1); break;
-      case 'title': result = textTitle(a).localeCompare(textTitle(b), 'pl'); break;
-      case 'title-desc': result = textTitle(b).localeCompare(textTitle(a), 'pl'); break;
-      case 'source': result = String(a.source || '').localeCompare(String(b.source || ''), 'pl'); break;
-      case 'source-desc': result = String(b.source || '').localeCompare(String(a.source || ''), 'pl'); break;
-      case 'oldest': result = String(a.lastSeenAt || '').localeCompare(String(b.lastSeenAt || '')); break;
-      default: result = String(b.lastSeenAt || '').localeCompare(String(a.lastSeenAt || ''));
-    }
-    return result || String(a.id || '').localeCompare(String(b.id || ''));
-  });
+  // Filters, ordering and pagination are applied once, across the full database.
+  return [...allOffers()];
 }
 
 function renderOffers() {
   ensureWatchFilter();
-  void ensureWorkspaceLoaded();
+  void ensureWorkspaceLoaded().catch(()=>{});
   if (!state.history) return;
   const rows = filteredOffers(),
-    pages = Math.max(1, Math.ceil(rows.length / state.pageSize));
+    pages = Math.max(1, Math.ceil(state.catalogPages.offers.total / state.pageSize));
   state.offerPage = Math.min(state.offerPage, pages);
   const start = (state.offerPage - 1) * state.pageSize,
-    pageRows = rows.slice(start, start + state.pageSize);
+    pageRows = rows;
   $('#offerTotal').textContent =
-    `${rows.length} pasujących z ${state.catalogPages.offers.offset} wczytanych (${state.catalogPages.offers.total} łącznie)`;
+    `${state.catalogPages.offers.total} pasujących ofert`;
   const mobile = $('#offersMobileList');
   if (mobile) {
     mobile.innerHTML =
@@ -126,7 +86,7 @@ function renderOffers() {
             (item.bookId
               ? { workTitle: bookFor(item.bookId)?.title, method: item.linkMode }
               : null);
-          return `<button class="mobile-offer" data-mobile-offer-id="${escapeHtml(item.id)}" type="button"><span class="book-spine" aria-hidden="true">▤</span><span class="mobile-offer-copy"><strong>${escapeHtml(item.title || item.originalTitle)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.observedIsbn || item.isbn || 'ISBN nieznany')}</small><small class="mobile-offer-match">${escapeHtml(match?.workTitle || match?.editionTitle || 'Nieprzypisana do wydania')}</small></span><span class="mobile-offer-price"><b>${money(item.currentPrice)}</b><small>${allSavedOfferNotes()[item.id]?.targetReached ? 'Cena docelowa osiągnięta · ' : ''}${escapeHtml(match?.method === 'manual' ? 'Ręczne' : match ? 'Dopasowane' : 'Do sprawdzenia')}</small></span></button>`;
+          return `<button class="mobile-offer" data-mobile-offer-id="${escapeHtml(item.id)}" type="button"><span class="book-spine" aria-hidden="true">▤</span><span class="mobile-offer-copy"><strong>${escapeHtml(item.title || item.originalTitle)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.observedIsbn || item.isbn || 'ISBN nieznany')}</small></span><span class="mobile-offer-price"><b>${money(item.currentPrice)}</b><small>${item.targetReached ? 'Cena docelowa osiągnięta · ' : ''}${escapeHtml(item.purchaseStatus ? statusLabel(item.purchaseStatus) : match ? 'Dopasowane' : 'Do sprawdzenia')}</small></span></button>`;
         })
         .join('') || '<div class="empty-detail">Brak ofert zgodnych z filtrami.</div>';
     mobile
@@ -141,7 +101,7 @@ function renderOffers() {
             (offer.bookId
               ? { workTitle: bookFor(offer.bookId)?.title, method: offer.linkMode }
               : null);
-          return `<tr><td><button class="link-button offer-title" type="button" data-offer-id="${escapeHtml(offer.id)}">${escapeHtml(offer.title || offer.originalTitle)}</button><span class="offer-subtitle">${escapeHtml(offer.matchedQueries?.join(', ') || '')}</span></td><td>${escapeHtml(offer.source)}</td><td>${money(offer.currentPrice)}${allSavedOfferNotes()[offer.id]?.targetReached ? ' ✓ próg' : ''}</td><td>${escapeHtml(offer.observedIsbn || offer.isbn || '-')}</td><td>${escapeHtml(matched?.workTitle || matched?.editionTitle || '-')}</td><td><span class="status-pill ${matched?.method === 'manual' ? 'success' : matched ? 'warning' : 'neutral'}">${matched?.method === 'manual' ? 'Ręczne' : matched ? 'Automatyczne' : escapeHtml(offer.identification?.status || 'Nieprzypisana')}</span></td><td>${escapeHtml(date(offer.lastSeenAt))}</td></tr>`;
+          return `<tr><td><button class="link-button offer-title" type="button" data-offer-id="${escapeHtml(offer.id)}">${escapeHtml(offer.title || offer.originalTitle)}</button><span class="offer-subtitle">${escapeHtml(offer.matchedQueries?.join(', ') || '')}</span></td><td>${escapeHtml(offer.source)}</td><td>${money(offer.currentPrice)}${offer.targetReached ? ' ✓ próg' : ''}</td><td>${escapeHtml(offer.observedIsbn || offer.isbn || '-')}</td><td>${escapeHtml(matched?.workTitle || matched?.editionTitle || '-')}</td><td><strong>${escapeHtml(statusLabel(offer.purchaseStatus))}</strong><br><span class="status-pill ${matched?.method === 'manual' ? 'success' : matched ? 'warning' : 'neutral'}">${matched?.method === 'manual' ? 'Ręczne' : matched ? 'Automatyczne' : escapeHtml(statusLabel(offer.identification?.status))}</span></td><td>${escapeHtml(date(offer.lastSeenAt))}</td></tr>`;
         })
         .join('')
     : '<tr><td colspan="7" class="empty-cell">Brak ofert zgodnych z filtrami.</td></tr>';
@@ -178,7 +138,7 @@ function priceEvidenceMarkup(offer) {
 
 function scenarioCalculatorMarkup(offer) {
   const askingPrice = groszeToZloty(offer.currentPrice);
-  return `<section class="detail-section scenario-calculator"><h4>Kalkulator scenariusza odsprzedaży</h4><details class="detail-disclosure"><summary>Założenia kalkulatora</summary><p class="inline-note">To tylko własne założenia. Cena ogłoszenia nie potwierdza możliwości zakupu, a wyliczenia nie są wyceną rynkową.</p></details><div class="scenario-fields"><label>Cena zakupu (zł)<input id="scenarioPurchase" type="number" min="0" step="0.01" inputmode="decimal" value="${Number.isFinite(askingPrice) && askingPrice >= 0 ? askingPrice : ''}" placeholder="Podaj cenę"></label><label>Dostawa (zł)<input id="scenarioShipping" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Podaj koszt"></label><label>Inne koszty (zł)<input id="scenarioOther" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Prowizje, opłaty"></label><label>Zakładana cena odsprzedaży (zł)<input id="scenarioResale" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Twoje założenie"></label></div><output id="scenarioResult" class="scenario-result">Uzupełnij wszystkie pola, aby obliczyć hipotetyczny wynik przed podatkiem.</output></section>`;
+  return `<section class="detail-section scenario-calculator"><h4>Kalkulator scenariusza odsprzedaży</h4><details class="detail-disclosure"><summary>Założenia kalkulatora</summary><p class="inline-note">To tylko własne założenia. Cena ogłoszenia nie potwierdza możliwości zakupu, a wyliczenia nie są wyceną rynkową.</p></details><div class="scenario-fields"><label>Planowana cena zakupu (zł)<input id="scenarioPurchase" type="number" min="0" step="0.01" inputmode="decimal" value="${Number.isFinite(askingPrice) && askingPrice >= 0 ? askingPrice : ''}" placeholder="Podaj cenę"></label><label>Dostawa (zł)<input id="scenarioShipping" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Podaj koszt"></label><label>Inne koszty (zł)<input id="scenarioOther" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Prowizje, opłaty"></label><label>Zakładana cena odsprzedaży (zł)<input id="scenarioResale" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Twoje założenie"></label></div><output id="scenarioResult" class="scenario-result">Uzupełnij wszystkie pola, aby obliczyć hipotetyczny wynik przed podatkiem.</output><label class="field"><span>Faktyczna cena zakupu (zł, po zakupie)</span><input id="scenarioActualPurchase" type="number" min="0" step="0.01" inputmode="decimal"></label><button type="button" class="button secondary" id="saveScenario">Zapisz scenariusz i koszt zakupu</button><p id="scenarioSaveStatus" role="status"></p></details>`;
 }
 function calculateScenario() {
   const ids = ['scenarioPurchase', 'scenarioShipping', 'scenarioOther', 'scenarioResale'];
@@ -206,32 +166,102 @@ function calculateScenario() {
   result.textContent = `Hipotetyczny pełny koszt: ${moneyFromZloty(cost)} · wynik: ${moneyFromZloty(profit)} · ROI: ${roi !== null && Number.isFinite(roi) ? roi.toFixed(1) + '%' : 'nieobliczalne przy koszcie 0'}. Przed podatkiem, bez gwarancji sprzedaży.`;
 }
 
+function closeOfferDrawer() {
+  if(!allowDiscard()) return false;
+  drawerSerial++;
+  $('#offerDrawer').hidden=true;$('#drawerBackdrop').hidden=true;
+  document.querySelector('.app-shell').inert=false;drawerTrigger?.focus();return true;
+}
+$('#drawerBackdrop')?.addEventListener('click',closeOfferDrawer);
+$('#offerDrawer')?.addEventListener('keydown',event=>{
+  if(event.key==='Escape') {event.preventDefault();closeOfferDrawer();}
+  if(event.key==='Tab') {
+    const controls=[...$('#offerDrawer').querySelectorAll('button:not(:disabled),a[href],input,select,textarea,[tabindex="0"]')].filter(item=>item.getClientRects().length);
+    const first=controls[0],last=controls.at(-1);
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+  }
+});
 async function openOfferDrawer(id) {
+  if(!allowDiscard()) return;
+  const serial=++drawerSerial;
+  drawerTrigger=document.activeElement;
   $('#offerDrawer').hidden = false;
+  $('#drawerBackdrop').hidden=false;document.querySelector('.app-shell').inert=true;
+  $('#closeOfferDrawer').focus();
   $('#offerDrawerContent').innerHTML = '<p>Wczytywanie szczegółów...</p>';
   try {
     const offer = await json(`/api/offers/${encodeURIComponent(id)}`),
       active = offer.matches.find((item) => item.status === 'active');
+    if(serial!==drawerSerial) return;
     $('#offerDrawerContent').innerHTML =
-      `<span class="status-pill ${active ? 'success' : 'neutral'}">${active ? 'Przypisana' : escapeHtml(offer.identificationJob?.status || 'Bez przypisania')}</span><h2>${escapeHtml(offer.title)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Źródło</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'brak')}</small></span><span><b>Ostatnio</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(active?.editionTitle || 'nieprzypisane')}</small></span></div>${priceEvidenceMarkup(offer)}${scenarioCalculatorMarkup(offer)}<section class="detail-section"><details class="detail-disclosure price-history-disclosure"><summary>Historia cen ofertowych (${Array.isArray(offer.priceHistory) ? offer.priceHistory.length : 0} obserwacji)</summary><details class="detail-disclosure"><summary>O tych danych</summary><p class="inline-note">Historia zapisanych cen ogłoszenia; nie potwierdza transakcji ani dostępności.</p></details><div class="price-list">${offer.priceHistory.map((item) => `<span><small>${escapeHtml(date(item.observedAt))}</small><b>${money(item.price)}</b></span>`).join('') || '<p>Brak obserwacji.</p>'}</div></details></section><div class="detail-actions"><a class="button primary" href="${escapeHtml(safeOfferHref(offer.url))}" target="_blank" rel="noreferrer">Otwórz ogłoszenie</a>${offer.identificationJob && offer.identificationJob.status !== 'completed' ? '<button class="button secondary" type="button" id="drawerReview">Przejdź do weryfikacji</button>' : ''}</div>`;
+      `<span class="status-pill ${active ? 'success' : 'neutral'}">${active ? 'Przypisana' : escapeHtml(statusLabel(offer.identificationJob?.status))}</span><h2>${escapeHtml(offer.title)}</h2><div class="detail-grid"><span><b>Cena</b><small>${money(offer.currentPrice)}</small></span><span><b>Źródło</b><small>${escapeHtml(offer.source)}</small></span><span><b>ISBN</b><small>${escapeHtml(offer.observedIsbn || 'brak')}</small></span><span><b>Ostatnio wykryto</b><small>${escapeHtml(date(offer.lastSeenAt))}</small></span><span><b>Wykrycia</b><small>${offer.seenCount || 0}</small></span><span><b>Wydanie</b><small>${escapeHtml(active?.editionTitle || 'nieprzypisane')}</small></span></div>${priceEvidenceMarkup(offer)}${scenarioCalculatorMarkup(offer)}<section class="detail-section"><details class="detail-disclosure price-history-disclosure"><summary>Historia cen ofertowych (${Array.isArray(offer.priceHistory) ? offer.priceHistory.length : 0} obserwacji)</summary><p class="inline-note">Historia zapisanych cen ogłoszenia; nie potwierdza transakcji ani dostępności.</p><div class="price-list">${offer.priceHistory.map((item) => `<span><small>${escapeHtml(date(item.observedAt))}</small><b>${money(item.price)}</b></span>`).join('') || '<p>Brak obserwacji.</p>'}</div></details></section><div class="detail-actions"><a class="button primary" href="${escapeHtml(safeOfferHref(offer.url))}" target="_blank" rel="noreferrer">Otwórz ogłoszenie</a>${offer.identificationJob && offer.identificationJob.status === 'review_required' ? '<button class="button secondary" type="button" id="drawerReview">Przejdź do weryfikacji</button>' : ''}</div>`;
+    const primaryActions = $('#offerDrawerContent .detail-actions');
+    $('#offerDrawerContent h2').after(primaryActions);
     await ensureWorkspaceLoaded();
-    mountOfferWorkspace(offer, $('#offerDrawerContent'), renderOffers, {json});
+    if(serial!==drawerSerial) return;
+    mountOfferWorkspace(offer, $('#offerDrawerContent'), ()=>{renderOffers();onFiltersChange?.();}, {json});
+    const workspace=$('#offerDrawerContent .offer-workspace');
+    $('#offerDrawerContent .detail-grid').after(workspace);
+    const freshness=document.createElement('p');freshness.className='inline-note';
+    const age=offer.lastSeenAt ? Math.floor((Date.now()-Date.parse(offer.lastSeenAt))/86400000) : null;
+    freshness.textContent='Dostępność: '+(offer.availability==='unavailable'?'oznaczona jako niedostępna':'niepotwierdzona — sprawdź ogłoszenie')+(age!==null?' · od ostatniego wykrycia: '+age+' dni':'');
+    $('#offerDrawerContent .detail-grid').after(freshness);
+    const scenario=$('#offerDrawerContent .scenario-calculator');workspace.after(scenario);
+    try {
+      const [saved,defaults]=await Promise.all([json('/api/offer-scenarios/'+encodeURIComponent(id)),json('/api/trading-defaults')]);
+      if(serial!==drawerSerial) return;
+      const map={purchase:'scenarioPurchase',shipping:'scenarioShipping',other:'scenarioOther',resale:'scenarioResale',actualPurchase:'scenarioActualPurchase'};
+      for(const [key,inputId] of Object.entries(map)) {
+        const initial=saved.updatedAt ? saved[key] : key==='purchase'?groszeToZloty(offer.currentPrice):defaults[key];
+        $('#'+inputId).value=initial??'';
+      }
+      const savedScenario=watchForm('scenario',Object.values(map).map(inputId=>$('#'+inputId)));
+      calculateScenario();
+      $('#saveScenario').addEventListener('click',async()=>{
+        const button=$('#saveScenario');button.disabled=true;
+        try {
+          const body=Object.fromEntries(Object.entries(map).map(([key,inputId])=>[key,$('#'+inputId).value.trim()===''?null:Number($('#'+inputId).value)]));
+          await json('/api/offer-scenarios/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+          if(serial!==drawerSerial)return;
+          savedScenario();$('#scenarioSaveStatus').textContent='Zapisano scenariusz i faktyczny koszt.';
+        }catch(error){$('#scenarioSaveStatus').textContent='Nie zapisano. Wpisz nieujemne kwoty do dwóch miejsc po przecinku.';}
+        finally{button.disabled=false;}
+      });
+    } catch(error){if(serial!==drawerSerial)return;$('#scenarioSaveStatus').textContent='Nie udało się odczytać scenariusza. Otwórz ofertę ponownie.';$('#saveScenario').disabled=true;}
+    if(active) {
+      const catalogLink=document.createElement('button');catalogLink.type='button';catalogLink.className='button secondary';catalogLink.textContent='Wydanie i historia w katalogu';
+      catalogLink.addEventListener('click',()=>{if(!closeOfferDrawer())return;document.dispatchEvent(new CustomEvent('bookflip-open-edition',{detail:{editionId:active.editionId}}));});
+      $('#offerDrawerContent .detail-actions').append(catalogLink);
+      const comparison=document.createElement('button');comparison.type='button';comparison.className='button secondary';comparison.textContent='Porównaj ceny tego wydania';
+      comparison.addEventListener('click',async()=>{
+        if(!allowDiscard())return;
+        let edition;
+        try { edition=await json('/api/catalog/editions/'+encodeURIComponent(active.editionId)); }
+        catch { toast('Nie udało się pobrać porównania cen. Spróbuj ponownie.'); return; }
+        const panel=document.createElement('section');panel.className='detail-section';
+        const title=document.createElement('h4');title.textContent='Porównanie zapisanych ofert tego wydania';panel.append(title);
+        for(const item of edition.offers) {
+          const row=document.createElement('p');row.textContent=item.source+' · '+money(item.currentPrice)+' · wykryto '+date(item.lastSeenAt)+' · '+(item.availability==='unavailable'?'niedostępna':'dostępność niepotwierdzona');panel.append(row);
+        }
+        comparison.replaceWith(panel);
+      });scenario.after(comparison);
+    }
     ['scenarioPurchase', 'scenarioShipping', 'scenarioOther', 'scenarioResale'].forEach((id) =>
       $('#' + id)?.addEventListener('input', calculateScenario),
     );
     $('#drawerReview')?.addEventListener('click', () => {
-      state.selectedReviewId = offer.identificationJob.id;
-      state.reviewDetail = offer;
-      $('#offerDrawer').hidden = true;
-      showView('review');
+      if(!closeOfferDrawer())return;
+      document.dispatchEvent(new CustomEvent('bookflip-review-offer',{detail:{offerId:offer.id,jobId:offer.identificationJob.id}}));
     });
   } catch (error) {
-    $('#offerDrawerContent').innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+    if(serial!==drawerSerial)return;
+    $('#offerDrawerContent').innerHTML = '<p>Nie udało się wczytać szczegółów. Zamknij panel i spróbuj ponownie. Nie zmieniono zapisanych danych.</p>';
   }
 }
 
 
 
 
-return { filteredOffers, renderOffers, priceEvidenceMarkup, scenarioCalculatorMarkup, calculateScenario, openOfferDrawer };
+return { filteredOffers, renderOffers, priceEvidenceMarkup, scenarioCalculatorMarkup, calculateScenario, openOfferDrawer, closeOfferDrawer };
 }

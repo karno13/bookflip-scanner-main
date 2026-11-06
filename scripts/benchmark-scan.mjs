@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { createProductionCatalog } from '../catalog-production.mjs';
 import { persistSqliteScan } from '../sqlite-single-store.mjs';
 
-export async function benchmarkScan({ offerCount = 1000 } = {}) {
+export async function benchmarkScan({ offerCount = 1000, matched = false } = {}) {
   if (!Number.isSafeInteger(offerCount) || offerCount < 1 || offerCount > 100000)
     throw Error('INVALID_BENCHMARK_OFFER_COUNT');
   const dir = await mkdtemp(join(tmpdir(), 'bookflip-scan-benchmark-'));
@@ -36,6 +36,17 @@ export async function benchmarkScan({ offerCount = 1000 } = {}) {
       };
     };
     const first = record('initial', offers, '2026-11-01T12:00:00.000Z');
+    if (matched) {
+      // Each offer gets a different edition: exercise the many-group path
+      // omitted by the unassigned benchmark. Setup is outside measured scans.
+      catalog.repository.transaction(repo => {
+        for (const offer of repo.database.prepare('SELECT id,original_title FROM offers').all()) {
+          const work = repo.createWork({ title: offer.original_title });
+          const edition = repo.createEdition({ workId: work.id, title: offer.original_title });
+          repo.assignOfferToEdition(offer.id, edition.id, { method: 'manual', status: 'active' });
+        }
+      });
+    }
     const changed = offers.map((offer, i) => i % 10 === 0
       ? { ...offer, price: offer.price - 100 } : offer);
     const repeat = record('repeat-with-10-percent-price-changes', changed,
@@ -51,6 +62,7 @@ export async function benchmarkScan({ offerCount = 1000 } = {}) {
     return {
       scenario: 'synthetic-offline',
       offerCount,
+      matched,
       node: process.version,
       platform: process.platform,
       initial: first,
@@ -77,7 +89,7 @@ export async function benchmarkScan({ offerCount = 1000 } = {}) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const arg = process.argv.indexOf('--offers');
   const count = arg < 0 ? 1000 : Number(process.argv[arg + 1]);
-  benchmarkScan({ offerCount: count })
+  benchmarkScan({ offerCount: count, matched: process.argv.includes('--matched') })
     .then(result => console.log(JSON.stringify(result, null, 2)))
     .catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
 }

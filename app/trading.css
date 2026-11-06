@@ -1,0 +1,27 @@
+/* Hidden views and controls must stay hidden regardless of layout specificity. */
+[hidden]{display:none!important}
+.quick-actions,.offer-quick-views{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.offer-quick-views button{padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer}
+.offer-quick-views button[aria-pressed=true]{background:var(--green);color:white;border-color:var(--green)}
+.scan-advanced,.advanced-settings,.offer-extra-filters,.catalog-filters,.review-history,.catalog-edit{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+:is(.scan-advanced,.advanced-settings,.offer-extra-filters,.catalog-filters,.review-history,.catalog-edit,.scan-profiles)>summary{cursor:pointer;font-size:14px;font-weight:650;min-height:32px}
+.scan-advanced[open]>.panel{margin-top:14px}
+#dataSettings,#tradingDefaults,#legacyImports{padding:18px;margin-bottom:16px}
+#defaultCostFields,.set-costs,.catalog-edit form{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 0}
+#defaultCostFields .field,.catalog-edit .field{min-width:0}
+.catalog-edit input,.set-unknown-form input,.set-member-values input{width:100%;border:1px solid var(--line);border-radius:7px;padding:10px;background:var(--surface);color:var(--text);font:inherit}
+.catalog-edit form button,.catalog-edit form p,.set-costs h4,.set-costs p,.set-costs output,.set-costs>button{grid-column:1/-1}
+.set-trading{display:grid;gap:14px;border-top:1px solid var(--line);padding-top:18px;margin-top:18px}
+.set-unknown-form{display:grid;grid-template-columns:minmax(0,1fr) 80px auto;gap:8px}
+.set-member-values{display:grid;grid-template-columns:100px minmax(120px,1fr);gap:10px;margin-top:10px}
+.set-member-values label{font-size:13px;display:grid;gap:5px}
+.set-member-values button{grid-column:1/-1}
+.sets-member{align-items:start}
+.sets-member-copy{flex:1;min-width:0}
+.decision-history-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(17,35,27,.35);z-index:90}
+#offerDrawer.drawer{position:fixed;inset:0 0 0 auto;width:min(680px,80vw);z-index:100;padding:22px;max-height:100dvh;overscroll-behavior:contain}
+#offerDrawer[hidden],#drawerBackdrop[hidden]{display:none}
+#offerDrawer .drawer-close{position:static;background:var(--surface);min-height:44px;z-index:2}
+#offerDrawer .detail-actions{position:static;padding:12px 0;background:var(--surface)}
+#offerDrawer .offer-workspace{padding:15px;border:1px solid var(--line);border-radius:10px;background:var(--green-soft)}

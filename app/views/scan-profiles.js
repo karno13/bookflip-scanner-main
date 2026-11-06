@@ -12,10 +12,10 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
   if (!queriesInput || !sourceGrid || !panel) return;
   if (typeof json !== 'function') throw Error('SCAN_PROFILES_API_REQUIRED');
   let profiles = [];
-  const root = document.createElement('div');
+  const root = document.createElement('details');
   root.className = 'scan-profiles';
-  const title = document.createElement('strong');
-  title.textContent = 'Profile skanowania (SQLite)';
+  const title = document.createElement('summary');
+  title.textContent = 'Zapisane wyszukiwania i profile';
   const picker = document.createElement('select');
   picker.setAttribute('aria-label','Wybierz profil skanowania');
   const name = document.createElement('input');
@@ -29,7 +29,7 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
   const save = document.createElement('button');
   save.type = 'button';
   save.className = 'button secondary compact';
-  save.textContent = 'Zapisz profil';
+  save.textContent = 'Zapisz nowy profil';
   const remove = document.createElement('button');
   remove.type = 'button';
   remove.className = 'button secondary compact';
@@ -40,9 +40,13 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
   importButton.textContent = 'Importuj lokalne profile';
   const buttons = document.createElement('div');
   buttons.className = 'scan-profile-actions';
-  buttons.append(load,save,remove,importButton);
+  const update=document.createElement('button'); update.type='button';update.className='button secondary compact';update.textContent='Aktualizuj wybrany profil';
+  const undo=document.createElement('button');undo.type='button';undo.className='button secondary';undo.textContent='Cofnij usunięcie';undo.hidden=true;
+  let deletedProfile=null;
+  buttons.append(load,save,update,remove,undo);
+  document.querySelector('#legacyImportActions').append(importButton);
   root.append(title,picker,name,buttons);
-  panel.prepend(root);
+  panel.append(root);
   function refresh(selected = '') {
     picker.replaceChildren();
     const empty = document.createElement('option');
@@ -66,14 +70,16 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
   save.addEventListener('click', async () => {
     const profileName = name.value.trim();
     if (!profileName) return toast('Wpisz nazwę profilu.');
-    const queries = [...new Set(queriesInput.value.split(/[\n,]/).map(x => x.trim()).filter(Boolean))].slice(0,10);
+    if (profiles.some(profile=>profile.name===profileName)) return toast('Ta nazwa już istnieje. Wybierz profil i użyj Aktualizuj.');
+    const queries = [...new Set(queriesInput.value.split(/[\n,]/).map(x => x.trim()).filter(Boolean))];
+    if(queries.length>10) return toast('Profil może zawierać najwyżej 10 fraz.');
     const sources = [...sourceGrid.querySelectorAll('input:checked')].map(input => input.value);
     if (!queries.length || !sources.length) return toast('Profil wymaga fraz i wybranych źródeł.');
     save.disabled = true;
     try {
-      await json('/api/scan-profiles/'+encodeURIComponent(profileName), {
-        method:'PUT', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({queries,sources}),
+      await json('/api/scan-profiles', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:profileName,queries,sources}),
       });
       await reload(profileName);
       toast('Zapisano profil w SQLite.');
@@ -91,11 +97,13 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
   });
   remove.addEventListener('click', async () => {
     if (!picker.value) return;
+    deletedProfile=profiles.find(profile=>profile.name===picker.value);
     remove.disabled=true;
     try {
       await json('/api/scan-profiles/'+encodeURIComponent(picker.value),{method:'DELETE'});
       await reload();
-      toast('Usunięto profil z SQLite.');
+      undo.hidden=false;
+      toast('Usunięto profil. Możesz cofnąć tę operację.');
     } catch(error) {toast('Błąd usuwania profilu: '+error.message);}
     finally {remove.disabled=false;}
   });
@@ -118,6 +126,18 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
       toast(`Import: ${created} nowych, ${skipped} pominiętych, ${failed} błędnych. Dane lokalne zachowano.`);
     } catch(error) {toast('Błąd odczytu profili: '+error.message);}
     finally {importButton.disabled=false;}
+  });
+  update.addEventListener('click',async()=>{
+    if(!picker.value) return toast('Wybierz profil do aktualizacji.');
+    const queries=[...new Set(queriesInput.value.split(/[\n,]/).map(value=>value.trim()).filter(Boolean))];
+    const sources=[...sourceGrid.querySelectorAll('input:checked')].map(input=>input.value);
+    if(!queries.length||queries.length>10||!sources.length) return toast('Wymagane od 1 do 10 fraz i przynajmniej jedno źródło.');
+    update.disabled=true;
+    try{await json('/api/scan-profiles/'+encodeURIComponent(picker.value),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({queries,sources})});await reload(picker.value);toast('Zaktualizowano profil.');}catch(error){toast('Nie zapisano profilu. Spróbuj ponownie.');}finally{update.disabled=false;}
+  });
+  undo.addEventListener('click',async()=>{
+    if(!deletedProfile) return;undo.disabled=true;
+    try{const response=await json('/api/scan-profiles/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(deletedProfile)});if(!response.created) return toast('Nazwa jest już zajęta. Nie nadpisano profilu.');await reload(deletedProfile.name);undo.hidden=true;}catch(error){toast('Nie udało się przywrócić profilu.');}finally{undo.disabled=false;}
   });
   await reload();
 }

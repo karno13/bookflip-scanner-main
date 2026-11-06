@@ -14,7 +14,7 @@ function bad(code, statusCode = 400) {
   throw Object.assign(Error(code), { statusCode });
 }
 function bookFromProjection(catalog, bookId) {
-  return sqliteHistoryModel(catalog.repository).books[bookId] || null;
+  return sqliteHistoryModel(catalog.repository, { bookId, includePriceHistory: false }).books[bookId] || null;
 }
 export function createSqliteBook(catalog, { title, isbn = null } = {}) {
   const clean = String(title || '').trim(),
@@ -24,7 +24,7 @@ export function createSqliteBook(catalog, { title, isbn = null } = {}) {
   if (rawIsbn && !cleanIsbn) bad('INVALID_BOOK_ISBN');
   const repo = catalog.repository,
     at = new Date().toISOString();
-  let bookId,
+  let bookId, editionId,
     created = false;
   repo.transaction(() => {
     if (cleanIsbn) {
@@ -34,6 +34,7 @@ export function createSqliteBook(catalog, { title, isbn = null } = {}) {
         )
         .get(cleanIsbn);
       if (existing) {
+        editionId = existing.id;
         bookId = existing.legacy_id || 'edition:' + existing.id;
         return;
       }
@@ -52,6 +53,7 @@ export function createSqliteBook(catalog, { title, isbn = null } = {}) {
       verificationStatus: 'manual',
       at,
     });
+    editionId = edition.id;
     if (cleanIsbn)
       repo.attachIdentifier(edition.id, cleanIsbn.length === 10 ? 'isbn10' : 'isbn13', cleanIsbn, {
         source: 'local_manual',
@@ -60,10 +62,10 @@ export function createSqliteBook(catalog, { title, isbn = null } = {}) {
       });
     created = true;
   });
-  return { book: bookFromProjection(catalog, bookId), created };
+  return { book: bookFromProjection(catalog, bookId), editionId, created };
 }
 
-export function linkSqliteOffer(catalog, { offerId, bookId } = {}) {
+export function linkSqliteOffer(catalog, { offerId, bookId } = {}, { returnHistory = true } = {}) {
   const repo = catalog.repository,
     db = repo.database;
   const offer = db
@@ -89,10 +91,10 @@ export function linkSqliteOffer(catalog, { offerId, bookId } = {}) {
       createdBy: 'local_user',
     });
   });
-  return sqliteHistoryModel(repo);
+  return returnHistory ? sqliteHistoryModel(repo) : { offerId: offer.id, bookId };
 }
 
-export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) {
+export function persistSqliteScan(catalog, { offers, searchedAt, errors = [], scanContext = null }) {
   const at = String(searchedAt);
   const db = catalog.repository.database;
   const previous = db.prepare('SELECT current_price FROM offers WHERE id=?');
@@ -102,6 +104,7 @@ export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) 
   const ids = [];
   let newOffers = 0, priceChanges = 0;
   const seen = new Set();
+  const outcomes = [];
   for (const offer of scanOffers) {
     try {
       const id = sourceOfferId(offer.source, offer.url, offerExternalId(offer));
@@ -109,12 +112,35 @@ export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) 
       seen.add(id);
       ids.push(id);
       const old = previous.get(id);
+      outcomes.push({ id, isNew: !old, changed: Boolean(old && old.current_price !== offer.price) });
       if (!old) newOffers++;
       else if (old.current_price !== offer.price) priceChanges++;
     } catch {}
   }
-  const lastScan = { at, found: offers.length, newOffers, priceChanges, errors };
-  const ingest = catalog.ingestOffers(scanOffers, at, { scanSummary: lastScan });
+  const lastScan = { at, found: offers.length, newOffers, priceChanges, errors, ...(scanContext ? {context:scanContext} : {}) };
+  const ingest = catalog.repository.transaction(() => {
+    const report = catalog.ingestOffers(scanOffers, at, { scanSummary: lastScan });
+    const membership = db.prepare('INSERT OR REPLACE INTO scan_offer_results VALUES(?,?,?,?)');
+    for (const row of outcomes) if (db.prepare('SELECT id FROM offers WHERE id=?').get(row.id))
+      membership.run(at,row.id,Number(row.isNew),Number(row.changed));
+    if (scanContext) {
+      const grouped = new Map();
+      for(const result of scanContext.results || []) {
+        if(!grouped.has(result.source)) grouped.set(result.source,[]);
+        grouped.get(result.source).push(result);
+      }
+      for (const [source,results] of grouped) {
+        const ok=results.every(result=>result.status==='ok');
+        const code=results.filter(result=>result.status!=='ok').map(result=>result.diagnostic?.code||'SOURCE_REQUEST_FAILED').join(', ');
+        db.prepare(`INSERT INTO source_health(source,last_checked_at,last_success_at,last_error_at,last_error,status) VALUES(?,?,?,?,?,?)
+          ON CONFLICT(source) DO UPDATE SET last_checked_at=excluded.last_checked_at,
+          last_success_at=COALESCE(excluded.last_success_at,source_health.last_success_at),
+          last_error_at=COALESCE(excluded.last_error_at,source_health.last_error_at),
+          last_error=COALESCE(excluded.last_error,source_health.last_error),status=excluded.status`).run(source,at,ok?at:null,ok?null:at,ok?null:code,ok?'ok':'partial');
+      }
+    }
+    return report;
+  });
 
   // Do not materialize the entire catalog (or its complete price-history table).
   // Price classifications depend only on CURRENT offers for the same edition.
@@ -124,6 +150,7 @@ export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) 
     WHERE m.offer_id=? AND m.status='active' LIMIT 1`);
   const current = db.prepare('SELECT * FROM offers WHERE id=?');
   const byBook = new Map();
+  const idsByBook = new Map();
   const unmatched = {version:2, books:{}, offers:{}, priceHistory:[], details:{},lastScan};
   const ordered = [];
   for (const id of ids) {
@@ -131,6 +158,8 @@ export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) 
     if (!row) continue;
     const link = linked.get(id);
     if (link?.book_id) {
+      if (!idsByBook.has(link.book_id)) idsByBook.set(link.book_id, []);
+      idsByBook.get(link.book_id).push(id);
       if (!byBook.has(link.book_id))
         byBook.set(link.book_id, sqliteHistoryModel(catalog.repository, {
           bookId: link.book_id, includePriceHistory: false,
@@ -153,7 +182,7 @@ export function persistSqliteScan(catalog, { offers, searchedAt, errors = [] }) 
   const unassigned = new Map(analyzedOffers(unmatched).map(item => [item.id,item]));
   const analyses = new Map();
   for (const [bookId, model] of byBook) {
-    const relevant = ordered.filter(row => row.bookId === bookId).map(row => row.id);
+    const relevant = idsByBook.get(bookId);
     for (const item of analyzedOffers(model, relevant)) analyses.set(item.id,item);
   }
   const analyzed = ordered.map(({id,bookId}) => bookId ? analyses.get(id) : unassigned.get(id))

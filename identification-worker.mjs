@@ -141,6 +141,7 @@ export class IdentificationWorker {
   async processBatch(limit = 10) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000)
       throw new Error('INVALID_BATCH_LIMIT');
+    const started = performance.now();
     const items = [], errors = [];
     let reservations = 0;
     const concurrency = Math.min(3, limit);
@@ -161,7 +162,12 @@ export class IdentificationWorker {
       }
     });
     await Promise.all(work);
-    return { processed: items.length, failed: errors.length, errors, items };
+    const now=iso(this.now());
+    const hasMore=Boolean(this.repository.database.prepare(`SELECT 1 FROM identification_jobs
+      WHERE (status IN ('queued','retry_wait') AND (run_after IS NULL OR run_after<=?))
+      OR (status='running' AND lease_expires_at<=?) LIMIT 1`).get(now,now));
+    this.lastBatch={processed:items.length,failed:errors.length,durationMs:Math.round(performance.now()-started),finishedAt:now,hasMore};
+    return { ...this.lastBatch, errors, items };
   }
 
   async processJobId(jobId) {

@@ -1,4 +1,5 @@
 import { zlotyToGrosze, money } from '../core/formatters.js';
+import { markDirty,watchForm } from '../core/ux.js';
 // Legacy localStorage is used only for explicit import and fallback. SQLite is the live store.
 const KEY = 'bookflip-offer-workspace-v1';
 const statuses = [
@@ -37,7 +38,7 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
   const section = document.createElement('section');
   section.className = 'detail-section offer-workspace';
   const title = document.createElement('h4');
-  title.textContent = options.json ? 'Moja lista zakupowa (SQLite)' : 'Moja lista zakupowa (tylko ta przeglądarka)';
+  title.textContent = options.json ? 'Decyzja zakupowa' : 'Decyzja zakupowa (ta przeglądarka)';
   section.append(title);
   const watched = document.createElement('label');
   watched.className = 'offer-workspace-check';
@@ -88,6 +89,7 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
   };
   target.addEventListener('input', showThreshold);
   showThreshold();
+  const savedForm=watchForm('offer-notes',[checkbox,status,target,note]);
   const commit = async () => {
     const value = target.value.trim();
     const price = value === '' ? null : Number(value);
@@ -112,7 +114,8 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
         if (!sqliteNotes) sqliteNotes = {};
         sqliteNotes[id] = saved;
         await loadOfferWorkspace(options.json);
-        message.textContent = 'Zapisano w SQLite.';
+        savedForm();
+        message.textContent = 'Zapisano notatkę i status.';
         onChange();
       } catch(error) { message.textContent = 'Błąd zapisu: ' + error.message; }
       finally { save.disabled = false; checkbox.disabled = false; }
@@ -125,7 +128,6 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
       : 'Nie udało się zapisać danych przeglądarki.';
     onChange();
   };
-  checkbox.addEventListener('change', commit);
   save.addEventListener('click', commit);
   container.append(section);
 }

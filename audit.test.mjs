@@ -58,6 +58,6 @@ test('CI runs offline tests and legacy hosted runner cannot schedule scans in th
     new URL('./.github/workflows/scanner-tests.yml', import.meta.url),
     'utf8',
   );
-  assert.match(ci, /run: node --test\s*$/m);
+  assert.match(ci, /run: npm test\s*$/m);
   assert.equal(existsSync(new URL('./.github/workflows/bookflip-scan.yml', import.meta.url)), false);
 });

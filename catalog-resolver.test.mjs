@@ -169,7 +169,7 @@ test('unknown ISBN creates a work, edition, provenance and assignment', async ()
 test('a second ISBN with the same Open Library Work ID creates only a new edition', async () => {
   const repository = new SqliteCatalogRepository(':memory:');
   try {
-    const resolver = new CatalogResolver({ repository, lookupMetadata: lookupFor() });
+    const resolver = new CatalogResolver({ repository, lookupMetadata: async (isbn) => ({ ...(await lookupFor()(isbn)), bn: { status: 'not_found', records: [] } }) });
     await resolver.resolve({ offerId: offer(repository, { id: 'first', isbn: ISBN_A }).id });
     const result = await resolver.resolve({
       offerId: offer(repository, { id: 'second', isbn: ISBN_B }).id,
@@ -225,15 +225,15 @@ test('two concurrent resolvers converge on one edition', async () => {
   }
 });
 
-test('conflicting BN and Open Library data requires review', async () => {
+test('BN record with matching ISBN is used regardless of metadata differences', async () => {
   const repository = new SqliteCatalogRepository(':memory:');
   try {
     const result = await new CatalogResolver({
       repository,
       lookupMetadata: lookupFor({ conflict: true }),
     }).resolve({ offerId: offer(repository).id });
-    assert.equal(result.decision, 'review_required');
-    assert.equal(repository.counts().editions, 0);
+    assert.equal(result.decision, 'created_work_and_edition');
+    assert.equal(repository.counts().editions, 1);
   } finally {
     repository.close();
   }
@@ -469,6 +469,45 @@ test('review ISBN matching reuses local edition and completes selected job', asy
   }
 });
 
+test('ISBN preview uses local catalog without calling resolver or API', async () => {
+  const repository = new SqliteCatalogRepository(':memory:');
+  try {
+    const { edition } = existingEdition(repository);
+    const saved = offer(repository, { id: 'preview-local', isbn: null });
+    repository.putIdentificationJob({ id: 'preview-local-job', offerId: saved.id, status: 'review_required' });
+    const result = await matchIdentificationJobByIsbn({ repository,
+      resolver: { resolve: async () => { throw Error('UNEXPECTED_RESOLVER'); } },
+      lookupIsbn: async () => { throw Error('UNEXPECTED_API'); },
+    }, 'preview-local-job', { isbn: ISBN_A, preview: true });
+    assert.equal(result.source, 'catalog');
+    assert.equal(result.editionId, edition.id);
+    assert.equal(result.canConfirm, true);
+    assert.equal(repository.getOfferMatchHistory(saved.id).length, 0);
+  } finally { repository.close(); }
+});
+
+test('ISBN preview queries metadata once after a local miss and returns candidate without writes', async () => {
+  const repository = new SqliteCatalogRepository(':memory:');
+  try {
+    const saved = offer(repository, { id: 'preview-api', isbn: null });
+    repository.putIdentificationJob({ id: 'preview-api-job', offerId: saved.id, status: 'review_required' });
+    let calls = 0;
+    const resolver = new CatalogResolver({ repository, lookupMetadata: async isbn => {
+      calls++;
+      return lookupFor()(isbn);
+    } });
+    const result = await matchIdentificationJobByIsbn({ repository, resolver,
+      lookupIsbn: async () => { throw Error('DUPLICATE_API'); },
+    }, 'preview-api-job', { isbn: ISBN_A, preview: true });
+    assert.equal(calls, 1);
+    assert.equal(result.source, 'api');
+    assert.equal(result.candidate.title, 'Theoretical Physics');
+    assert.equal(result.canConfirm, true);
+    assert.equal(repository.counts().editions, 0);
+    assert.equal(repository.getOfferMatchHistory(saved.id).length, 0);
+  } finally { repository.close(); }
+});
+
 test('review ISBN matching fetches external metadata and creates linked edition', async () => {
   const repository = new SqliteCatalogRepository(':memory:');
   try {
@@ -486,17 +525,17 @@ test('review ISBN matching fetches external metadata and creates linked edition'
   }
 });
 
-test('review ISBN matching never creates or assigns when offer context conflicts', async () => {
+test('review ISBN preview accepts matching ISBN despite different offer metadata', async () => {
   const repository = new SqliteCatalogRepository(':memory:');
   try {
     const saved = offer(repository, { id: 'review-conflict', title: 'Completely different title', isbn: null });
     repository.putIdentificationJob({ id: 'review-job-conflict', offerId: saved.id, status: 'review_required' });
     const resolver = new CatalogResolver({ repository, lookupMetadata: lookupFor() });
     const result = await matchIdentificationJobByIsbn(
-      { repository, resolver }, 'review-job-conflict', { isbn: ISBN_A },
+      { repository, resolver }, 'review-job-conflict', { isbn: ISBN_A, preview: true },
     );
     assert.equal(result.matched, false);
-    assert.equal(result.status, 'review_required');
+    assert.equal(result.canConfirm, true);
     assert.equal(repository.counts().editions, 0);
     assert.equal(repository.getOfferMatchHistory(saved.id).length, 0);
     assert.equal(repository.database.prepare('SELECT status FROM identification_jobs WHERE id=?').get('review-job-conflict').status, 'review_required');
@@ -506,6 +545,9 @@ test('review ISBN matching never creates or assigns when offer context conflicts
     await assert.rejects(() => matchIdentificationJobByIsbn(
       { repository, resolver }, 'review-job-conflict', {},
     ), /ISBN_REQUIRED/);
+    const confirmed = await matchIdentificationJobByIsbn({ repository, resolver }, 'review-job-conflict', { isbn: ISBN_A, confirm: true });
+    assert.equal(confirmed.matched, true);
+    assert.equal(repository.getOfferMatchHistory(saved.id).length, 2);
   } finally {
     repository.close();
   }

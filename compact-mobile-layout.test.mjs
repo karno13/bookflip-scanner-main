@@ -2,23 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const styles = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
+const styles = (await Promise.all(['styles.css','mobile-repair.css'].map(file => readFile(new URL('./app/' + file, import.meta.url), 'utf8')))).join('\n');
 
 test('compact offers retain usable mobile controls and small-screen typography', () => {
-  const compact = styles.slice(styles.lastIndexOf('/* Compact mobile density'));
-  assert.ok(compact, 'compact stylesheet section is present');
-  assert.match(compact, /@media \(max-width: 760px\)/);
-  assert.match(compact, /\.mobile-offer\s*\{[^}]*min-height:\s*66px/);
-  assert.match(compact, /\.catalog-row\s*\{[^}]*min-height:\s*80px/);
-  assert.match(compact, /\.scanner-discover-toolbar input, \.scanner-discover-toolbar select\s*\{\s*height:\s*44px/);
-  assert.match(compact, /\.pagination button\s*\{\s*min-height:\s*44px/);
-  assert.match(compact, /@media \(max-width: 400px\)/);
+  assert.match(styles, /@media\(max-width:600px\)/);
+  assert.match(styles, /font-size:16px;min-height:44px/);
+  assert.match(styles, /\.mobile-offer\{grid-template-columns:minmax\(0,1fr\) 90px/);
+  assert.match(styles, /\.pagination\{/);
 });
 
 test('mobile design uses an accessible two-column filter grid and motion preferences', () => {
-  const visual = styles.slice(styles.lastIndexOf('/* BookFlip visual system'));
-  assert.match(visual, /\.filterbar\s*\{[^}]*grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(visual, /\.filterbar \.search-field\s*\{\s*grid-column:\s*1 \/ -1/);
-  assert.match(visual, /\.filterbar input, \.filterbar select\s*\{[^}]*min-height:\s*44px/);
-  assert.match(visual, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(styles, /\.filterbar select,\.filterbar \.field\{flex-basis:120px/);
+  assert.match(styles, /\.filterbar \.search-field\{flex-basis:100%/);
+  assert.match(styles, /@media\(prefers-reduced-motion:reduce\)/);
 });

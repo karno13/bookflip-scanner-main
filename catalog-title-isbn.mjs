@@ -15,10 +15,7 @@ export async function findTitleIsbnCandidates(
   ol.searchParams.set('title', title);
   ol.searchParams.set('fields', 'key,title,author_name,isbn,language,first_publish_year');
   ol.searchParams.set('limit', '8');
-  const [bnResponse, olResponse] = await Promise.all([
-    requestBn(bn.href),
-    requestOpenLibrary(ol.href),
-  ]);
+  const bnResponse = await requestBn(bn.href);
   const candidates = [];
   const errors = [];
   if (bnResponse.status === 'found') {
@@ -34,6 +31,9 @@ export async function findTitleIsbnCandidates(
         });
     }
   } else if (!['not_found'].includes(bnResponse.status)) errors.push('bn');
+  const olResponse = candidates.length === 0 && ['found', 'not_found'].includes(bnResponse.status)
+    ? await requestOpenLibrary(ol.href)
+    : { status: 'skipped' };
   if (olResponse.status === 'found') {
     for (const book of (Array.isArray(olResponse.payload?.docs) ? olResponse.payload.docs : []).slice(0, 8)) {
       for (const isbn of isbnCandidates(book.isbn ?? []).slice(0, 3))
@@ -45,7 +45,7 @@ export async function findTitleIsbnCandidates(
           publicationYear: String(book.first_publish_year ?? '').slice(0, 10),
         });
     }
-  } else if (!['not_found'].includes(olResponse.status)) errors.push('open_library');
+  } else if (!['not_found', 'skipped'].includes(olResponse.status)) errors.push('open_library');
   const seen = new Set();
   return {
     title,

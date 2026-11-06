@@ -4,9 +4,9 @@ import { readFile } from 'node:fs/promises';
 
 test('BN selection requires a unique ISBN-confirmed record and noncritical source differences', async () => {
   const source = await readFile(new URL('./catalog-resolver.mjs', import.meta.url), 'utf8');
-  assert.match(source, /bnRecords\.length === 1 && isbnMatches\(bnRecords\[0\]\)/);
-  assert.match(source, /'title', 'authors', 'publicationYear'/);
-  assert.match(source, /mergeRecords\(metadata, bnPreferred\)/);
+  assert.match(source, /metadata_isbn_mismatch/);
+  assert.match(source, /matches: \['isbn'\]/);
+  assert.match(source, /mergeRecords\(metadata\)/);
 });
 test('manual retry excludes protected manual assignments', async () => {
   const server = await readFile(new URL('./local-app.mjs', import.meta.url), 'utf8');

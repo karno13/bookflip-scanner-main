@@ -3,13 +3,18 @@
 export function listOfferSets(repository) {
   const db = repository.database;
   const rows = db.prepare(`SELECT s.offer_id AS offerId, o.original_title AS title, o.source,
-    o.current_price AS currentPrice, s.created_at AS createdAt
+    o.current_price AS currentPrice, o.currency, o.normalized_url AS url,
+    s.composition_confirmed AS compositionConfirmed, s.created_at AS createdAt
     FROM offer_sets s JOIN offers o ON o.id=s.offer_id ORDER BY s.updated_at DESC`).all();
   const editions = db.prepare(`SELECT se.offer_id AS offerId, se.edition_id AS editionId,
-    e.title AS title, w.title AS workTitle
+    e.title AS title, w.title AS workTitle, se.quantity,se.resale_price AS resalePrice,
+    e.publisher,e.publication_year AS publicationYear,e.language,e.binding,
+    (SELECT normalized_value FROM edition_identifiers WHERE edition_id=e.id AND scheme IN ('isbn13','isbn10') ORDER BY scheme DESC LIMIT 1) AS isbn
     FROM offer_set_editions se JOIN editions e ON e.id=se.edition_id
     JOIN works w ON w.id=e.work_id ORDER BY w.title,e.title`).all();
-  return rows.map(row => ({ ...row, editions: editions.filter(item => item.offerId === row.offerId) }));
+  const unknown= db.prepare('SELECT id,offer_id AS offerId,title,quantity FROM offer_set_unknown_items ORDER BY id').all();
+  return rows.map(row => ({ ...row, compositionConfirmed:Boolean(row.compositionConfirmed),
+    editions: editions.filter(item => item.offerId === row.offerId), unknownItems:unknown.filter(item=>item.offerId===row.offerId) }));
 }
 
 export function markOfferAsSet(repository, offerId) {
@@ -39,6 +44,7 @@ export function updateSetEdition(repository, offerId, editionId, include) {
     else
       db.prepare('DELETE FROM offer_set_editions WHERE offer_id=? AND edition_id=?').run(offerId, editionId);
     db.prepare('UPDATE offer_sets SET updated_at=? WHERE offer_id=?').run(new Date().toISOString(), offerId);
+    db.prepare('UPDATE offer_sets SET composition_confirmed=0 WHERE offer_id=?').run(offerId);
     return { offerId, editionId, included: include };
   });
 }

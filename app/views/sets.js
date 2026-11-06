@@ -1,5 +1,9 @@
+import { openDetailView } from '../core/detail-navigation.js';
+import {money} from '../core/formatters.js';
+import {markDirty,allowDiscard,hasUnsavedChanges,watchForm} from '../core/ux.js';
+import {mountSetTrading} from './set-trading.js';
 // Workspace for marketplace offers containing multiple catalog editions.
-export function createSetsView({ $, json, escapeHtml, toast }) {
+export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) {
   let sets = [];
   let activeId = null;
   let searchSerial = 0;
@@ -28,6 +32,9 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
   function pluralSets(count) { return count === 1 ? '1 zestaw' : `${count} zestawów`; }
 
   function selectSet(id) {
+    if(id===activeId){openDetailView('sets');return;}
+    if(!allowDiscard())return;
+    openDetailView('sets');
     activeId = id;
     $('#setCurrent').value = id || '';
     renderList();
@@ -49,8 +56,9 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
   function renderMembers() {
     const active = sets.find(item => item.offerId === activeId);
     $('#setSelectedTitle').textContent = active?.title || 'Wybierz zestaw z listy';
-    $('#setSelectedMeta').textContent = active ? `Źródło: ${active.source} · Cena dotyczy całego zestawu · ${active.editions.length} przypisanych pozycji` : 'Zawartość zestawu pojawi się tutaj.';
-    $('#setSelectedCount').textContent = plural(active?.editions.length || 0);
+    $('#setSelectedMeta').textContent = active ? `Cena pakietu: ${money(active.currentPrice)} · ${active.source} · ${active.compositionConfirmed?'Skład potwierdzony':'Skład niepotwierdzony / niepełny'}` : 'Zawartość zestawu pojawi się tutaj.';
+    const known=(active?.editions || []).reduce((sum,item)=>sum+(item.quantity||1),0),unknown=(active?.unknownItems || []).reduce((sum,item)=>sum+item.quantity,0);
+    $('#setSelectedCount').textContent = `${known+unknown} egz. · ${known} rozpoznanych`;
     $('#setMemberHint').textContent = active?.editions.length ? 'Powiązane wydania z katalogu' : 'Brak przypisanych wydań';
     const target = $('#setMembers');
     if (!active) {
@@ -61,13 +69,29 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
       <div class="sets-member">
         <span class="sets-member-index" aria-hidden="true">${index + 1}</span>
         <div class="sets-member-copy"><strong>${safe(item.workTitle)}</strong>
-          <small>${safe(item.title)}</small></div>
+          <small>${safe([item.title,item.isbn,item.publisher,item.publicationYear,item.language,item.binding].filter(Boolean).join(' · '))}</small>
+          <div class="set-member-values"><label>Liczba egzemplarzy<input data-member-quantity="${safe(item.editionId)}" type="number" min="1" max="10000" step="1" value="${item.quantity}"></label><label>Zakładana odsprzedaż / szt. (zł)<input data-member-resale="${safe(item.editionId)}" type="number" min="0" step="0.01" inputmode="decimal" value="${item.resalePrice??''}"></label><button type="button" class="button secondary" data-save-member="${safe(item.editionId)}">Zapisz pozycję</button></div></div>
         <button class="button secondary" type="button" data-set-remove="${safe(item.editionId)}"
           aria-label="Usuń ${safe(item.title)} z zestawu">Usuń</button>
       </div>`).join('');
     target.innerHTML = (rows || '<p class="sets-empty">Ten zestaw nie ma jeszcze książek. Wyszukaj wydanie poniżej i dodaj je jednym kliknięciem.</p>') +
       '<div class="sets-footer"><button class="button secondary" type="button" id="setUnmark">Usuń oznaczenie zestawu</button></div>';
+    target.querySelectorAll('[data-save-member]').forEach(button=>button.addEventListener('click',async()=>{
+      const id=button.dataset.saveMember;
+      const quantity=target.querySelector('[data-member-quantity="'+CSS.escape(id)+'"]');const resale=target.querySelector('[data-member-resale="'+CSS.escape(id)+'"]');
+      button.disabled=true;
+      quantity.disabled=true;resale.disabled=true;
+      try{await request('PUT','/api/set-items/'+encodeURIComponent(active.offerId)+'/'+encodeURIComponent(id),{quantity:Number(quantity.value),resalePrice:resale.value.trim()===''?null:Number(resale.value)});button.saveBaseline();if(!hasUnsavedChanges())await refreshSets(active.offerId);toast('Zapisano ilość i cenę pozycji. Potwierdź skład po sprawdzeniu.');}
+      catch(error){toast('Nie zapisano. Podaj całkowitą ilość i poprawną cenę.');}finally{button.disabled=false;quantity.disabled=false;resale.disabled=false;}
+    }));
+    target.querySelectorAll('[data-save-member]').forEach(button=>{
+      const id=button.dataset.saveMember;
+      const controls=[target.querySelector('[data-member-quantity="'+CSS.escape(id)+'"]'),target.querySelector('[data-member-resale="'+CSS.escape(id)+'"]')];
+      button.saveBaseline=watchForm('set-member:'+active.offerId+':'+id,controls);
+    });
+    mountSetTrading({active,target,json,refresh:refreshSets,toast,openOfferDrawer});
     target.querySelectorAll('[data-set-remove]').forEach(button => button.addEventListener('click', async () => {
+      if(!allowDiscard())return;
       button.disabled = true;
       try {
         await request('DELETE', '/api/sets/' + encodeURIComponent(active.offerId) +
@@ -76,6 +100,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
       } catch (error) { button.disabled = false; toast(error.message); }
     }));
     $('#setUnmark').addEventListener('click', async () => {
+      if (!allowDiscard()) return;
       if (!confirm('Usunąć oznaczenie zestawu? Oferta wróci do kolejki identyfikacji.')) return;
       try { await request('DELETE', '/api/sets/' + encodeURIComponent(active.offerId)); await refreshSets(); }
       catch (error) { toast(error.message); }
@@ -101,7 +126,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
       const response = await json('/api/catalog/works?' + new URLSearchParams({ query, limit: '100' }));
       if (serial !== searchSerial || $('#setEditionQuery').value.trim() !== query) return;
       const rows = (response.items || []).flatMap(work => (work.editions || []).map(edition =>
-        ({ id: edition.id, work: work.title, title: edition.title, publisher: edition.publisher || '' })));
+        ({ id: edition.id, work: work.title, title: edition.title, publisher: [edition.publisher,edition.publicationYear,edition.language,edition.binding,...(edition.identifiers||[]).filter(item=>item.scheme.startsWith('isbn')).map(item=>item.value)].filter(Boolean).join(' · ') })));
       const current = sets.find(item => item.offerId === activeId);
       const included = new Set((current?.editions || []).map(item => item.editionId));
       $('#setEditionSelect').innerHTML = rows.map(row => `<option value="${safe(row.id)}">${safe(row.title)}</option>`).join('');
@@ -109,10 +134,11 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
         <div class="sets-result">
           <div><strong>${safe(row.work)}</strong><small>${safe(row.title)}${row.publisher ? ' · ' + safe(row.publisher) : ''}</small></div>
           <button type="button" class="button ${included.has(row.id) ? 'secondary' : 'primary'}"
-            data-add-edition="${safe(row.id)}" ${included.has(row.id) ? 'disabled' : ''}>${included.has(row.id) ? 'Dodano' : 'Dodaj'}</button>
+            data-add-edition="${safe(row.id)}" ${included.has(row.id) || !activeId ? 'disabled' : ''}>${included.has(row.id) ? 'Dodano' : 'Dodaj'}</button>
         </div>`).join('') : '<p class="sets-empty">Nie znaleziono wydań. Spróbuj innego tytułu lub ISBN.</p>';
       output.querySelectorAll('[data-add-edition]').forEach(button => button.addEventListener('click', async () => {
         if (!activeId) return toast('Najpierw wybierz zestaw.');
+        if (!allowDiscard()) return;
         button.disabled = true;
         try {
           await request('POST', '/api/sets/' + encodeURIComponent(activeId) + '/editions', { editionId: button.dataset.addEdition });
@@ -135,6 +161,7 @@ export function createSetsView({ $, json, escapeHtml, toast }) {
   wire('#setSearchOffers', searchOffers);
   wire('#setSearchEditions', searchEditions);
   wire('#setMarkOffer', async () => {
+    if (!allowDiscard()) return;
     const offerId = $('#setOfferSelect').value;
     if (!offerId) return toast('Najpierw wyszukaj i wybierz ofertę.');
     await request('POST', '/api/sets', { offerId });

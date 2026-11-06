@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { setTimeout as pause } from 'node:timers/promises';
 import assert from 'node:assert/strict';
@@ -29,7 +30,7 @@ try {
     repo.close();
   }
   server = spawn(process.execPath, ['local-app.mjs', '--no-open'], {
-    cwd: new URL('..', import.meta.url).pathname,
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {
       ...process.env,
       BOOKFLIP_LOCAL_PORT: String(port),
@@ -69,6 +70,8 @@ try {
   for (const view of ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']) {
     await page.locator(`.sidebar [data-view="${view}"]`).click();
     await assert.equal(await page.locator(`#view-${view}`).isVisible(), true, `view ${view}`);
+    assert.equal(await page.locator('.view:visible').count(),1,`only ${view} is visible on desktop`);
+    assert.equal(await page.locator('.view:visible').getAttribute('id'),'view-'+view);
   }
   // Exercise real P0 flows instead of merely checking that views appear.
   await page.locator('.sidebar [data-view="catalog"]').click();
@@ -93,6 +96,8 @@ try {
   assert.match(scenario, /8,00/, 'profit in PLN');
   await page.locator('#scenarioResale').fill('20');
   assert.match(await page.locator('#scenarioResult').textContent(), /[-−]12,00/, 'loss stays signed');
+  await page.locator('#saveScenario').click();
+  await page.waitForFunction(()=>document.querySelector('#scenarioSaveStatus')?.textContent?.includes('Zapisano'));
   await page.locator('.offer-workspace input[type="number"]').fill('30');
   await page.locator('.offer-workspace button').click();
   await page.waitForFunction(() => document.querySelector('.offer-workspace small[role="status"]')?.textContent?.includes('Zapisano'));
@@ -100,17 +105,20 @@ try {
   assert.equal(workspace.items.length, 1);
   assert.equal(workspace.items[0].targetReached, false, 'target signal requires watched offer');
   await page.locator('.offer-workspace input[type="checkbox"]').check();
+  await page.locator('.offer-workspace button').click();
   await page.waitForFunction(async () => {
     const r = await fetch('/api/offer-workspace');
     return (await r.json()).items?.[0]?.targetReached === true;
   });
 
   // P1: scanner profiles must be durable across a browser reload.
+  await page.locator('#closeOfferDrawer').click();
   await page.locator('.sidebar [data-view="scanner"]').click();
   await page.locator('#queries').fill('Solaris');
   await page.locator('#sourceGrid input[type="checkbox"]').first().check();
+  await page.locator('.scan-profiles > summary').click();
   await page.locator('.scan-profiles input[aria-label="Nazwa nowego profilu"]').fill('Profil testowy');
-  await page.locator('.scan-profiles button').filter({hasText:'Zapisz profil'}).click();
+  await page.locator('.scan-profiles button').filter({hasText:'Zapisz nowy profil'}).click();
   await page.waitForFunction(() => [...document.querySelectorAll('.scan-profiles select option')].some(o => o.value === 'Profil testowy'));
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => [...document.querySelectorAll('.scan-profiles select option')].some(o => o.value === 'Profil testowy'));
@@ -120,10 +128,13 @@ try {
   await assert.equal(await page.locator('#reviewList .review-item').count() > 0, true, 'nonempty review');
   await page.setViewportSize({ width: 390, height: 844 });
   for (const view of ['scanner', 'review', 'catalog', 'sets', 'offers', 'settings']) {
-    const tab = page.locator(`.mobile-bottom-nav [data-view="${view}"]`);
-    assert.equal(await tab.isVisible(), true, `mobile tab ${view} should be visible`);
+    const secondary=['catalog','settings'].includes(view);
+    const tab = page.locator(secondary ? '#mobileMore' : `.mobile-bottom-nav [data-view="${view}"]`);
+    assert.equal(await tab.isVisible(), true, `mobile destination ${view} should be reachable`);
     await tab.click();
+    if(secondary) await page.locator(`[data-more-view="${view}"]`).click();
     assert.equal(await page.locator(`#view-${view}`).isVisible(), true, `mobile view ${view}`);
+    assert.equal(await page.locator('.view:visible').count(),1,`only ${view} is visible on phone`);
     assert.equal(await tab.getAttribute('aria-current'), 'page', `current mobile tab ${view}`);
   }
   assert.equal(await page.locator('.sidebar').isVisible(), false, 'desktop sidebar hidden on phone');

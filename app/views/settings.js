@@ -8,9 +8,9 @@ async function runDiagnostics() {
   $('#diagnosticResults').innerHTML =
     '<div class="diagnostic-result"><strong>Trwa test...</strong><small>Lokalne endpointy</small></div>';
   const checks = [
-    ['Zrodla', '/api/sources'],
-    ['Historia SQLite', '/api/history'],
-    ['Katalog SQLite', '/api/catalog/status'],
+    ['Źródła', '/api/sources'],
+    ['Historia ofert', '/api/history'],
+    ['Katalog', '/api/catalog/status'],
   ];
   try {
   const results = await Promise.all(
