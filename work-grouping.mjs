@@ -3,9 +3,16 @@
 // strict - same main title AND same first author - because a wrong merge is worse than a missed one.
 import { fold } from './title-proposals.mjs';
 
+const UNIVERSE_PREFIX =
+  /^\s*(?:world of warcraft|warcraft|warhammer(?: 40[ ,.]?000| 40k)?|dragonlance|forgotten realms|świat dysku)\s*[:.]\s+/i;
+
 /** "Para w ruch / Raising steam, Discworld series ; t. 40" -> "Para w ruch" */
 export function mainTitle(title) {
-  return String(title ?? '')
+  const text = String(title ?? '');
+  // "World of Warcraft: Illidan" and "Illidan / World of Warcraft" are the same work: a universe
+  // prefix followed by ":" or "." is cover branding, not the title (the author must still match).
+  const unbranded = text.replace(UNIVERSE_PREFIX, '');
+  return (fold(unbranded.split(' / ')[0]).length >= 3 ? unbranded : text)
     .split(' / ')[0]
     .split(' : ')[0]
     .split(' ; ')[0]

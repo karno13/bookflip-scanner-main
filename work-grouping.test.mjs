@@ -83,3 +83,14 @@ test('merging works that own immutable external records succeeds and re-points t
     .map((row) => row.work_id);
   assert.deepEqual(links, ['w1', 'w2'], 'the target gains the link; the original stays as history');
 });
+
+test('universe prefix on the cover does not split a work', () => {
+  assert.equal(
+    workKey('World of Warcraft: Illidan', ['William King']),
+    workKey('Illidan / World of Warcraft (Insignis Media)', ['King, William (1959- ) Repeczko, Dominika']),
+  );
+  assert.notEqual(
+    workKey('World of Warcraft : kronika. T. 1 /', ['Lacroix, Joseph']),
+    workKey('World of Warcraft : kronika. T. 2 /', ['Lacroix, Joseph']),
+  );
+});
