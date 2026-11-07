@@ -63,7 +63,7 @@ export function installPreferences({ $, $$, onTradingChange, onCatalogViewChange
     );
   $$('[data-catalog-view]').forEach((button) =>
     button.addEventListener('click', () => {
-      write(KEYS.catalogView, button.dataset.catalogView === 'grid' ? 'grid' : '');
+      write(KEYS.catalogView, ['grid', 'series'].includes(button.dataset.catalogView) ? button.dataset.catalogView : '');
       applyPreferences();
       syncViewButtons();
       onCatalogViewChange?.();

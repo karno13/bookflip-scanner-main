@@ -49,6 +49,7 @@ import {
 import { createIdentificationScheduler } from './identification-scheduler.mjs';
 import { createImageBackfill, fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
 import { catalogInsights } from './catalog-insights.mjs';
+import { catalogSeries } from './catalog-series.mjs';
 
 let imageBackfill = null;
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
@@ -701,6 +702,11 @@ export function createLocalAppServer({
       }
       if (request.method === 'GET' && url.pathname === '/api/scan/status')
         return send(response, 200, JSON.stringify(currentScan || await readScanStatus()));
+      if (request.method === 'GET' && url.pathname === '/api/catalog/series-tree') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify({ universes: catalogSeries(catalog.repository) }));
+      }
       if (request.method === 'GET' && url.pathname === '/api/catalog/insights') {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));

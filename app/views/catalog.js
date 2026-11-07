@@ -8,7 +8,7 @@ import { coverMarkup, isbnCover, tidyWorkTitle, parseBnPeople, splitBnTitle, cle
 
 const firstIsbn = (editions = []) =>
   editions.flatMap((edition) => edition.identifiers || []).find((item) => String(item.scheme).startsWith('isbn'))?.value;
-const workCover = (work) => work.cover || isbnCover(firstIsbn(work.editions));
+const workCover = (work) => work.cover || (work.editions || []).find((edition) => edition.cover)?.cover || isbnCover(firstIsbn(work.editions));
 const workAuthors = (work) => parseBnPeople((work.authors || []).join(' '), work.authors).join(', ');
 // What is still missing in a work record — shown as chips and used by the "incomplete" filter.
 function missingFacts(work) {
@@ -86,6 +86,7 @@ async function saveSeries(workId, entry) {
   if (!sqliteAnnotations) sqliteAnnotations = {};
   if (!saved.series) delete sqliteAnnotations[workId];
   else sqliteAnnotations[workId] = {series: saved.series, volume: saved.volume};
+  seriesTree = null;
   return saved;
 }
 function renderEditionRail(work, selectedId = null) {
@@ -104,6 +105,13 @@ function renderCatalog() {
   if (!state.history) return;
   renderSeriesSummary();
   if (sqliteAnnotations === null && !seriesRequest) void loadSeries().catch(() => {});
+  const seriesMode = document.body.dataset.catalogView === 'series';
+  $('#catalogList').classList.toggle('is-series', seriesMode);
+  if (seriesMode) {
+    $('#catalogList').classList.remove('is-grid');
+    void renderSeriesTree();
+    return;
+  }
   const onlyIncomplete = $('#catalogIncompleteOnly')?.checked;
   const rows = catalogRows().filter((row) => !onlyIncomplete || missingFacts(row).length);
   $('#catalogList').classList.toggle('is-grid', document.body.dataset.catalogView === 'grid');
@@ -117,6 +125,100 @@ function renderCatalog() {
     : queryEmptyMarkup();
   $$('[data-catalog-id]').forEach((button) =>
     button.addEventListener('click', () => openCatalogDetail(button.dataset.catalogId)),
+  );
+}
+
+// Series view: universe → cycle → volumes on a shelf, with dashed placeholders for missing volumes.
+let seriesTree = null;
+let seriesTreeAt = 0;
+let seriesTreeRequest = null;
+async function loadSeriesTree(force = false) {
+  if (!force && seriesTree && Date.now() - seriesTreeAt < 30000) return seriesTree;
+  seriesTreeRequest ??= json('/api/catalog/series-tree')
+    .then((data) => {
+      seriesTree = data.universes || [];
+      seriesTreeAt = Date.now();
+      return seriesTree;
+    })
+    .finally(() => {
+      seriesTreeRequest = null;
+    });
+  return seriesTreeRequest;
+}
+const foldText = (text) => String(text ?? '').toLocaleLowerCase('pl').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
+const offersLabel = (n) => `${n} ${n === 1 ? 'oferta' : pluralForm(n) === 'few' ? 'oferty' : 'ofert'}`;
+const collapsedUniverses = new Set();
+
+function shelfBookMarkup(work) {
+  const title = tidyWorkTitle(work.title);
+  return `<button type="button" class="shelf-book${work.id === state.selectedCatalogId ? ' active' : ''}" data-series-work="${escapeHtml(work.id)}" title="${escapeHtml(work.title)}">${coverMarkup(work.cover, title, { size: 'lg', escapeHtml })}${work.volume ? `<span class="shelf-vol">${work.volume}</span>` : ''}<b>${escapeHtml(title)}</b><small>${escapeHtml([work.firstYear, offersLabel(work.offers)].filter(Boolean).join(' · '))}</small></button>`;
+}
+
+function cycleMarkup(cycle, universe, onlyCycle) {
+  // Placeholders only where the gap is readable; long gaps (Świat Dysku 1…41) get a summary line.
+  const showGhosts = cycle.missing.length && cycle.missing.length <= 12;
+  const items = [];
+  if (showGhosts) {
+    const missing = new Set(cycle.missing);
+    const byVolume = cycle.works.filter((work) => Number.isInteger(work.volume));
+    const last = cycle.volumes.at(-1) || 0;
+    for (let number = 1; number <= last; number++) {
+      if (missing.has(number)) items.push(`<span class="shelf-book is-missing" aria-label="Brak tomu ${number}"><span class="shelf-ghost">${number}</span><small>brak w katalogu</small></span>`);
+      else for (const work of byVolume.filter((item) => item.volume === number)) items.push(shelfBookMarkup(work));
+    }
+    for (const work of cycle.works.filter((item) => !Number.isInteger(item.volume))) items.push(shelfBookMarkup(work));
+  } else items.push(...cycle.works.map(shelfBookMarkup));
+  const facts = [
+    cycle.volumes.length ? `tomy ${cycle.volumes.join(', ')}` : '',
+    cycle.missing.length ? (showGhosts ? `brakuje ${cycle.missing.length}` : `brakuje ${cycle.missing.length} tomów do ${cycle.volumes.at(-1)}`) : '',
+    `${cycle.works.length} ${cycle.works.length === 1 ? 'dzieło' : pluralForm(cycle.works.length) === 'few' ? 'dzieła' : 'dzieł'}`,
+  ].filter(Boolean);
+  const name = cycle.name || (onlyCycle ? universe : 'Pozostałe');
+  return `<div class="series-cycle${cycle.name ? '' : ' is-loose'}"><div class="series-cycle-head"><h4>${escapeHtml(name)}</h4><small>${escapeHtml(facts.join(' · '))}</small></div><div class="series-shelf">${items.join('')}</div></div>`;
+}
+
+async function renderSeriesTree() {
+  const list = $('#catalogList');
+  if (!seriesTree) list.innerHTML = '<p class="inline-note">Układanie serii…</p>';
+  let universes;
+  try {
+    universes = await loadSeriesTree();
+  } catch {
+    list.innerHTML = '<p class="inline-note">Nie udało się odczytać serii.</p>';
+    return;
+  }
+  if (document.body.dataset.catalogView !== 'series') return;
+  const needle = foldText($('#catalogSearch')?.value.trim() || '');
+  const visible = universes
+    .map((universe) => {
+      const universeHit = needle && foldText(universe.name).includes(needle);
+      const cycles = universe.cycles
+        .map((cycle) => {
+          if (!needle || universeHit || foldText(cycle.name || '').includes(needle)) return cycle;
+          const works = cycle.works.filter((work) => foldText(work.title).includes(needle));
+          return works.length ? { ...cycle, works, missing: [] } : null;
+        })
+        .filter(Boolean);
+      return cycles.length ? { ...universe, cycles } : null;
+    })
+    .filter(Boolean);
+  list.innerHTML = visible.length
+    ? `<nav class="series-jump" aria-label="Uniwersa">${visible.map((universe) => `<a href="#series-${escapeHtml(foldText(universe.name).replace(/[^a-z0-9]+/g, '-'))}">${escapeHtml(universe.name)} <small>${universe.works}</small></a>`).join('')}</nav>` +
+      visible
+        .map((universe) => {
+          const named = universe.cycles.filter((cycle) => cycle.name).length;
+          return `<details class="series-universe" id="series-${escapeHtml(foldText(universe.name).replace(/[^a-z0-9]+/g, '-'))}" data-universe="${escapeHtml(universe.name)}"${collapsedUniverses.has(universe.name) ? '' : ' open'}><summary><h3>${escapeHtml(universe.name)}</h3><small>${universe.works} dzieł · ${offersLabel(universe.offers)}${named ? ` · cykle: ${named}` : ''}</small></summary>${universe.cycles.map((cycle) => cycleMarkup(cycle, universe.name, universe.cycles.length === 1)).join('')}</details>`;
+        })
+        .join('')
+    : queryEmptyMarkup();
+  list.querySelectorAll('[data-series-work]').forEach((button) =>
+    button.addEventListener('click', () => openCatalogDetail(button.dataset.seriesWork)),
+  );
+  list.querySelectorAll('details.series-universe').forEach((details) =>
+    details.addEventListener('toggle', () => {
+      if (details.open) collapsedUniverses.delete(details.dataset.universe);
+      else collapsedUniverses.add(details.dataset.universe);
+    }),
   );
 }
 

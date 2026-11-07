@@ -3078,3 +3078,192 @@ body[data-catalog-view='grid'] #view-catalog .catalog-table-header {
   background: var(--brand-soft);
   color: var(--brand);
 }
+
+/* v5.24 — catalogue series view: universe → cycle → shelf of volumes */
+#view-catalog #catalogList.is-series {
+  display: block;
+  padding: 8px 16px 20px;
+}
+.series-jump {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 -16px 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.series-jump a {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.series-jump a:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.series-jump small {
+  color: var(--faint);
+  font-weight: 500;
+}
+.series-universe {
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 56px;
+}
+.series-universe > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.series-universe > summary::-webkit-details-marker {
+  display: none;
+}
+.series-universe > summary::before {
+  content: '▸';
+  color: var(--faint);
+  transition: transform 0.15s;
+}
+.series-universe[open] > summary::before {
+  transform: rotate(90deg);
+}
+.series-universe > summary h3 {
+  margin: 0;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 22px;
+}
+.series-universe > summary small {
+  color: var(--muted);
+}
+.series-cycle {
+  margin: 4px 0 14px;
+}
+.series-cycle-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 8px;
+}
+.series-cycle-head h4 {
+  margin: 0;
+  font-size: 14px;
+}
+.series-cycle.is-loose .series-cycle-head h4 {
+  color: var(--muted);
+  font-weight: 600;
+}
+.series-cycle-head small {
+  color: var(--faint);
+  font-size: 12px;
+}
+.series-shelf {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 112px;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+.shelf-book {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  scroll-snap-align: start;
+  cursor: pointer;
+}
+.shelf-book .cover {
+  width: 112px;
+  border-radius: 4px 7px 7px 4px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.shelf-book:hover .cover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+.shelf-book.active .cover {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+.shelf-book b {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.3;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.shelf-book small {
+  color: var(--faint);
+  font-size: 11px;
+}
+.shelf-vol {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 24px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.shelf-book.is-missing {
+  cursor: default;
+}
+.shelf-ghost {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  aspect-ratio: 2 / 3;
+  border: 2px dashed var(--line-strong, var(--line));
+  border-radius: 4px 7px 7px 4px;
+  color: var(--faint);
+  font-size: 28px;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .series-shelf {
+    grid-auto-columns: 88px;
+    gap: 10px;
+  }
+  .shelf-book .cover,
+  .shelf-ghost {
+    width: 88px;
+  }
+}
+body[data-catalog-view='series'] #view-catalog#view-catalog .catalog-layout {
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+}
+body[data-catalog-view='series'] #view-catalog .catalog-editions-panel,
+body[data-catalog-view='series'] #view-catalog .catalog-table-header,
+body[data-catalog-view='series'] #view-catalog .catalog-load-more {
+  display: none;
+}
+/* Nothing selected yet: the shelves take the whole width. */
+body[data-catalog-view='series'] #view-catalog#view-catalog .catalog-layout:has(.catalog-detail > .empty-detail) {
+  grid-template-columns: minmax(0, 1fr);
+}
+body[data-catalog-view='series'] #view-catalog#view-catalog #catalogDetail:has(> .empty-detail) {
+  display: none;
+}
