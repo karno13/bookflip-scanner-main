@@ -2,6 +2,11 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (8) — Uniwersum dzieła, nazwy grup
+
+- **Uniwersum ręcznie:** w karcie dzieła pole „Uniwersum w widoku Serie” (Automatycznie / istniejące uniwersa / Poza seriami) — przenosi dzieło przypisane tylko przez frazę skanu na właściwą półkę. Migracja 109 (`work_universe_overrides`), endpoint `PUT /api/catalog/universe/:workId`; łączenie dzieł zachowuje wybór.
+- **Literówka we frazie skanu nie jest nazwą grupy:** fraza bardzo podobna do autora dzieł (do 2 liter różnicy) jest pokazywana jako jego nazwisko — „Terry Prachet” → „Terry Pratchett”. Autorzy z BN sklejeni w jeden napis są rozdzielani na osoby.
+
 ## 2026-11-07 (7) — Kolejka identyfikacji przy awarii BN
 
 - **Przyczyna zatoru:** serwer `data.bn.org.pl` ma wygasły certyfikat TLS (`CERT_HAS_EXPIRED`), więc każde zapytanie do BN kończy się błędem. Weryfikacja certyfikatu nie jest wyłączana.

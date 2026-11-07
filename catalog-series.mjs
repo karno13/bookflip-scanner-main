@@ -98,6 +98,12 @@ export function catalogSeries(repository) {
     )
     .all())
     if (!covers.has(row.work_id)) covers.set(row.work_id, proxiedImage(row.image_url));
+  const universeOverride = new Map(
+    db.prepare('SELECT work_id, universe FROM work_universe_overrides').all().map((row) => [row.work_id, row.universe]),
+  );
+  const authorsOf = new Map(
+    db.prepare('SELECT id, authors_json FROM works').all().map((row) => [row.id, parseAuthors(row.authors_json)]),
+  );
   const manual = new Map(
     db.prepare('SELECT work_id, series, volume FROM work_series_annotations').all().map((row) => [row.work_id, row]),
   );
@@ -106,7 +112,11 @@ export function catalogSeries(repository) {
   for (const work of works) {
     const titles = [work.title, ...(editionTitles.get(work.id) || []).map((edition) => edition.title)];
     const phrase = phrases.get(work.id) || '';
-    const universe = universeOf(titles.join(' ')) || universeOf(phrase) || (phrase ? capitalize(phrase) : 'Poza seriami');
+    const universe =
+      universeOverride.get(work.id) ||
+      universeOf(titles.join(' ')) ||
+      universeOf(phrase) ||
+      (phrase ? phraseLabel(phrase, authorsOf.get(work.id)) : 'Poza seriami');
     const annotation = manual.get(work.id);
     const parsed = titles.map(cycleFromTitle).find((item) => item?.cycle) || titles.map(cycleFromTitle).find(Boolean) || null;
     const cycle = annotation ? annotation.series : parsed?.cycle || null;
@@ -120,6 +130,7 @@ export function catalogSeries(repository) {
       cycle,
       volume,
       manual: Boolean(annotation),
+      universeManual: universeOverride.has(work.id),
       editions: Number(work.editions || 0),
       offers: Number(work.offers || 0),
       firstYear: years.length ? Math.min(...years) : null,
@@ -152,7 +163,74 @@ export function catalogSeries(repository) {
         .sort((a, b) => (a.name === null) - (b.name === null) || b.works.length - a.works.length || String(a.name).localeCompare(String(b.name), 'pl'));
       return { name, works: list.length, offers: list.reduce((sum, work) => sum + work.offers, 0), cycles: cycleList };
     })
-    .sort((a, b) => (a.name === 'Poza seriami') - (b.name === 'Poza seriami') || b.works - a.works || a.name.localeCompare(b.name, 'pl'));
+    .sort((a, b) => (a.name === NO_UNIVERSE) - (b.name === NO_UNIVERSE) || b.works - a.works || a.name.localeCompare(b.name, 'pl'));
+}
+
+export const NO_UNIVERSE = 'Poza seriami';
+
+function parseAuthors(value) {
+  try {
+    const parsed = JSON.parse(value ?? '[]');
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const current = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length];
+}
+
+/**
+ * A scan phrase used as a group name, spelled like the author when it is a typo of one:
+ * "Terry Prachet" + BN "Pratchett, Terry (1948-2015)" -> "Terry Pratchett".
+ */
+export function phraseLabel(phrase, authors = []) {
+  const folded = fold(phrase);
+  // BN glues all people into one string: "Pratchett, Terry (1948-2015) Cholewa, Piotr W. (1955- ) …".
+  const names = authors.flatMap((author) => {
+    const text = String(author);
+    const people = [...text.matchAll(/(\p{Lu}[\p{L}'’-]+),\s*(\p{Lu}[\p{L}.'’ -]*?)\s*(?=\(|$)/gu)].map(
+      (match) => `${match[2].trim()} ${match[1]}`,
+    );
+    return people.length ? people : [text.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()];
+  });
+  for (const name of names) {
+    const candidate = fold(name);
+    if (candidate.length >= 5 && candidate !== folded && editDistance(candidate, folded) <= 2) return name;
+  }
+  return capitalize(phrase);
+}
+
+/** Operator override of a work's universe; null/empty restores the automatic choice. */
+export function setWorkUniverse(repository, workId, input = {}) {
+  if (typeof workId !== 'string' || !workId || workId.length > 200)
+    throw Object.assign(Error('INVALID_WORK_ID'), { statusCode: 400 });
+  if (!repository.database.prepare('SELECT id FROM works WHERE id=?').get(workId))
+    throw Object.assign(Error('WORK_NOT_FOUND'), { statusCode: 404 });
+  const universe = typeof input.universe === 'string' ? input.universe.trim() : '';
+  if (!universe) {
+    repository.database.prepare('DELETE FROM work_universe_overrides WHERE work_id=?').run(workId);
+    return { workId, universe: null };
+  }
+  if (universe.length > 80) throw Object.assign(Error('INVALID_UNIVERSE'), { statusCode: 400 });
+  repository.database
+    .prepare(
+      `INSERT INTO work_universe_overrides(work_id, universe, updated_at) VALUES(?,?,?)
+       ON CONFLICT(work_id) DO UPDATE SET universe=excluded.universe, updated_at=excluded.updated_at`,
+    )
+    .run(workId, universe, new Date().toISOString());
+  return { workId, universe };
 }
 
 function capitalize(text) {

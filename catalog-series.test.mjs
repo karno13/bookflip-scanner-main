@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cycleFromTitle, universeOf, stripOriginalTitle, catalogSeries } from './catalog-series.mjs';
+import { cycleFromTitle, universeOf, stripOriginalTitle, catalogSeries, phraseLabel, setWorkUniverse } from './catalog-series.mjs';
 import { SqliteCatalogRepository } from './sqlite-catalog-repository.mjs';
 
 test('cycle and volume are read from BN series statements', () => {
@@ -45,5 +45,28 @@ test('series tree groups works by universe and cycle with missing volumes', () =
     assert.equal(tree.at(-1).name, 'Poza seriami');
   } finally {
     repository.close?.();
+  }
+});
+
+test('a scan phrase that misspells the author is shown as the author', () => {
+  assert.equal(phraseLabel('Terry Prachet', ['Pratchett, Terry (1948-2015)']), 'Terry Pratchett');
+  assert.equal(phraseLabel('Terry Prachet', ['Pratchett, Terry (1948-2015) Cholewa, Piotr W. (1955- ) Prószyński i S-ka']), 'Terry Pratchett');
+  assert.equal(phraseLabel('fantastyka', ['Pratchett, Terry']), 'Fantastyka');
+});
+
+test('operator moves a stray work to another universe and back', () => {
+  const repo = new SqliteCatalogRepository(':memory:');
+  try {
+    const work = repo.createWork({ title: 'Warcraft : wojna starożytnych', authors: ['Knaak, Richard A.'] });
+    repo.createEdition({ workId: work.id, title: 'Warcraft : wojna starożytnych' });
+    const universeOfWork = () => catalogSeries(repo).find((universe) => universe.cycles.some((cycle) => cycle.works.some((item) => item.id === work.id)))?.name;
+    assert.equal(universeOfWork(), 'Warcraft');
+    setWorkUniverse(repo, work.id, { universe: 'Poza seriami' });
+    assert.equal(universeOfWork(), 'Poza seriami');
+    setWorkUniverse(repo, work.id, { universe: null });
+    assert.equal(universeOfWork(), 'Warcraft');
+    assert.throws(() => setWorkUniverse(repo, 'missing', { universe: 'X' }), /WORK_NOT_FOUND/);
+  } finally {
+    repo.close();
   }
 });

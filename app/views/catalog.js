@@ -354,6 +354,7 @@ async function openCatalogDetail(id) {
     if (request !== detailRequest) return;
     mountWorkActions(row,detail);
     mountSeriesEditor(row, detail, renderSeriesSummary, { annotations: sqliteAnnotations || {}, save: saveSeries });
+    void mountUniverseEditor(row, detail);
     detail.querySelectorAll('[data-edition-detail]').forEach((button) =>
       button.addEventListener('click', () => openEditionDetail(button.dataset.editionDetail)),
     );
@@ -361,6 +362,45 @@ async function openCatalogDetail(id) {
     if (request !== detailRequest) return;
     detail.innerHTML = `<div class="empty-detail"><h3>Nie udalo sie wczytac rekordu</h3><p>${escapeHtml(error.message)}</p></div>`;
   }
+}
+
+// Which universe shelf a work sits on in the series view. Automatic by default (title words, then
+// the scan phrase); the operator can move a stray work ("Logik der Forschung" under Warcraft).
+async function mountUniverseEditor(row, detail) {
+  let universes = [];
+  try {
+    universes = await loadSeriesTree();
+  } catch {
+    return;
+  }
+  if (!detail.isConnected || state.selectedCatalogId !== row.id) return;
+  const current = universes.find((universe) => universe.cycles.some((cycle) => cycle.works.some((work) => work.id === row.id)));
+  const manual = current?.cycles.some((cycle) => cycle.works.some((work) => work.id === row.id && work.universeManual));
+  const names = [...new Set([...universes.map((universe) => universe.name), 'Poza seriami'])];
+  const section = document.createElement('section');
+  section.className = 'detail-section universe-editor';
+  section.innerHTML = `<h4>Uniwersum w widoku „Serie”</h4><p class="inline-note">Teraz: <b>${escapeHtml(current?.name || 'Poza seriami')}</b> ${manual ? '(wybrane ręcznie)' : '(automatycznie: tytuł albo fraza skanu)'}</p><div class="universe-editor-row"><select aria-label="Uniwersum dzieła"><option value="">Automatycznie</option>${names.map((name) => `<option value="${escapeHtml(name)}"${manual && name === current?.name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select><button type="button" class="button secondary">Zapisz uniwersum</button></div>`;
+  detail.append(section);
+  const select = section.querySelector('select');
+  const button = section.querySelector('button');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await json('/api/catalog/universe/' + encodeURIComponent(row.id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ universe: select.value || null }),
+      });
+      seriesTree = null;
+      toast(select.value ? `Przeniesiono do „${select.value}”.` : 'Przywrócono automatyczne uniwersum.');
+      if (document.body.dataset.catalogView === 'series') void renderSeriesTree();
+      section.remove();
+      void mountUniverseEditor(row, detail);
+    } catch (error) {
+      toast('Nie zapisano uniwersum: ' + error.message);
+      button.disabled = false;
+    }
+  });
 }
 
 function priceStats(prices) {

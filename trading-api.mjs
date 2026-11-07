@@ -101,6 +101,8 @@ export function mergeCatalogWorks(repo,sourceId,targetId,confirm=false) {
     if(oldSeries&&newSeries&&(oldSeries.series!==newSeries.series||oldSeries.volume!==newSeries.volume)) fail('SERIES_CONFLICT',409);
     if(oldSeries&&!newSeries) db.prepare('INSERT INTO work_series_annotations VALUES(?,?,?,?)').run(targetId,oldSeries.series,oldSeries.volume,new Date().toISOString());
     db.prepare('DELETE FROM work_series_annotations WHERE work_id=?').run(sourceId);
+    db.prepare('INSERT OR IGNORE INTO work_universe_overrides(work_id,universe,updated_at) SELECT ?,universe,updated_at FROM work_universe_overrides WHERE work_id=?').run(targetId,sourceId);
+    db.prepare('DELETE FROM work_universe_overrides WHERE work_id=?').run(sourceId);
     db.prepare('UPDATE editions SET work_id=?,updated_at=? WHERE work_id=?').run(targetId,new Date().toISOString(),sourceId);
     // external_records are immutable (a trigger refuses updates). Work-level links are re-pointed
     // by adding links for the target; the originals stay as history.

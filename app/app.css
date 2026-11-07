@@ -3290,3 +3290,8 @@ body[data-catalog-view='series'] #view-catalog#view-catalog #catalogDetail:has(>
 /* v5.27 Awaria źródła metadanych */
 .insight-alert { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--radius-sm, 8px); border: 1px solid color-mix(in srgb, var(--warn, #b7791f) 45%, transparent); background: color-mix(in srgb, var(--warn, #b7791f) 10%, var(--surface)); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .insight-alert strong { font-weight: 650; }
+
+/* v5.28 Uniwersum dzieła */
+.universe-editor-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.universe-editor-row select { flex: 1 1 180px; width: auto; }
+.universe-editor-row .button { min-height: 44px; }
