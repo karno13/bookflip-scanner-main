@@ -55,6 +55,13 @@ import { catalogSeries, setWorkUniverse } from './catalog-series.mjs';
 
 let imageBackfill = null;
 let buyback = null;
+// One buyback service per process: the catalogue's quote cache plus the automatic background check.
+function getBuyback() {
+  const catalog = getProductionCatalog();
+  if (!catalog) return null;
+  buyback ||= createBuybackService(catalog.repository, createSkupksiazekClient());
+  return buyback;
+}
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -681,15 +688,18 @@ export function createLocalAppServer({
         return response.end();
       }
       if (url.pathname.startsWith('/api/buyback')) {
-        const catalog = getProductionCatalog();
-        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
-        buyback ||= createBuybackService(catalog.repository, createSkupksiazekClient());
+        const buyback = getBuyback();
+        if (!buyback) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
         if (request.method === 'GET' && url.pathname === '/api/buyback/quotes')
           return send(response, 200, JSON.stringify({ quotes: buyback.many((url.searchParams.get('isbn') || '').split(',').slice(0, 200)) }));
         if (request.method === 'GET' && url.pathname === '/api/buyback/batch')
           return send(response, 200, JSON.stringify(buyback.status()));
         if (request.method === 'POST' && url.pathname === '/api/buyback/batch')
           return send(response, 202, JSON.stringify(buyback.start()));
+        if (request.method === 'PUT' && url.pathname === '/api/buyback/auto') {
+          const input = await readJson(request);
+          return send(response, 200, JSON.stringify(buyback.setAuto(input?.enabled === true)));
+        }
         if (request.method === 'POST' && url.pathname === '/api/buyback/batch/cancel')
           return send(response, 202, JSON.stringify(buyback.cancel()));
         if (request.method === 'POST' && url.pathname === '/api/buyback/check') {
@@ -1232,7 +1242,7 @@ async function main() {
     runScan: localScanRunner(port),
     onEvent: (event) => recordProgress(event),
   });
-  server.on('close', () => { void scheduler.stop(); scanScheduler.stop(); });
+  server.on('close', () => { void scheduler.stop(); scanScheduler.stop(); buyback?.stopAuto(); });
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       console.log(`BookFlip Scanner już działa pod adresem ${url}`);
@@ -1246,6 +1256,7 @@ async function main() {
   server.listen(port, '127.0.0.1', () => {
     if (enabled) scheduler.start();
     if (String(process.env.BOOKFLIP_SCHEDULED_SCANS ?? '1') !== '0') scanScheduler.start();
+    if (String(process.env.BOOKFLIP_BUYBACK_AUTO ?? '1') !== '0') getBuyback()?.startAuto();
     console.log(`BookFlip Scanner działa: ${url}`);
     openLocalApp(url);
   });

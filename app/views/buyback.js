@@ -89,9 +89,15 @@ export function mountBuybackBatch(container) {
     const s = status.summary;
     const head = `<span class="inline-note">Skup hurtowy: <b>${s.priced}</b> z ${s.isbns} ISBN z ceną (razem ${escapeHtml(moneyFromZloty(s.pricedValue))})${s.manual ? ` · ${s.manual} wycena ręczna` : ''}${s.notBought ? ` · ${s.notBought} nie skupują` : ''}</span>`;
     if (status.state === 'running')
-      return `${head}<span class="inline-note">Sprawdzam skupksiazek.pl: ${status.done}/${status.total} · co ok. 10 s, żeby nie obciążać serwisu</span><span class="mini-bar" data-pct="${Math.round((status.total ? status.done / status.total : 0) * 20) * 5}"><i></i></span><button type="button" class="button secondary compact" data-buyback="cancel">Zatrzymaj</button>`;
+      return `${head}${toggle}<span class="inline-note">${status.auto ? 'Automatycznie sprawdzam' : 'Sprawdzam'} skupksiazek.pl: ${status.done}/${status.total} · jedna książka co ok. 16 s, żeby nie obciążać serwisu</span><span class="mini-bar" data-pct="${Math.round((status.total ? status.done / status.total : 0) * 20) * 5}"><i></i></span><button type="button" class="button secondary compact" data-buyback="cancel">Zatrzymaj</button>`;
+    const toggle = `<label class="toggle-chip buyback-auto"><input type="checkbox" data-buyback-auto${status.auto ? ' checked' : ''}><span>Sprawdzaj automatycznie</span></label>`;
     const last = status.finishedAt ? `Ostatnio sprawdzono ${status.done}, z ceną ${status.priced}${status.errors ? `, błędy ${status.errors}` : ''}.${status.lastError ? ' ' + escapeHtml(status.lastError) : ''}` : '';
-    return `${head}${last ? `<span class="inline-note">${last}</span>` : ''}${s.pending ? `<button type="button" class="button secondary compact" data-buyback="start">Sprawdź ceny skupu (${s.pending})</button>` : '<span class="inline-note">Wszystkie wyceny są aktualne (do 7 dni).</span>'}`;
+    const autoNote = status.auto
+      ? status.autoPausedUntil
+        ? `Wstrzymane po błędach do ${new Date(status.autoPausedUntil).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}.`
+        : s.pending ? `${s.pending} czeka — ruszy samo w ciągu kilku minut.` : 'Nowe wydania wycenię same, a ceny starsze niż 7 dni odświeżę.'
+      : '';
+    return `${head}${toggle}${autoNote ? `<span class="inline-note">${escapeHtml(autoNote)}</span>` : ''}${last ? `<span class="inline-note">${last}</span>` : ''}${s.pending && !status.auto ? `<button type="button" class="button secondary compact" data-buyback="start">Sprawdź ceny skupu (${s.pending})</button>` : !s.pending ? '<span class="inline-note">Wszystkie wyceny są aktualne (do 7 dni).</span>' : ''}`;
   }
   async function tick() {
     clearTimeout(timer);
@@ -99,11 +105,22 @@ export function mountBuybackBatch(container) {
     try {
       const status = await json('/api/buyback/batch');
       box.innerHTML = markup(status);
-      if (status.state === 'running') timer = setTimeout(tick, 5000);
+      timer = setTimeout(tick, status.state === 'running' ? 5000 : 60_000);
     } catch {
       box.textContent = '';
     }
   }
+  box.addEventListener('change', async (event) => {
+    const auto = event.target.closest('[data-buyback-auto]');
+    if (!auto) return;
+    auto.disabled = true;
+    try {
+      await json('/api/buyback/auto', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: auto.checked }) });
+    } catch {
+      // The status line shows the real state.
+    }
+    void tick();
+  });
   box.addEventListener('click', async (event) => {
     const action = event.target.closest('[data-buyback]');
     if (!action) return;

@@ -3308,3 +3308,4 @@ body[data-catalog-view='series'] #view-catalog#view-catalog #catalogDetail:has(>
 .insight-board .buyback-batch { display: grid; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line, rgba(127,127,127,.2)); }
 .insight-board .buyback-batch .inline-note { margin: 0; }
 .insight-board .buyback-batch .button { justify-self: start; min-height: 40px; }
+.insight-board .buyback-batch .buyback-auto { justify-self: start; }

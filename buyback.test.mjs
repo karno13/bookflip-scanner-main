@@ -99,3 +99,47 @@ test('service caches quotes for a week, keeps a good quote on failure and batche
     repo.close?.();
   }
 });
+
+test('automatic mode quotes new ISBNs on its own, can be switched off and pauses after repeated errors', async () => {
+  const repo = new SqliteCatalogRepository(':memory:');
+  try {
+    const work = repo.createWork({ title: 'X' });
+    const addIsbn = (isbn) => {
+      const edition = repo.createEdition({ workId: work.id, title: 'X ' + isbn });
+      repo.database.prepare("INSERT INTO edition_identifiers (edition_id,scheme,normalized_value,source,verification_status,created_at) VALUES (?,?,?,?,?,?)")
+        .run(edition.id, 'isbn13', isbn, 'test', 'verified', new Date().toISOString());
+    };
+    addIsbn(ISBN);
+    let fail = false;
+    const timers = [];
+    const client = { quote: async () => { if (fail) throw new Error('HTTP 403'); return { status: 'priced', price: 2, title: null, message: null }; } };
+    const service = createBuybackService(repo, client, { setTimer: (fn) => (timers.push(fn), timers.length), clearTimer: () => {} });
+    assert.equal(service.status().auto, true, 'on by default');
+    const fire = async () => { timers.shift()(); await service.idle(); };
+    service.startAuto();
+    await fire();
+    assert.equal(service.status().summary.priced, 1);
+    // A newly catalogued edition gets quoted on the next tick.
+    addIsbn('9788375780123');
+    await fire();
+    assert.equal(service.status().summary.priced, 2);
+    service.setAuto(false);
+    addIsbn('9788375780130');
+    timers.length = 0;
+    service.startAuto();
+    await fire();
+    assert.equal(service.status().summary.pending, 1, 'switched off: nothing quoted');
+    service.setAuto(true);
+    fail = true;
+    for (const isbn of ['9788375780147', '9788375780154', '9788375780161', '9788375780178']) addIsbn(isbn);
+    timers.length = 0;
+    service.startAuto();
+    await fire();
+    assert.ok(service.status().autoPausedUntil, 'paused after 5 errors in a row');
+    await fire();
+    assert.equal(service.status().done, 5, 'no new run while paused');
+    service.stopAuto();
+  } finally {
+    repo.close?.();
+  }
+});

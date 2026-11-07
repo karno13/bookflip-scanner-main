@@ -20,7 +20,10 @@ function rowToQuote(row, now) {
   };
 }
 
-export function createBuybackService(repository, client, { now = () => Date.now(), batchLimit = 500 } = {}) {
+export const AUTO_INTERVAL_MS = 10 * 60_000;
+const AUTO_PAUSE_AFTER_FAILURE_MS = 2 * 3_600_000;
+
+export function createBuybackService(repository, client, { now = () => Date.now(), batchLimit = 500, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   const db = repository.database;
   const read = db.prepare('SELECT * FROM buyback_quotes WHERE source=? AND isbn13=?');
   const write = db.prepare(`INSERT INTO buyback_quotes (source,isbn13,status,price_pln,title,message,checked_at) VALUES (?,?,?,?,?,?,?)
@@ -28,6 +31,9 @@ export function createBuybackService(repository, client, { now = () => Date.now(
   const inflight = new Map();
   let batch = { state: 'idle', done: 0, total: 0, priced: 0, errors: 0, startedAt: null, finishedAt: null, lastError: null };
   let cancelled = false;
+  let autoTimer = null;
+  let autoPausedUntil = 0;
+  let running = null;
 
   function get(isbn) {
     return rowToQuote(read.get(SOURCE, digits(isbn)), now());
@@ -100,16 +106,57 @@ export function createBuybackService(repository, client, { now = () => Date.now(
     return { isbns: Number(row.isbns), priced: Number(row.priced), manual: Number(row.manual), notBought: Number(row.notBought), pricedValue: Number(total), pending: pending().length };
   }
 
-  function status() {
-    return { ...batch, summary: summary() };
+  function autoEnabled() {
+    return Boolean(db.prepare('SELECT auto FROM buyback_settings WHERE id=1').get()?.auto);
   }
 
-  function start() {
+  function setAuto(enabled) {
+    db.prepare('UPDATE buyback_settings SET auto=?, updated_at=? WHERE id=1').run(enabled ? 1 : 0, new Date(now()).toISOString());
+    if (enabled) {
+      autoPausedUntil = 0;
+      scheduleAuto(1_000);
+    } else if (batch.state === 'running') cancel();
+    return status();
+  }
+
+  // Automatic mode: every few minutes quote whatever is new or older than a week. After a run that
+  // stopped on repeated errors (site down, blocked) it waits two hours before trying again.
+  function autoTick() {
+    autoTimer = null;
+    try {
+      if (autoEnabled() && batch.state !== 'running' && now() >= autoPausedUntil && pending().length) start({ auto: true });
+    } catch {
+      // Database closed or busy: try again on the next tick.
+    }
+    scheduleAuto(AUTO_INTERVAL_MS);
+  }
+
+  function scheduleAuto(delayMs) {
+    if (autoTimer) clearTimer(autoTimer);
+    autoTimer = setTimer(autoTick, delayMs);
+    autoTimer?.unref?.();
+  }
+
+  function startAuto(firstDelayMs = 60_000) {
+    scheduleAuto(firstDelayMs);
+  }
+
+  function stopAuto() {
+    if (autoTimer) clearTimer(autoTimer);
+    autoTimer = null;
+    cancelled = true;
+  }
+
+  function status() {
+    return { ...batch, auto: autoEnabled(), autoPausedUntil: autoPausedUntil > now() ? new Date(autoPausedUntil).toISOString() : null, summary: summary() };
+  }
+
+  function start({ auto = false } = {}) {
     if (batch.state === 'running') return status();
     const queue = pending();
     cancelled = false;
-    batch = { state: 'running', done: 0, total: queue.length, priced: 0, errors: 0, startedAt: new Date(now()).toISOString(), finishedAt: null, lastError: null };
-    void (async () => {
+    batch = { state: 'running', done: 0, total: queue.length, priced: 0, errors: 0, startedAt: new Date(now()).toISOString(), finishedAt: null, lastError: null, auto };
+    running = (async () => {
       let consecutiveErrors = 0;
       for (const isbn of queue) {
         if (cancelled) break;
@@ -123,6 +170,7 @@ export function createBuybackService(repository, client, { now = () => Date.now(
           // The site is down or refusing us: stop instead of hammering it.
           if (consecutiveErrors >= 5) {
             batch.lastError = 'Przerwano po 5 błędach z rzędu: ' + batch.lastError;
+            autoPausedUntil = now() + AUTO_PAUSE_AFTER_FAILURE_MS;
             break;
           }
         } else consecutiveErrors = 0;
@@ -138,5 +186,5 @@ export function createBuybackService(repository, client, { now = () => Date.now(
     return status();
   }
 
-  return { get, many, check, pending, summary, status, start, cancel };
+  return { get, many, check, pending, summary, status, start, cancel, setAuto, startAuto, stopAuto, idle: () => running };
 }

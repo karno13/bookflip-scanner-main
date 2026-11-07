@@ -2,6 +2,11 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (10) — Automatyczna wycena skupu
+
+- **Tryb automatyczny (domyślnie włączony):** serwer co 10 minut sprawdza, czy w katalogu są ISBN bez wyceny lub z wyceną starszą niż 7 dni, i wycenia je w tle w tym samym wolnym tempie. Nowe wydania dostają cenę skupu same, bez klikania.
+- Po przerwaniu serii przez 5 błędów z rzędu automat czeka 2 godziny. Przełącznik „Sprawdzaj automatycznie” na pulpicie (`PUT /api/buyback/auto`), wyłączenie przerywa trwającą serię. Migracja 111 (`buyback_settings`); `BOOKFLIP_BUYBACK_AUTO=0` wyłącza automat przy starcie.
+
 ## 2026-11-07 (9) — Cena skupu hurtowego (skupksiazek.pl)
 
 - **Minimalna cena odsprzedaży:** karta wydania pokazuje wstępną wycenę skupksiazek.pl („Sprawdź cenę skupu” / „Sprawdź ponownie”), lista wydań w karcie dzieła — znacznik „skup: X zł”. Stany: cena, wycena ręczna, nie skupują, błąd.
