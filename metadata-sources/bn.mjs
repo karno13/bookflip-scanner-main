@@ -1,4 +1,4 @@
-import { normalizeISBN } from '../isbn-normalization.mjs';
+import { isbnKeys, normalizeISBN } from '../isbn-normalization.mjs';
 import { createJsonRequester } from '../metadata-http.mjs';
 import {
   buildNormalizedRecord,
@@ -51,13 +51,21 @@ export function createBnAdapter({
       if (!requestedISBN)
         return { source: 'bn', status: 'invalid_response', reason: 'invalid_isbn', records: [] };
 
-      const url = new URL(BN_API_URL);
-      url.searchParams.set('isbnIssn', requestedISBN);
-      url.searchParams.set('limit', '100');
-      const response = await request(url.href);
-      if (response.status !== 'found') return { source: 'bn', ...response, records: [] };
+      // BN indexes older records under ISBN-10 only (and newer ones under ISBN-13 only), so an
+      // exact-form query misses books the catalogue does hold. Ask for every equivalent form.
+      const forms = isbnKeys(requestedISBN);
+      if (!forms.length) forms.push(requestedISBN);
+      let url, response, rawRecords;
+      for (const form of forms) {
+        url = new URL(BN_API_URL);
+        url.searchParams.set('isbnIssn', form);
+        url.searchParams.set('limit', '100');
+        response = await request(url.href);
+        if (response.status !== 'found') return { source: 'bn', ...response, records: [] };
+        rawRecords = recordsFromPayload(response.payload);
+        if (!rawRecords || rawRecords.length > 0) break;
+      }
 
-      const rawRecords = recordsFromPayload(response.payload);
       if (!rawRecords) {
         return {
           source: 'bn',

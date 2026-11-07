@@ -4,6 +4,7 @@ import { listScanProfiles, putScanProfile, deleteScanProfile } from './scan-prof
 import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs';
 import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
+import { enrichOffers } from './offer-enrichment.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
@@ -519,19 +520,36 @@ export async function withHistoryWriteLock(work) {
   }
 }
 
+// Reads detail pages of shops that publish the ISBN in structured data, in small paced batches,
+// before the resolver runs so that new evidence is used in the same pass.
+async function enrichPendingOffers(catalogStore) {
+  if (String(process.env.BOOKFLIP_DETAIL_ENRICHMENT ?? '1') === '0' || !catalogStore.repository?.database) return null;
+  try {
+    const report = await enrichOffers(catalogStore.repository, { limit: 10 });
+    if (report.checked) recordProgress({ type: 'detail_enrichment', ...report });
+    return report;
+  } catch (error) {
+    recordProgress({ type: 'detail_enrichment_error', code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'ENRICHMENT_ERROR' });
+    return null;
+  }
+}
+
 let runningCatalogResolution = null;
 function scheduleCatalogResolution(catalogStore) {
   if (runningCatalogResolution) return runningCatalogResolution;
   const startedAt = performance.now();
   runningCatalogResolution = new Promise((resolve) => setImmediate(resolve))
+    .then(() => enrichPendingOffers(catalogStore))
     .then(() => catalogStore.processQueued())
     .then((result) => {
-      recordProgress({
-        type: 'catalog_resolution',
-        processed: result.processed,
-        failed: result.failed || 0,
-        durationMs: Math.round(performance.now() - startedAt),
-      });
+      // An idle poll every few seconds must not grow the log: record only real work.
+      if (result.processed || result.failed)
+        recordProgress({
+          type: 'catalog_resolution',
+          processed: result.processed,
+          failed: result.failed || 0,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       return result;
     })
     .catch((error) => {
