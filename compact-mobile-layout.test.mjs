@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const styles = (await Promise.all(['styles.css','mobile-repair.css'].map(file => readFile(new URL('./app/' + file, import.meta.url), 'utf8')))).join('\n');
+const styles = (await Promise.all(['app.css'].map(file => readFile(new URL('./app/' + file, import.meta.url), 'utf8')))).join('\n');
 
 test('compact offers retain usable mobile controls and small-screen typography', () => {
   assert.match(styles, /@media\(max-width:600px\)/);

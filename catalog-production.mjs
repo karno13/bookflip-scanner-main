@@ -133,6 +133,7 @@ export function createProductionCatalog({
             availability: offer.availability ?? 'unconfirmed',
             language: offer.language ?? null,
             observedIsbn: offer.isbn ?? null,
+            imageUrl: offer.image ?? offer.imageUrl ?? null,
             matchedQueries: offer.matchedQueries ?? [],
             firstSeenAt: offer.firstSeenAt ?? at,
             lastSeenAt: offer.lastSeenAt ?? at,

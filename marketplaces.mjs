@@ -2,6 +2,7 @@ import { sharedMarketplaceGate } from './marketplace-gate.mjs';
 import { queryText, matchesTopic, excludesProduct } from './search-policy.mjs';
 import { bibliographicMetadata, extractOfferISBN } from './isbn.mjs';
 import { createHash } from 'node:crypto';
+import { safeImageUrl } from './offer-images.mjs';
 import { setTimeout as wait } from 'node:timers/promises';
 import {
   parseVinted,
@@ -289,6 +290,7 @@ export function parseMarketplace(html, task, observedAt = new Date().toISOString
       title: row.title.slice(0, 500),
       url: u.href,
       price,
+      ...(safeImageUrl(row.image) ? { image: safeImageUrl(row.image) } : {}),
       observedAt,
       activeConfirmed: false,
       priceConfirmed: false,
@@ -397,8 +399,12 @@ function parseEmpikCards(html, add) {
       Math.abs(numeric - declaredNumeric) > 0.001
     )
       continue;
+    const imageTag = [...segment.matchAll(/<img\b([^>]*)>/gi)].find((match) =>
+      safeImageUrl(attribute(match[1], 'lazy-img') || attribute(match[1], 'src')),
+    );
     add(title, rawUrl, price, currency, {
       isbn: attribute(attrs, 'data-product-ean') || attribute(attrs, 'data-ean'),
+      image: imageTag && (attribute(imageTag[1], 'lazy-img') || attribute(imageTag[1], 'src')),
     });
   }
   return true;
@@ -437,7 +443,15 @@ function parseBookstore(html, book, source) {
     if (seen.has(url.href)) return;
     seen.add(url.href);
     const isbn = extractOfferISBN(metadata).isbn;
-    rows.push({ title, url: url.href, price: amount, available: true, ...(isbn ? { isbn } : {}) });
+    const image = safeImageUrl(metadata.image);
+    rows.push({
+      title,
+      url: url.href,
+      price: amount,
+      available: true,
+      ...(isbn ? { isbn } : {}),
+      ...(image ? { image } : {}),
+    });
   };
   // Tezeusz cards contain variant counts and old prices; read only the
   // current-price element within the same product anchor.
@@ -453,7 +467,10 @@ function parseBookstore(html, book, source) {
       )?.[1];
       const amount =
         price && textOnly(price).match(/^(\d+(?:[ \u00a0]\d{3})*(?:[,.]\d{2})?)\s*(?:zł|PLN)$/i);
-      if (href && title && amount) add(textOnly(title), decodeHtml(href), amount[1]);
+      // Non-greedy: the onerror handler also contains "this.src='…placeholder…'".
+      const image = card.match(/<img\b[^>]*?\ssrc=["']([^"']+)["']/i)?.[1];
+      if (href && title && amount)
+        add(textOnly(title), decodeHtml(href), amount[1], 'PLN', { image: decodeHtml(image) });
     }
     return rows;
   }

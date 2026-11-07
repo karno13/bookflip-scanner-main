@@ -46,6 +46,7 @@ import {
   persistSqliteScan,
 } from './sqlite-single-store.mjs';
 import { createIdentificationScheduler } from './identification-scheduler.mjs';
+import { fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
 
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
 const contentTypes = {
@@ -646,6 +647,32 @@ export function createLocalAppServer({
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
+      if (request.method === 'GET' && url.pathname === '/api/image') {
+        try {
+          const image = await fetchCachedImage(url.searchParams.get('u'), {
+            cacheDirectory: join(runtimeDataDirectory, 'image-cache'),
+          });
+          response.writeHead(200, {
+            'Content-Type': image.type,
+            'Cache-Control': 'private, max-age=31536000, immutable',
+            'X-Content-Type-Options': 'nosniff',
+            'Referrer-Policy': 'no-referrer',
+            'Content-Security-Policy': "default-src 'none'",
+          });
+          return response.end(image.body);
+        } catch (error) {
+          return send(response, error.statusCode || 502, JSON.stringify({ error: error.message }));
+        }
+      }
+      const offerImage = request.method === 'GET' && url.pathname.match(/^\/api\/offers\/([^/]+)\/image$/);
+      if (offerImage) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const imageUrl = await offerImageUrl(catalog.repository, decodeURIComponent(offerImage[1]));
+        if (!imageUrl) return send(response, 404, JSON.stringify({ error: 'IMAGE_NOT_FOUND' }));
+        response.writeHead(302, { Location: proxiedImage(imageUrl), 'Cache-Control': 'no-store' });
+        return response.end();
+      }
       if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|scan-queries|scan-schedule|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
           (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/work-duplicates(?:\/merge)?$/.test(url.pathname)) {
         const catalog = getProductionCatalog();

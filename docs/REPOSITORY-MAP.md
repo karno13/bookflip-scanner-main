@@ -7,7 +7,7 @@
 | Warstwa | Pliki |
 | --- | --- |
 | Uruchamianie | `Uruchom BookFlip Scanner.cmd`, `local-app.mjs` |
-| Frontend, 6 zakładek | `app/index.html`, `app/styles.css`, `app/app.js`, `app/views/*.js` |
+| Frontend, 6 zakładek | `app/index.html`, `app/app.css`, `app/app.js`, `app/views/*.js` |
 | Skanowanie | `marketplaces.mjs`, `local-scan.mjs`, `vinted-detail.mjs` |
 | SQLite | `catalog-production.mjs`, `sqlite-catalog-repository.mjs`, `catalog-api.mjs`, `offer-sets.mjs` |
 | ISBN / metadane | `catalog-resolver.mjs`, `identification-worker.mjs`, `metadata-lookup.mjs`, `metadata-sources/` |

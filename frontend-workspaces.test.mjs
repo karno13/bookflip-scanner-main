@@ -10,7 +10,7 @@ const reviewScript = await readFile(new URL('./app/views/review.js', import.meta
 const catalogScript = await readFile(new URL('./app/views/catalog.js', import.meta.url), 'utf8');
 const offersScript = await readFile(new URL('./app/views/offers.js', import.meta.url), 'utf8');
 const script = [shellScript, scannerScript, reviewScript, catalogScript, offersScript].join('\n');
-const styles = (await Promise.all(['styles.css','mobile-repair.css'].map(file => readFile(new URL('./app/' + file, import.meta.url), 'utf8')))).join('\n');
+const styles = (await Promise.all(['app.css'].map(file => readFile(new URL('./app/' + file, import.meta.url), 'utf8')))).join('\n');
 
 test('desktop shell exposes all six workspaces in order', () => {
   const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(

@@ -1,5 +1,6 @@
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { proxiedImage } from './offer-images.mjs';
 
 const json = (value, fallback = null) => {
   try {
@@ -63,8 +64,25 @@ function offer(row) {
       firstSeenAt: row.first_seen_at,
       lastSeenAt: row.last_seen_at,
       seenCount: row.seen_count,
+      image: row.image_url ? proxiedImage(row.image_url) : null,
     }
   );
+}
+
+// Cover of an edition = photo of a matched offer. Bookstore photos are clean covers, so they win
+// over marketplace photos (which may show a stack of books or a used copy).
+function editionCovers(database, editionIds) {
+  const result = new Map();
+  if (!editionIds.length) return result;
+  const rows = database
+    .prepare(
+      `SELECT m.edition_id, o.image_url FROM offer_matches m JOIN offers o ON o.id=m.offer_id
+       WHERE m.status='active' AND o.image_url IS NOT NULL AND m.edition_id IN (${editionIds.map(() => '?').join(',')})
+       ORDER BY CASE o.source WHEN 'Empik' THEN 0 WHEN 'Tezeusz.pl' THEN 1 WHEN 'Dedalus.pl' THEN 2 ELSE 3 END, o.last_seen_at DESC`,
+    )
+    .all(...editionIds);
+  for (const row of rows) if (!result.has(row.edition_id)) result.set(row.edition_id, proxiedImage(row.image_url));
+  return result;
 }
 
 export function listCatalogWorks(repository, options = {}) {
@@ -106,6 +124,7 @@ export function listCatalogWorks(repository, options = {}) {
       database,
       editionRows.map((row) => row.id),
     ),
+    covers = editionCovers(database, editionRows.map((row) => row.id)),
     byWork = new Map();
   for (const row of editionRows) {
     if (!byWork.has(row.work_id)) byWork.set(row.work_id, []);
@@ -120,6 +139,7 @@ export function listCatalogWorks(repository, options = {}) {
         binding: row.binding,
         verificationStatus: row.verification_status,
         identifiers: identifiers.get(row.id) ?? [],
+        cover: covers.get(row.id) ?? null,
       });
   }
   return {
@@ -135,6 +155,7 @@ export function listCatalogWorks(repository, options = {}) {
       editionCount: Number(row.edition_count),
       offerCount: Number(row.offer_count),
       editions: byWork.get(row.id) ?? [],
+      cover: (byWork.get(row.id) ?? []).find((edition) => edition.cover)?.cover ?? null,
     })),
   };
 }
@@ -152,6 +173,7 @@ export function getCatalogWork(repository, workId) {
     database,
     editions.map((item) => item.id),
   );
+  const covers = editionCovers(database, editions.map((item) => item.id));
   const external = database
     .prepare(
       `SELECT DISTINCT r.provider,r.external_id,r.record_type,r.status,r.fetched_at,r.payload_hash
@@ -174,6 +196,7 @@ export function getCatalogWork(repository, workId) {
       binding: item.binding,
       verificationStatus: item.verification_status,
       identifiers: identifiers.get(item.id) ?? [],
+      cover: covers.get(item.id) ?? null,
       activeOfferCount: Number(
         database
           .prepare(
@@ -224,6 +247,7 @@ export function getCatalogEdition(repository, editionId) {
     binding: row.binding,
     verificationStatus: row.verification_status,
     identifiers: identifierMap(database, [row.id]).get(row.id) ?? [],
+    cover: editionCovers(database, [row.id]).get(row.id) ?? null,
     offers: offers.map((item) => ({
       ...offer(item),
       method: item.method,
@@ -439,7 +463,7 @@ export function listIdentificationJobs(repository, options = {}) {
       : "CASE j.status WHEN 'review_required' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,j.updated_at DESC,j.id";
   const rows = database
     .prepare(
-      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,o.availability,
+      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,o.availability,o.image_url,
       p.confidence AS proposal_confidence,p.best_isbn AS proposal_isbn,p.best_score AS proposal_score
     FROM identification_jobs j JOIN offers o ON o.id=j.offer_id LEFT JOIN title_proposals p ON p.job_id=j.id
     ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
@@ -470,6 +494,7 @@ export function listIdentificationJobs(repository, options = {}) {
         observedIsbn: row.observed_isbn,
         lastSeenAt: row.last_seen_at,
         availability: row.availability,
+        image: row.image_url ? proxiedImage(row.image_url) : null,
       },
     })),
   };

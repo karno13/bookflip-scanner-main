@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { CatalogRepository } from './catalog-repository.mjs';
 import { applyCatalogMigrations } from './catalog-migrations.mjs';
 import { isbnKeys, normalizeISBN } from './isbn-normalization.mjs';
+import { safeImageUrl } from './offer-images.mjs';
 
 function iso(value) {
   return value instanceof Date ? value.toISOString() : String(value);
@@ -261,7 +262,7 @@ export class SqliteCatalogRepository extends CatalogRepository {
     if (old) {
       this.database
         .prepare(
-          `UPDATE offers SET legacy_id=COALESCE(legacy_id,?),external_offer_id=COALESCE(external_offer_id,?),original_title=?,current_price=?,currency=?,availability=?,language=COALESCE(?,language),observed_isbn=COALESCE(?,observed_isbn),matched_queries_json=?,first_seen_at=COALESCE(first_seen_at,?),last_seen_at=?,seen_count=?,updated_at=? WHERE id=?`,
+          `UPDATE offers SET legacy_id=COALESCE(legacy_id,?),external_offer_id=COALESCE(external_offer_id,?),original_title=?,current_price=?,currency=?,availability=?,language=COALESCE(?,language),observed_isbn=COALESCE(?,observed_isbn),image_url=COALESCE(?,image_url),matched_queries_json=?,first_seen_at=COALESCE(first_seen_at,?),last_seen_at=?,seen_count=?,updated_at=? WHERE id=?`,
         )
         .run(
           legacyId,
@@ -272,6 +273,7 @@ export class SqliteCatalogRepository extends CatalogRepository {
           input.availability || old.availability || 'unconfirmed',
           input.language ?? null,
           input.observedIsbn ?? input.isbn ?? null,
+          safeImageUrl(input.imageUrl),
           json(input.matchedQueries ?? JSON.parse(old.matched_queries_json || '[]')),
           input.firstSeenAt || old.first_seen_at || at,
           input.lastSeenAt || at,
@@ -286,8 +288,8 @@ export class SqliteCatalogRepository extends CatalogRepository {
     }
     this.database
       .prepare(
-        `INSERT INTO offers(id,legacy_id,source,external_offer_id,normalized_url,original_title,current_price,currency,availability,language,observed_isbn,matched_queries_json,first_seen_at,last_seen_at,seen_count,created_at,updated_at)
-   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO offers(id,legacy_id,source,external_offer_id,normalized_url,original_title,current_price,currency,availability,language,observed_isbn,image_url,matched_queries_json,first_seen_at,last_seen_at,seen_count,created_at,updated_at)
+   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         id,
@@ -301,6 +303,7 @@ export class SqliteCatalogRepository extends CatalogRepository {
         input.availability || 'unconfirmed',
         input.language || null,
         input.observedIsbn ?? input.isbn ?? null,
+        safeImageUrl(input.imageUrl),
         json(input.matchedQueries),
         input.firstSeenAt || at,
         input.lastSeenAt || at,
