@@ -4,6 +4,8 @@ import { extractOfferISBN } from './isbn.mjs';
 import { isbnKeys, normalizeISBN } from './isbn-normalization.mjs';
 import { persistMetadataResults } from './metadata-lookup.mjs';
 
+import { findWorkByKey } from './work-grouping.mjs';
+import { titleConflict } from './title-consistency.mjs';
 const TRUSTED = new Set(['structured', 'labelled_description']);
 const REVIEW_ONLY = new Set(['unlabelled_description', 'ocr', 'uncertain', 'legacy']);
 
@@ -199,10 +201,30 @@ function externalWork(repository, record) {
   );
 }
 
+/** BN first; Open Library when BN does not know the ISBN or is unreachable and OL has it. */
+function primarySource(result) {
+  if (result.bn?.status === 'not_found') return result.openLibrary;
+  if (result.bn?.status === 'temporary_error' && result.openLibrary?.status === 'found') return result.openLibrary;
+  return result.bn;
+}
+
 function mergeRecords(result) {
-  const source = result.bn?.status === 'not_found' ? result.openLibrary : result.bn;
+  const source = primarySource(result);
   const records = source?.status === 'found' ? source.records ?? [] : [];
   return records.length === 1 ? { record: records[0], records } : null;
+}
+
+/** An ISBN typed or chosen by the operator in review is their assertion: no title check. */
+function operatorEvidence(evidence) {
+  return (evidence?.observations ?? []).some((row) => String(row.source ?? '').startsWith('review:'));
+}
+
+function allRecords(metadata) {
+  return [metadata?.bn, metadata?.openLibrary].flatMap((entry) => (entry?.status === 'found' ? entry.records ?? [] : []));
+}
+
+function offerTitleOf(offer) {
+  return offer?.original_title ?? offer?.title ?? '';
 }
 
 function decision(type, reason, evidence, ids = {}, extra = {}) {
@@ -315,7 +337,10 @@ export class CatalogResolver {
         workExternalId: record.workExternalId,
         payloadHash: record.payloadHash,
       }));
-    const source = metadata.bn?.status === 'not_found' ? metadata.openLibrary : metadata.bn;
+    proof.bnStatus = metadata.bn?.status ?? null;
+    if (metadata.bn?.status === 'temporary_error')
+      proof.bnError = metadata.bn.error?.code || metadata.bn.error?.message || (metadata.bn.httpStatus ? `HTTP ${metadata.bn.httpStatus}` : null);
+    const source = primarySource(metadata);
     if (source?.status === 'temporary_error')
       return decision('retry_pending', ['metadata_source_temporary_error'], proof);
     if (source?.status === 'not_found')
@@ -377,6 +402,16 @@ export class CatalogResolver {
         { workId: edition.work_id, editionId: edition.id, offerMatchId: current.id },
         { context, dryRun },
       );
+    if (offerId && !operatorEvidence(isbnEvidence)) {
+      const work = this.repository.database
+        .prepare('SELECT title, authors_json FROM works WHERE id=?')
+        .get(edition.work_id);
+      if (titleConflict(offerTitleOf(offer), { title: edition.title, workTitle: work?.title, authors: work?.authors_json }))
+        return decision('review_required', ['isbn_title_mismatch'], proof, {
+          workId: edition.work_id,
+          editionId: edition.id,
+        });
+    }
     const matchId = offerId ? stableId('resolver_match', offerId, edition.id) : null;
     if (!dryRun && offerId)
       this.repository.transaction(() => {
@@ -417,22 +452,47 @@ export class CatalogResolver {
     dryRun,
     context,
   }) {
+    // The listing names a different book than the ISBN record: hold it back before creating
+    // a work that would only exist because of a typo.
+    if (
+      offerId &&
+      !operatorEvidence(isbnEvidence) &&
+      titleConflict(offerTitleOf(currentOffer), {
+        // Any source agreeing with the listing is enough (BN and Open Library may word it differently).
+        title: allRecords(metadata).map((record) => record.title).join(' '),
+        authors: allRecords(metadata).flatMap((record) => record.authors ?? []),
+      })
+    )
+      return decision('review_required', ['isbn_title_mismatch'], proof, {}, {
+        candidate: { title: selected.record.title, authors: selected.record.authors, isbn },
+      });
     const existingWork = externalWork(
       this.repository,
       selected.records.find((record) => record.workExternalId),
     );
+    // BN has no work identifier: a reprint of a known book (same title and first author) joins
+    // the existing work instead of creating a new one.
+    const sameBook = existingWork
+      ? null
+      : findWorkByKey(this.repository, selected.record.title, selected.record.authors);
+    const reuseWork = existingWork ?? sameBook;
     const workId =
-      existingWork?.id ?? stableId('resolver_work', selected.record.workExternalId ?? isbn);
+      reuseWork?.id ?? stableId('resolver_work', selected.record.workExternalId ?? isbn);
     const editionId = stableId(
       'resolver_edition',
       isbnKeys(isbn).find((key) => key.length === 13) ?? isbn,
     );
-    const type = existingWork ? 'created_edition' : 'created_work_and_edition';
+    const type = reuseWork ? 'created_edition' : 'created_work_and_edition';
+    const workReason = existingWork
+      ? 'external_work_exists'
+      : sameBook
+        ? 'same_title_and_author_work'
+        : null;
     if (dryRun)
       return decision(
         type,
         [
-          existingWork ? 'external_work_exists' : 'no_external_work_match',
+          workReason ?? 'no_external_work_match',
           'metadata_and_offer_context_match',
         ],
         proof,
@@ -453,7 +513,7 @@ export class CatalogResolver {
       if (concurrent)
         return this.#matchExisting(concurrent, currentOffer, offerId, isbnEvidence, proof, false);
       const work =
-        existingWork ??
+        reuseWork ??
         this.repository.createWork({
           id: workId,
           title: selected.record.title,
@@ -531,7 +591,7 @@ export class CatalogResolver {
       return decision(
         type,
         [
-          existingWork ? 'external_work_exists' : 'new_external_work',
+          workReason ?? 'new_external_work',
           'metadata_and_offer_context_match',
         ],
         proof,

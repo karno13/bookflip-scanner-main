@@ -1,4 +1,5 @@
 // Browser storage is read only for explicit legacy migration; live profiles are in SQLite.
+import { confirmDialog } from '../core/dialogs.js';
 const KEY = 'bookflip-scan-profiles-v1';
 function readLegacyProfiles() {
   try {
@@ -109,7 +110,7 @@ export async function installScanProfiles({ queriesInput, sourceGrid, panel, toa
   });
   importButton.addEventListener('click', async () => {
     const legacy = readLegacyProfiles();
-    if (!legacy.length || !confirm('Zaimportować profile do SQLite? Istniejące profile nie będą nadpisane.')) return;
+    if (!legacy.length || !(await confirmDialog('Zaimportować profile do SQLite? Istniejące profile nie będą nadpisane.', { title: 'Import profili', confirmLabel: 'Importuj' }))) return;
     importButton.disabled=true;
     let created=0,skipped=0,failed=0;
     try {

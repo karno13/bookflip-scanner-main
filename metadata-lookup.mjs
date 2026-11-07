@@ -256,10 +256,11 @@ export async function lookupISBN(
   if (!canonicalLookupKey(isbn)) throw new Error('INVALID_ISBN');
   if (!bnAdapter || !openLibraryAdapter) throw new TypeError('Both metadata adapters are required');
   const bn = await lookupWithCache(bnAdapter, isbn, cache);
-  const openLibrary = bn.status === 'not_found'
+  // Open Library only when BN does not know the ISBN, or as a stand-in while BN is unreachable.
+  const openLibrary = ['not_found', 'temporary_error'].includes(bn.status)
     ? await lookupWithCache(openLibraryAdapter, isbn, cache)
     : { source: 'open_library', status: 'skipped', records: [], reason: 'bn_has_priority' };
-  const selected = bn.status === 'not_found' ? openLibrary : bn;
+  const selected = bn.status === 'not_found' || (bn.status === 'temporary_error' && openLibrary.status === 'found') ? openLibrary : bn;
   const comparison = {
     status: selected.status === 'found' ? 'single_source'
       : selected.status === 'not_found' ? 'not_found' : 'incomplete',

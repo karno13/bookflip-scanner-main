@@ -43,7 +43,7 @@ w zakładce **Do weryfikacji**, z zachowaniem historii.
 
 Migracja **104** dodaje dane procesu zakupowego. Nie zmieniaj starszych plików
 migracji. Przed aktualizacją istniejącego schematu działa mechanizm kopii
-zapasowej opisany poniżej. Szczegóły zmian: [Przebudowa UX/UI](docs/ZMIANY-UX-UI.md).
+zapasowej opisany poniżej. Szczegóły zmian: [Przebudowa UX/UI](docs/archive/ZMIANY-UX-UI.md).
 
 | Zakładka | Funkcja |
 | --- | --- |
@@ -53,6 +53,18 @@ zapasowej opisany poniżej. Szczegóły zmian: [Przebudowa UX/UI](docs/ZMIANY-UX
 | Zestawy | Jedna oferta z kilkoma wydaniami; cena dotyczy całego zestawu |
 | Oferty | Filtry, historia cen i szczegóły zapisanych ogłoszeń |
 | Ustawienia | Stan SQLite, diagnostyka identyfikacji, ręczne ponowienie kolejki |
+
+**Weryfikacja:** oferty bez ISBN dostają propozycje po tytule (znacznik „pewna / możliwa propozycja”, sortowanie „Najpewniejsze propozycje”, skróty Alt+Enter i Alt+1…5). Propozycja tylko wypełnia ISBN i uruchamia zwykły podgląd — nic nie jest przypisywane bez potwierdzenia. ISBN nieznany BN i Open Library zostaje w kolejce zamiast znikać.
+
+**Katalog:** dodruki tej samej książki trafiają do jednego dzieła; istniejące duplikaty łączysz w panelu „Możliwe duplikaty dzieł”.
+
+**Zdjęcia i okładki:** skaner zapisuje zdjęcie ogłoszenia; starsze oferty dostają je przy pierwszym podglądzie albo kolejnym skanie. Obrazy są pobierane przez lokalny serwer i trzymane w `image-cache` obok bazy.
+
+**Weryfikacja z klawiatury:** `1`–`5` propozycja, `Enter` zatwierdź, `X` odrzuć, `S` pomiń, `Z` zestaw, `J`/`K` następna/poprzednia, `F` tryb skupienia. `Ctrl+K` otwiera paletę poleceń w całej aplikacji.
+
+**Tryb handlu** (Ustawienia → Interfejs) pokazuje statusy zakupu, ceny docelowe i koszty; domyślnie wyłączony, dopóki zbierasz dane.
+
+**Skaner:** w panelu zapisanych wyszukiwań można włączyć automatyczny skan profilu co N godzin (domyślnie wyłączony). Skuteczność każdej frazy jest w „Do weryfikacji → Ponawianie i szczegóły wyników”.
 
 Znajdowanie ISBN w źródłach zewnętrznych nie gwarantuje automatycznego przypisania. Sprzeczne lub słabe dowody nadal kierują ofertę do ręcznej weryfikacji.
 

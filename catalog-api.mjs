@@ -1,5 +1,7 @@
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { proxiedImage } from './offer-images.mjs';
+import { scoreCandidate, titleTokens } from './title-proposals.mjs';
 
 const json = (value, fallback = null) => {
   try {
@@ -63,8 +65,25 @@ function offer(row) {
       firstSeenAt: row.first_seen_at,
       lastSeenAt: row.last_seen_at,
       seenCount: row.seen_count,
+      image: row.image_url ? proxiedImage(row.image_url) : null,
     }
   );
+}
+
+// Cover of an edition = photo of a matched offer. Bookstore photos are clean covers, so they win
+// over marketplace photos (which may show a stack of books or a used copy).
+function editionCovers(database, editionIds) {
+  const result = new Map();
+  if (!editionIds.length) return result;
+  const rows = database
+    .prepare(
+      `SELECT m.edition_id, o.image_url FROM offer_matches m JOIN offers o ON o.id=m.offer_id
+       WHERE m.status='active' AND o.image_url IS NOT NULL AND m.edition_id IN (${editionIds.map(() => '?').join(',')})
+       ORDER BY CASE o.source WHEN 'Empik' THEN 0 WHEN 'Tezeusz.pl' THEN 1 WHEN 'Dedalus.pl' THEN 2 ELSE 3 END, o.last_seen_at DESC`,
+    )
+    .all(...editionIds);
+  for (const row of rows) if (!result.has(row.edition_id)) result.set(row.edition_id, proxiedImage(row.image_url));
+  return result;
 }
 
 export function listCatalogWorks(repository, options = {}) {
@@ -106,6 +125,7 @@ export function listCatalogWorks(repository, options = {}) {
       database,
       editionRows.map((row) => row.id),
     ),
+    covers = editionCovers(database, editionRows.map((row) => row.id)),
     byWork = new Map();
   for (const row of editionRows) {
     if (!byWork.has(row.work_id)) byWork.set(row.work_id, []);
@@ -120,6 +140,7 @@ export function listCatalogWorks(repository, options = {}) {
         binding: row.binding,
         verificationStatus: row.verification_status,
         identifiers: identifiers.get(row.id) ?? [],
+        cover: covers.get(row.id) ?? null,
       });
   }
   return {
@@ -135,6 +156,7 @@ export function listCatalogWorks(repository, options = {}) {
       editionCount: Number(row.edition_count),
       offerCount: Number(row.offer_count),
       editions: byWork.get(row.id) ?? [],
+      cover: (byWork.get(row.id) ?? []).find((edition) => edition.cover)?.cover ?? null,
     })),
   };
 }
@@ -152,6 +174,7 @@ export function getCatalogWork(repository, workId) {
     database,
     editions.map((item) => item.id),
   );
+  const covers = editionCovers(database, editions.map((item) => item.id));
   const external = database
     .prepare(
       `SELECT DISTINCT r.provider,r.external_id,r.record_type,r.status,r.fetched_at,r.payload_hash
@@ -174,6 +197,7 @@ export function getCatalogWork(repository, workId) {
       binding: item.binding,
       verificationStatus: item.verification_status,
       identifiers: identifiers.get(item.id) ?? [],
+      cover: covers.get(item.id) ?? null,
       activeOfferCount: Number(
         database
           .prepare(
@@ -224,6 +248,7 @@ export function getCatalogEdition(repository, editionId) {
     binding: row.binding,
     verificationStatus: row.verification_status,
     identifiers: identifierMap(database, [row.id]).get(row.id) ?? [],
+    cover: editionCovers(database, [row.id]).get(row.id) ?? null,
     offers: offers.map((item) => ({
       ...offer(item),
       method: item.method,
@@ -434,13 +459,20 @@ export function listIdentificationJobs(repository, options = {}) {
   const orderBy =
     options.sort === 'price'
       ? 'o.current_price ASC,j.id'
+      : options.sort === 'group'
+      ? "bookflip_fold(COALESCE(json_extract(o.matched_queries_json,'$[0]'),'~')),CASE p.confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,bookflip_fold(o.original_title),j.id"
+      : options.sort === 'proposal'
+      ? "CASE p.confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,p.best_score DESC,j.id"
       : "CASE j.status WHEN 'review_required' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,j.updated_at DESC,j.id";
   const rows = database
     .prepare(
-      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at
-    FROM identification_jobs j JOIN offers o ON o.id=j.offer_id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,o.availability,o.image_url,o.matched_queries_json,o.first_seen_at,
+      p.confidence AS proposal_confidence,p.best_isbn AS proposal_isbn,p.best_score AS proposal_score
+    FROM identification_jobs j JOIN offers o ON o.id=j.offer_id LEFT JOIN title_proposals p ON p.job_id=j.id
+    ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset);
+  const matcher = rows.some((row) => !row.observed_isbn) ? createLocalWorkMatcher(repository) : null;
   return {
     total,
     limit,
@@ -448,11 +480,19 @@ export function listIdentificationJobs(repository, options = {}) {
     items: rows.map((row) => ({
       id: row.id,
       offerId: row.offer_id,
+      catalogMatch: (() => {
+        if (row.observed_isbn || row.status !== 'review_required' || !matcher) return null;
+        const best = matcher(row.original_title, { limit: 1 })[0];
+        return best ? { workId: best.work.id, title: best.work.title, score: best.score } : null;
+      })(),
       status: row.status,
       attemptCount: row.attempt_count,
       lastError: row.last_error,
       result: json(row.result_json),
       updatedAt: row.updated_at,
+      proposal: row.proposal_confidence
+        ? { confidence: row.proposal_confidence, isbn: row.proposal_isbn, score: row.proposal_score }
+        : null,
       offer: {
         id: row.offer_id,
         source: row.source,
@@ -462,6 +502,10 @@ export function listIdentificationJobs(repository, options = {}) {
         url: row.normalized_url,
         observedIsbn: row.observed_isbn,
         lastSeenAt: row.last_seen_at,
+        availability: row.availability,
+        image: row.image_url ? proxiedImage(row.image_url) : null,
+        matchedQueries: json(row.matched_queries_json, []),
+        firstSeenAt: row.first_seen_at,
       },
     })),
   };
@@ -635,4 +679,91 @@ export function decideIdentificationJob(
       },
     };
   });
+}
+
+/**
+ * Editions already in the catalogue whose work title matches an offer title. Offline and instant,
+ * so offers without ISBN that are reprints of known books get a one-key proposal even when BN is
+ * slow. Advice only: the operator still approves the chosen edition.
+ */
+/**
+ * Title matcher over the live (not merged) works, built once per request. Universe names
+ * ("World of Warcraft", "Warhammer") are on every cover, so the work's own words must match;
+ * an inverted index keeps it fast when the catalogue grows.
+ */
+export function createLocalWorkMatcher(repository) {
+  const works = repository.database
+    .prepare(
+      'SELECT id, title, authors_json FROM works w WHERE NOT EXISTS (SELECT 1 FROM catalog_work_merges x WHERE x.source_id=w.id)',
+    )
+    .all()
+    .map((work) => ({
+      work,
+      authors: json(work.authors_json, []),
+      own: titleTokens(String(work.title).split(' / ')[0], { dropBrand: true }),
+    }))
+    .filter((item) => item.own.length);
+  const index = new Map();
+  for (const item of works)
+    for (const word of item.own) {
+      if (!index.has(word)) index.set(word, []);
+      index.get(word).push(item);
+    }
+  return (offerTitle, { limit = 4, minScore = 0.6 } = {}) => {
+    const offerWords = new Set(titleTokens(offerTitle, { dropBrand: true }));
+    const pool = new Set([...offerWords].flatMap((word) => index.get(word) || []));
+    return [...pool]
+      .filter((item) => item.own.filter((word) => offerWords.has(word)).length / item.own.length >= 0.6)
+      .map((item) => ({
+        work: item.work,
+        authors: item.authors,
+        score: scoreCandidate(offerTitle, { title: item.work.title, authors: item.authors }),
+      }))
+      .filter((item) => item.score >= minScore)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  };
+}
+
+export function localEditionCandidates(repository, offerTitle, { limit = 4, minScore = 0.6, matcher } = {}) {
+  const { database } = repository;
+  const scored = (matcher || createLocalWorkMatcher(repository))(offerTitle, { limit, minScore });
+  if (!scored.length) return [];
+  const editions = database
+    .prepare(
+      `SELECT e.id, e.work_id, e.title, e.publisher, e.publication_year, e.language,
+              (SELECT normalized_value FROM edition_identifiers i WHERE i.edition_id=e.id AND i.scheme IN ('isbn13','isbn10') ORDER BY i.scheme DESC LIMIT 1) AS isbn,
+              (SELECT count(*) FROM offer_matches m WHERE m.edition_id=e.id AND m.status='active') AS offers
+       FROM editions e WHERE e.work_id IN (${scored.map(() => '?').join(',')})`,
+    )
+    .all(...scored.map((item) => item.work.id));
+  const covers = editionCovers(database, editions.map((row) => row.id));
+  const rank = new Map(scored.map((item, index) => [item.work.id, index]));
+  return editions
+    .map((row) => {
+      const { work, authors, score } = scored[rank.get(row.work_id)];
+      return {
+        editionId: row.id,
+        workId: work.id,
+        title: work.title,
+        authors,
+        publisher: row.publisher || '',
+        publicationYear: row.publication_year || null,
+        language: row.language || '',
+        isbn: row.isbn || '',
+        offers: Number(row.offers || 0),
+        cover: covers.get(row.id) || null,
+        score,
+      };
+    })
+    // Among good matches the edition the operator already uses most (and Polish ones) goes first.
+    .sort(
+      (a, b) =>
+        (b.score >= 0.8) - (a.score >= 0.8) ||
+        (!/^(?:pol|pl|polski)?$/i.test(a.language)) - (!/^(?:pol|pl|polski)?$/i.test(b.language)) ||
+        b.offers - a.offers ||
+        b.score - a.score ||
+        (b.publicationYear || 0) - (a.publicationYear || 0),
+    )
+    .slice(0, limit);
 }

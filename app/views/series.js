@@ -10,6 +10,29 @@ export function writeSeries(data, storage = globalThis.localStorage) {
   try { storage.setItem(KEY, JSON.stringify(data)); return true; }
   catch { return false; }
 }
+// National-library titles carry the series: "Mroczne oblężenie / Siege of darkness, Legenda Drizzta
+// t. 9 Forgotten Realms". This reads "series + volume" out of such a title. It is only a suggestion
+// shown next to the editor; the operator decides whether to apply it.
+export function seriesHintFromTitle(title) {
+  const text = String(title ?? '').replace(/\s+/g, ' ').trim();
+  const afterOriginal = text.includes(' / ') ? text.slice(text.indexOf(' / ') + 3) : '';
+  if (!afterOriginal) return null;
+  // The original title and the series are separated by a comma; without one, the series follows the title.
+  const segment = afterOriginal.includes(',') ? afterOriginal.slice(afterOriginal.indexOf(',') + 1) : afterOriginal;
+  const match = segment.match(/^\s*(.+?)[\s;.,]*\bt\.?\s*(\d{1,3})\b/i);
+  if (!match) return null;
+  const series = match[1].replace(/[\s;:.,-]+$/g, '').trim();
+  const volume = Number(match[2]);
+  if (series.length < 3 || series.length > 120 || volume < 1) return null;
+  return { series, volume };
+}
+export function seriesHintForWork(work) {
+  for (const title of [work?.title, ...(work?.editions || []).map((edition) => edition.title)]) {
+    const hint = seriesHintFromTitle(title);
+    if (hint) return hint;
+  }
+  return null;
+}
 export function seriesSummary(works, annotations) {
   const groups = new Map();
   for (const work of works) {
@@ -83,6 +106,19 @@ export function mountSeriesEditor(work, target, onSave = () => {}, options = {})
     feedback.textContent = success ? 'Zapisano tylko w tej przeglądarce.' : 'Nie udało się zapisać.';
     if (success) onSave();
   });
-  block.append(heading,series,volume,save,feedback);
+  const hint = !current.series ? seriesHintForWork(work) : null;
+  if (hint) {
+    const suggestion = document.createElement('button');
+    suggestion.type = 'button';
+    suggestion.className = 'button secondary compact';
+    suggestion.textContent = `Podpowiedź z katalogu: ${hint.series}, tom ${hint.volume} — wstaw`;
+    suggestion.addEventListener('click', () => {
+      series.value = hint.series;
+      volume.value = String(hint.volume);
+      series.dispatchEvent(new Event('input', { bubbles: true }));
+      feedback.textContent = 'Wstawiono podpowiedź. Sprawdź i zapisz.';
+    });
+    block.append(heading, suggestion, series, volume, save, feedback);
+  } else block.append(heading,series,volume,save,feedback);
   target.append(block);
 }

@@ -13,7 +13,7 @@ test('mobile bottom navigation reaches all six BookFlip views', async () => {
   assert.match(nav,/aria-label="Nawigacja mobilna"/);
 });
 test('mobile navigation supports safe area and visible focus', async () => {
-  const css=(await Promise.all(['styles.css','mobile-repair.css'].map(file=>readFile(new URL('./app/'+file,import.meta.url),'utf8')))).join('\n');
+  const css=(await Promise.all(['app.css'].map(file=>readFile(new URL('./app/'+file,import.meta.url),'utf8')))).join('\n');
   assert.match(css,/\.mobile-bottom-nav\{display:grid/);
   assert.match(css,/env\(safe-area-inset-bottom/);
   assert.match(css,/:focus-visible/);

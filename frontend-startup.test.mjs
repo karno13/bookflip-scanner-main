@@ -10,7 +10,7 @@ test('navigation uses querySelectorAll helper in both menu paths', () => {
   assert.doesNotMatch(shell, /(?<!\$)\$\('\.nav-item'\)\.forEach/);
 });
 test('settings view is initialized before diagnostic listener', () => {
-  const init = shell.indexOf('const { renderSettings, runDiagnostics } = createSettingsView(');
+  const init = shell.indexOf('const { renderSettings, runDiagnostics, mountQueryStats } = createSettingsView(');
   const handler = shell.indexOf("$('#runDiagnostics').addEventListener('click', runDiagnostics)");
   assert.ok(init >= 0 && handler > init);
   assert.match(shell, /import \{ createSettingsView \} from '\.\/views\/settings\.js'/);

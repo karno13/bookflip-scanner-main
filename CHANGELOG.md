@@ -2,6 +2,75 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (10) — Automatyczna wycena skupu
+
+- **Tryb automatyczny (domyślnie włączony):** serwer co 10 minut sprawdza, czy w katalogu są ISBN bez wyceny lub z wyceną starszą niż 7 dni, i wycenia je w tle w tym samym wolnym tempie. Nowe wydania dostają cenę skupu same, bez klikania.
+- Po przerwaniu serii przez 5 błędów z rzędu automat czeka 2 godziny. Przełącznik „Sprawdzaj automatycznie” na pulpicie (`PUT /api/buyback/auto`), wyłączenie przerywa trwającą serię. Migracja 111 (`buyback_settings`); `BOOKFLIP_BUYBACK_AUTO=0` wyłącza automat przy starcie.
+
+## 2026-11-07 (9) — Cena skupu hurtowego (skupksiazek.pl)
+
+- **Minimalna cena odsprzedaży:** karta wydania pokazuje wstępną wycenę skupksiazek.pl („Sprawdź cenę skupu” / „Sprawdź ponownie”), lista wydań w karcie dzieła — znacznik „skup: X zł”. Stany: cena, wycena ręczna, nie skupują, błąd.
+- **Jak:** serwis nie ma API wyceny; klient robi to co formularz „Wyceń” — sesja + token CSRF ze strony, `POST /cart/{kod}` z ISBN, odczyt ceny z pozycji koszyka i natychmiastowe `DELETE` tej pozycji. Wygasła sesja (419) jest odnawiana raz.
+- **Ostrożnie wobec serwisu:** najwyżej jedno zapytanie na 8 s (wycena ≈ 16 s), wyniki w bazie na 7 dni (błędy 6 h), dobra stara wycena nie jest nadpisywana chwilowym błędem. Sprawdzanie całego katalogu tylko na przycisk na pulpicie („Sprawdź ceny skupu (N)”), wydania z ofertami najpierw, przerwanie po 5 błędach z rzędu.
+- Migracja 110 (`buyback_quotes`), endpointy `GET /api/buyback/quotes?isbn=`, `POST /api/buyback/check`, `GET|POST /api/buyback/batch`, `POST /api/buyback/batch/cancel`.
+
+## 2026-11-07 (8) — Uniwersum dzieła, nazwy grup
+
+- **Uniwersum ręcznie:** w karcie dzieła pole „Uniwersum w widoku Serie” (Automatycznie / istniejące uniwersa / Poza seriami) — przenosi dzieło przypisane tylko przez frazę skanu na właściwą półkę. Migracja 109 (`work_universe_overrides`), endpoint `PUT /api/catalog/universe/:workId`; łączenie dzieł zachowuje wybór.
+- **Literówka we frazie skanu nie jest nazwą grupy:** fraza bardzo podobna do autora dzieł (do 2 liter różnicy) jest pokazywana jako jego nazwisko — „Terry Prachet” → „Terry Pratchett”. Autorzy z BN sklejeni w jeden napis są rozdzielani na osoby.
+
+## 2026-11-07 (7) — Kolejka identyfikacji przy awarii BN
+
+- **Przyczyna zatoru:** serwer `data.bn.org.pl` ma wygasły certyfikat TLS (`CERT_HAS_EXPIRED`), więc każde zapytanie do BN kończy się błędem. Weryfikacja certyfikatu nie jest wyłączana.
+- **Nowe oferty przed zaległymi:** zadania były brane według daty utworzenia, a ~120 ponowień co 5 minut zajmowało całą przepustowość — 104 nowe pozycje nie zostały ani razu sprawdzone. Teraz najpierw idą zadania z najmniejszą liczbą prób.
+- **Coraz rzadsze ponowienia:** 5, 10, 20, 40 min, potem co godzinę (zamiast co 5 min w nieskończoność). Gdy BN znów odpowie na którekolwiek zapytanie, czekające zadania ruszają od razu.
+- **Open Library zastępczo:** gdy BN jest niedostępna, a Open Library zna ISBN, rozpoznanie idzie z jej danych (wcześniej OL pytano tylko, gdy BN nie znała numeru).
+- **Pulpit:** komunikat „Biblioteka Narodowa niedostępna — <przyczyna>” z liczbą czekających ofert i tym, co aplikacja z tym robi. Przyczyna błędu sieci (kod `CERT_HAS_EXPIRED`, `ECONNRESET`, HTTP 503…) jest zapisywana w wyniku zadania.
+
+## 2026-11-07 (6) — Zgodność ISBN z tytułem, braki w seriach
+
+- **ISBN innej książki nie trafia już do katalogu.** Jeśli tytuł ogłoszenia nie ma ani jednego wspólnego słowa z rekordem dla podanego ISBN (tytuł, seria, uniwersum, nazwisko autora; „Świat Dysku” = „Discworld”, odmiana po rdzeniu), resolver zostawia ofertę w weryfikacji z powodem `isbn_title_mismatch` zamiast przypisać ją lub tworzyć nowe dzieło. Ogólne ogłoszenia („Książka Warcraft”) dalej przechodzą. ISBN wpisany lub sprawdzony ręcznie w weryfikacji nie podlega tej kontroli. W kolejce: etykieta „ISBN innej książki?” i ostrzeżenie nad propozycjami.
+- **Katalog → „Podejrzane przypisania”**: dotychczasowe automatyczne przypisania z tym samym problemem (na obecnej bazie 8, m.in. „Logik der Forschung” pod Warcraftem). „Do weryfikacji” cofa przypisanie i wraca ofertę do kolejki; „To prawidłowe” zamienia je w ręczne i nie pokazuje ponownie. Endpointy `GET /api/catalog/title-conflicts`, `POST /api/catalog/title-conflicts/resolve`.
+- **Braki w seriach** (widok „Serie”): licznik brakujących tomów, „Kopiuj listę braków” oraz przy każdym cyklu z lukami „Szukaj brakujących” — wpisuje do skanera frazy „<cykl> tom N” (do 10) i przełącza na Skaner.
+
+## 2026-11-07 (5) — Serie w katalogu
+
+- **Katalog → widok „Serie”** (obok „Lista” i „Okładki”): uniwersum (Świat Dysku, Warhammer, Warcraft, Dragonlance, Forgotten Realms; inne — według frazy skanu) → cykl z numerami tomów (Herezja Horusa, Legenda Drizzta, Duchy Gaunta…) → półka okładek. Brakujące tomy są pustymi, przerywanymi miejscami; przy długich lukach (Świat Dysku 1…41) tylko podsumowanie. Cykl i tom pochodzą z opisu serii BN; ręczne oznaczenie serii w karcie dzieła ma pierwszeństwo. Numeracja wydawnicza („Wielka kolekcja”, „Czarna Biblioteka”) nie jest traktowana jako cykl. Endpoint `GET /api/catalog/series-tree`. Widok pokazuje też źle przypisane dzieła (np. obca książka pod Warcraftem) — łatwo je wyłapać.
+- Duża okładka dzieła bierze zdjęcie wydania, gdy dzieło nie ma własnego.
+
+## 2026-11-07 (4) — Propozycje z własnego katalogu
+
+- **„Już w Twoim katalogu”** w weryfikacji ofert bez ISBN: wydania dzieł, które już są w katalogu i pasują tytułem, pojawiają się od razu (bez BN, bez sieci), nad propozycjami z BN / Open Library. Wybór klawiszem `1`–`9` wskazuje wydanie, `Enter` przypisuje. Nazwy uniwersów („World of Warcraft”, „Warhammer”) nie wystarczą do dopasowania — muszą się zgadzać słowa samego tytułu. Najpierw polskie wydania i te z największą liczbą ofert. Endpoint `GET /api/identification-jobs/:id/local-candidates`. Na obecnej bazie dotyczy 53 z 257 ofert bez ISBN.
+- **Kolejka:** pozycje bez ISBN pasujące do dzieła z katalogu mają etykietę „jest w katalogu”, są pierwsze w swojej grupie, a filtr „Pasuje do katalogu” pokazuje tylko je (najszybsze decyzje: `1` + `Enter`). Sortowanie „Najpewniejsze propozycje” nazywa się teraz „Najszybsze decyzje”.
+- **Duplikaty dzieł:** przedrostek uniwersum na okładce („World of Warcraft: Illidan” vs „Illidan / World of Warcraft”) nie rozdziela już dzieła — panel „Możliwe duplikaty dzieł” pokazuje takie pary (autor nadal musi się zgadzać), a nowe wydania trafiają do istniejącego dzieła.
+
+## 2026-11-07 (3) — Uzupełnianie zdjęć i telefon
+
+- **„Uzupełnij zdjęcia”** na pulpicie skanera: w tle odczytuje `og:image` ogłoszeń bez zdjęcia (najpierw kolejka weryfikacji, potem oferty z katalogu), jeden wątek na źródło przez wspólną bramkę tempa. Źródło, które od początku blokuje (3 błędy z rzędu), jest pomijane w tym przebiegu; odpowiedź 429 („za szybko”) oznacza przerwę 1/2/4 min i ponowienie, a nie pominięcie. Endpointy `GET/POST /api/images/backfill`, `POST /api/images/backfill/cancel`.
+- **Telefon (390 px):** podpowiedź skrótów klawiszowych nie rozpycha już weryfikacji w poziomie, tabela jakości źródeł mieści się w ekranie.
+
+## 2026-11-07 (2) — Zdjęcia, nowa weryfikacja i wygląd v5
+
+- **Zdjęcia ofert.** Skaner zapisuje zdjęcie z ogłoszenia (Vinted, Allegro, Allegro Lokalnie, OLX, Empik, Tezeusz.pl, Dedalus.pl); migracja 108 dodaje `offers.image_url`. Starsze oferty dostają zdjęcie przy pierwszym podglądzie (jednorazowy odczyt `og:image` strony ogłoszenia) albo przy kolejnym skanie. Obrazy idą przez lokalne `/api/image` z cache na dysku (`image-cache` w katalogu danych) i listą dozwolonych CDN — strona nadal ma `img-src 'self'`.
+- **Okładki wydań** w katalogu: zdjęcie przypisanej oferty (najpierw księgarnie), w drugiej kolejności Open Library po ISBN; zastępcza okładka z inicjałami.
+- **Weryfikacja od nowa:** duże zdjęcie z ogłoszenia obok propozycji; karty propozycji z oczyszczonym tytułem, autorem, serią i wydawcą BN oraz podświetleniem tego, czym kandydaci się różnią; stały pasek akcji; skróty jednym klawiszem (`1`–`5`, `Enter`, `X`, `S` pomiń, `Z` zestaw, `J/K`, `F` tryb skupienia, `/` szukaj); kolejka grupowana według frazy skanu (serii); pojedyncza pewna propozycja jest od razu sprawdzana (bez przypisywania).
+- **Pulpit skanera „Stan katalogu”** zamiast „Następnych kroków zakupowych”: lejek oferty → ISBN → katalog → decyzja, postęp każdej frazy/serii, jakość źródeł (ISBN, katalog, zdjęcia), kompletność wydań. Endpoint `/api/catalog/insights`.
+- **Katalog:** widok listy albo siatki okładek, filtr „Tylko niekompletne”, oczyszczone tytuły, autorzy i wydawcy z BN.
+- **Tryb handlu** (Ustawienia → Interfejs, domyślnie wyłączony) ukrywa statusy zakupu, ceny docelowe, kalkulator i koszty. Teksty interfejsu mówią o katalogu, nie o zakupach.
+- **Paleta poleceń `Ctrl+K`**: widoki, akcje, wyszukiwanie ofert i dzieł z miniaturami.
+- **Wygląd v5:** jeden arkusz `app/app.css` (scalone 5 plików), nowe tokeny, motyw jasny/ciemny/systemowy do wyboru, gęstość list, czcionki Segoe UI Variable i szeryfowe tytuły książek.
+
+## 2026-11-07 — Skaner, katalog i weryfikacja
+
+- **BN: wszystkie formy ISBN.** Adapter pytał tylko o dokładną formę numeru, więc książki indeksowane w BN pod ISBN-10 uchodziły za nieznane. Teraz sprawdzane są obie formy. Migracja 105 usuwa stare negatywne odpowiedzi z cache i ponownie kolejkuje oferty zamknięte jako „nie znaleziono”.
+- **ISBN nieznany źródłom nie znika z kolejki.** Wynik `not_found` zostawia zadanie w weryfikacji (z istniejącym przepływem „Dodaj do katalogu”), zamiast zamykać je poza katalogiem i kolejką.
+- **Strony szczegółów (Tezeusz.pl).** ISBN, wydawca, autor i rok są czytane z danych strukturalnych produktu (JSON-LD, atrybuty). Treści opisów, adresów obrazków i „polecanych ofert” nie czytamy — na Allegro Lokalnie zawierają ISBN-y innych książek. Migracja 106.
+- **Propozycje po tytule** dla ofert bez ISBN (BN, ocena zgodności z tomem, autorem, językiem i rodzajem dokumentu). Tylko podpowiedź — przypisanie wymaga potwierdzenia. Migracja 107. W kolejce: znacznik pewności, sortowanie „Najpewniejsze propozycje”, skróty Alt+Enter i Alt+1…5.
+- **Dodruki w jednym dziele.** BN nie podaje identyfikatora dzieła, więc każde ISBN tworzyło osobne dzieło. Nowe wydanie o tym samym tytule i pierwszym autorze trafia do istniejącego dzieła. Panel „Możliwe duplikaty dzieł” w Katalogu łączy istniejące grupy.
+- **Poprawki błędów:** łączenie dzieł kończyło się błędem 500 przy dziełach z rekordami zewnętrznymi (tabela jest niezmienna); bramka tempa źródeł przekazywała `signal: null` do timera i padała na drugim żądaniu bez sygnału przerwania.
+- **Skaner:** automatyczny skan wybranego profilu co N godzin (domyślnie wyłączony), skuteczność zapytań (oferty / w katalogu / czeka / bez ISBN), ceny-śmieci (≥ 10 000 zł) zapisywane jako nieznane, log bez wpisów przy braku pracy.
+- **Porządek:** archiwalne raporty przeniesione do `docs/archive`, usunięte kopie starych arkuszy CSS, zrzuty i logi testów; usunięto 25 reguł CSS, które niczego nie zmieniały; historia Git od tego punktu.
+
 ## 2026-11-04 — Reliability fixes from project audit
 
 - Identification drains ready batches continuously (default 25 jobs) instead of waiting for the next poll between small batches. Pause, stop and provider request limits remain respected.

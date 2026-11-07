@@ -195,6 +195,7 @@ function parseVinted(html, b, checked) {
       o.buyerFee = Number(fee);
     o.languageVerified = false;
     o.available = p.isSold !== true && p.isClosed !== true;
+    o.image = p.thumbnailUrl || p.photos?.[0]?.url || p.photo?.url || null;
     out.push(o);
   }
   return Array.from(new Map(out.map((o) => [o.id, o])).values());
@@ -222,7 +223,11 @@ function parseOlx(html, b, checked) {
               : 'unknown',
           checked,
         );
-        if (r) out.push(r);
+        if (r) {
+          const image = Array.isArray(o.image) ? o.image[0] : o.image;
+          r.image = typeof image === 'string' ? image : image?.url || null;
+          out.push(r);
+        }
       }
     } catch {}
   return out;

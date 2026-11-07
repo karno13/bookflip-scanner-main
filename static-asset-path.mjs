@@ -2,10 +2,7 @@
 // Paths are resolved relative to app/ and never accept a user-selected directory.
 const rootFiles = new Set([
   '/index.html',
-  '/styles.css',
-  '/workflow.css',
-  '/trading.css',
-  '/mobile-repair.css',
+  '/app.css',
   '/app.js',
   '/frontend-utils.js',
   '/scan-stream.js',

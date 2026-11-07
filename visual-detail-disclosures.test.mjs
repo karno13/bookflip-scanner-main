@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const offers = await readFile(new URL('./app/views/offers.js', import.meta.url), 'utf8');
 const review = await readFile(new URL('./app/views/review.js', import.meta.url), 'utf8');
-const css = await readFile(new URL('./app/styles.css', import.meta.url), 'utf8');
+const css = await readFile(new URL('./app/app.css', import.meta.url), 'utf8');
 
 test('price evidence and review guidance remain accessible in semantic disclosures', () => {
   for (const script of [offers]) {

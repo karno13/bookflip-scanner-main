@@ -1,6 +1,8 @@
 import { openDetailView } from '../core/detail-navigation.js';
-import {statusLabel,allowDiscard} from '../core/ux.js';
+import {statusLabel} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
+import { confirmDialog } from '../core/dialogs.js';
+import { describeCandidate, differingFields, tidyOfferTitle, tidyWorkTitle, coverMarkup, isbnCover, parseBnPeople, cleanPublisher } from '../core/bibliography.js';
 // review workspace, preserving existing behavior while isolating its implementation.
 export function createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog, openCatalogForReview }) {
 function filteredReviewOffers() {
@@ -16,9 +18,22 @@ function filteredReviewOffers() {
           .toLocaleLowerCase('pl')
           .includes(query)) &&
       (!source || offer.source === source) &&
-      (!isbn || (isbn === 'present') === Boolean(offer.observedIsbn))
+      (!isbn || (isbn === 'catalog' ? Boolean(job.catalogMatch) : (isbn === 'present') === Boolean(offer.observedIsbn)))
     );
   });
+  if ($('#reviewSort').value === 'group')
+    return rows.sort(
+      (a, b) =>
+        groupSortKey(a).localeCompare(groupSortKey(b), 'pl') ||
+        quickRank(a) - quickRank(b) ||
+        String(a.offer.title).localeCompare(String(b.offer.title), 'pl'),
+    );
+  if ($('#reviewSort').value === 'proposal')
+    return rows.sort(
+      (a, b) =>
+        quickRank(a) - quickRank(b) ||
+        (b.catalogMatch?.score ?? b.proposal?.score ?? 0) - (a.catalogMatch?.score ?? a.proposal?.score ?? 0),
+    );
   return rows.sort((a, b) =>
     $('#reviewSort').value === 'price'
       ? a.offer.currentPrice - b.offer.currentPrice
@@ -52,6 +67,27 @@ function visibleCatalogRows(kind, rows) {
   return slice;
 }
 
+const proposalLabels = { high: 'pewna propozycja', medium: 'możliwa propozycja' };
+// The scan phrase that found the offer ("Świat Dysku", "Dragonlance") groups the queue by series.
+function reviewGroup(job) {
+  const query = String(job.offer?.matchedQueries?.[0] || '').trim();
+  return query ? query.charAt(0).toLocaleUpperCase('pl') + query.slice(1) : 'Bez frazy';
+}
+const groupSortKey = (job) => (job.offer?.matchedQueries?.[0] ? reviewGroup(job) : '￿');
+state.skippedReviewIds ??= new Set();
+/** Catalogue match first (one key + Enter), then BN proposals by confidence. */
+const quickRank = (job) => (job.catalogMatch ? -1 : (confidenceRank[job.proposal?.confidence] ?? 3));
+const titleMismatch = (job) => [].concat(job.result?.reason ?? []).includes('isbn_title_mismatch');
+
+function proposalChip(job) {
+  if (titleMismatch(job)) return ' · <span class="proposal-chip is-mismatch">ISBN innej książki?</span>';
+  if (job.catalogMatch) return ' · <span class="proposal-chip is-catalog">jest w katalogu</span>';
+  const label = proposalLabels[job.proposal?.confidence];
+  return label ? ` · <span class="proposal-chip is-${job.proposal.confidence}">${label}</span>` : '';
+}
+
+const confidenceRank = { high: 0, medium: 1, low: 2 };
+
 function renderReview() {
   if (!state.history) return;
   const rows = filteredReviewOffers();
@@ -60,14 +96,31 @@ function renderReview() {
   if (state.selectedReviewId && !rows.some((row) => row.id === state.selectedReviewId))
     state.selectedReviewId = null;
   const reviewListScroll = $('#reviewList').scrollTop;
-  $('#reviewList').innerHTML = rows.length
+  const grouped = $('#reviewSort').value === 'group';
+  const groupSizes = new Map();
+  if (grouped) for (const job of rows) groupSizes.set(reviewGroup(job), (groupSizes.get(reviewGroup(job)) || 0) + 1);
+  let lastGroup = null;
+  const skipped = state.skippedReviewIds.size;
+  $('#reviewList').innerHTML = (skipped
+    ? `<div class="rv-skipped"><span>Pominięte: ${skipped}</span><button type="button" class="link-button" id="reviewRestoreSkipped">Przywróć</button></div>`
+    : '') + (rows.length
     ? visibleCatalogRows('jobs', rows)
         .map((job) => {
           const offer = job.offer;
-          return `<button class="review-item ${job.id === state.selectedReviewId ? 'active' : ''}" type="button" aria-current="${job.id === state.selectedReviewId ? 'true' : 'false'}" data-review-id="${escapeHtml(job.id)}"><span class="book-spine" aria-hidden="true">▤</span><span><strong>${escapeHtml(offer.title)}</strong><small>${escapeHtml(offer.source)} - ${offer.observedIsbn ? `ISBN ${escapeHtml(offer.observedIsbn)}` : 'brak ISBN'}</small><small>${escapeHtml(statusLabel(job.status))}${job.lastError ? ' — pobieranie wymaga ponowienia' : ''}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`;
+          const group = reviewGroup(job);
+          const header = grouped && group !== lastGroup
+            ? `<div class="rv-group" role="presentation"><span>${escapeHtml(group)}</span><small>${groupSizes.get(group)}</small></div>`
+            : '';
+          lastGroup = group;
+          const title = tidyOfferTitle(offer.title);
+          return `${header}<button class="review-item rv-item ${job.id === state.selectedReviewId ? 'active' : ''}" type="button" aria-current="${job.id === state.selectedReviewId ? 'true' : 'false'}" data-review-id="${escapeHtml(job.id)}">${coverMarkup(offer.image, title, { size: 'sm', escapeHtml })}<span class="rv-item-copy"><strong>${escapeHtml(title)}</strong><small><span class="source-dot" data-source="${escapeHtml(offer.source)}"></span>${escapeHtml(offer.source)} · ${offer.observedIsbn ? `ISBN ${escapeHtml(offer.observedIsbn)}` : 'brak ISBN'}</small><small>${escapeHtml(job.result?.decision === 'not_found' ? 'ISBN nieznany źródłom' : statusLabel(job.status))}${job.lastError ? ' — pobieranie wymaga ponowienia' : ''}${proposalChip(job)}${offer.availability === 'not_seen' ? ' · <span class="proposal-chip is-stale">mogła zniknąć</span>' : ''}</small></span><span class="review-price">${money(offer.currentPrice)}</span></button>`;
         })
         .join('')
-    : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracaja ofert wymagajacych decyzji.</p></div>';
+    : '<div class="empty-detail"><h3>Brak pozycji</h3><p>Filtry nie zwracają ofert wymagających decyzji.</p></div>');
+  $('#reviewRestoreSkipped')?.addEventListener('click', () => {
+    state.skippedReviewIds.clear();
+    renderReview();
+  });
   $('#reviewList').scrollTop = reviewListScroll;
   $$('[data-review-id]').forEach((button) =>
     button.addEventListener('click', async () => {
@@ -91,6 +144,12 @@ function renderReview() {
     }),
   );
   if ($('#reviewDetail').dataset.jobId !== (state.selectedReviewId || '')) renderReviewDetail();
+  // On a desktop the decision panel is never empty: open the first offer of the queue.
+  if (!state.selectedReviewId && rows.length && state.activeView === 'review' &&
+      window.matchMedia('(min-width: 901px)').matches && !reviewDecisionPending)
+    queueMicrotask(() => {
+      if (!state.selectedReviewId) $('#reviewList [data-review-id]')?.click();
+    });
 }
 
 function normalizedIsbn(value) {
@@ -135,33 +194,46 @@ function renderReviewDetail() {
         .find((x) => x.edition.id === (pendingEditionId || result.editionId))
     : null;
   if (pendingEditionId && suggested) state.reviewPendingEdition = null;
+  const position = filteredReviewOffers().findIndex((row) => row.id === job.id);
+  const total = filteredReviewOffers().length;
+  const photo = offer.image || job.offer.image || `/api/offers/${encodeURIComponent(job.offerId)}/image`;
+  const offerTitle = tidyOfferTitle(offer.title);
   $('#reviewDetail').innerHTML =
-    `<div class="lean-review simple-review">
-      <header class="lean-review-header">
-        <h3>${escapeHtml(offer.title)}</h3>
-        <a href="${escapeHtml(safeOfferHref(offer.url))}" target="_blank" rel="noreferrer">Ogłoszenie ↗</a>
+    `<div class="lean-review simple-review rv">
+      <header class="lean-review-header rv-head">
+        <div class="rv-head-main">
+          <p class="rv-kicker"><span class="source-chip" data-source="${escapeHtml(offer.source)}">${escapeHtml(offer.source)}</span><span>${position >= 0 ? `${position + 1} z ${total}` : ''}</span><span>${escapeHtml(reviewGroup(job))}</span></p>
+          <h3 title="${escapeHtml(offer.title)}">${escapeHtml(offerTitle)}</h3>
+        </div>
+        <div class="rv-head-side"><strong class="rv-price">${money(offer.currentPrice)}</strong><a href="${escapeHtml(safeOfferHref(offer.url))}" target="_blank" rel="noreferrer">Ogłoszenie ↗</a></div>
       </header>
-      <div class="lean-review-body">
-        <section class="lean-review-isbn">
-          <label for="reviewIsbnCheckInput">ISBN</label>
-          <div class="lean-review-isbn-tools"><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 / ISBN-13"><button class="button secondary" type="button" id="reviewIsbnMatchButton">Sprawdź ISBN</button></div>
-          <p id="reviewIsbnCheckResult" class="lean-review-result" role="status" aria-live="polite"></p>
-        </section>
-        <section class="lean-review-choice">
-          <label for="reviewBookSearch">Pozycja z katalogu</label>
-          <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Szukaj po tytule, autorze lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div>
-          <p id="reviewChosenEdition" class="lean-review-selected" role="status" aria-live="polite"></p>
-        </section>
+      <div class="lean-review-body rv-body">
+        <figure class="rv-photo">${coverMarkup(photo, offerTitle, { size: 'xl', escapeHtml })}<figcaption>Zdjęcie z ogłoszenia · widziana ${escapeHtml(date(offer.lastSeenAt))}</figcaption></figure>
+        <div class="rv-work">
+          ${titleMismatch(job) ? `<p class="rv-mismatch" role="note">ISBN z ogłoszenia prowadzi do <b>${escapeHtml(String(suggested?.edition.title || result.candidate?.title || 'innej książki').split(' / ')[0])}</b>, a tytuł ogłoszenia nie ma z nią nic wspólnego. Sprawdź zdjęcie: jeśli to ta książka, kliknij „Sprawdź ISBN” i zatwierdź; jeśli nie — wybierz właściwe wydanie.</p>` : ''}
+          <section class="lean-review-proposals rv-proposals" id="reviewProposals" aria-live="polite" hidden></section>
+          <section class="lean-review-isbn rv-isbn">
+            <label for="reviewIsbnCheckInput">ISBN <span>wpisz, wklej albo wybierz propozycję</span></label>
+            <div class="lean-review-isbn-tools"><input id="reviewIsbnCheckInput" type="text" inputmode="text" autocomplete="off" maxlength="32" value="${escapeHtml(offer.observedIsbn || '')}" placeholder="ISBN-10 / ISBN-13"><button class="button secondary" type="button" id="reviewIsbnMatchButton">Sprawdź ISBN</button></div>
+            <p id="reviewIsbnCheckResult" class="lean-review-result" role="status" aria-live="polite"></p>
+          </section>
+          <section class="lean-review-choice">
+            <label for="reviewBookSearch">Pozycja z katalogu <span>albo wyszukaj ręcznie</span></label>
+            <div class="book-combobox"><input class="detail-select" id="reviewBookSearch" type="search" role="combobox" aria-controls="reviewBookOptions" aria-expanded="false" autocomplete="off" placeholder="Szukaj po tytule, autorze lub ISBN" data-edition-id=""><div class="book-options" id="reviewBookOptions" role="listbox"></div></div>
+            <p id="reviewChosenEdition" class="lean-review-selected" role="status" aria-live="polite"></p>
+          </section>
+        </div>
       </div>
-      <footer class="lean-review-footer">
-        <div class="lean-review-primary-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdź</button><button class="button secondary" id="rejectReview" type="button">Odrzuć</button></div>
-        <div class="lean-review-secondary-actions"><button class="button secondary" id="markAsSet" type="button">Oznacz jako zestaw</button><button class="button secondary" id="reviewAddEdition" type="button">Dodaj do katalogu</button></div>
+      <footer class="lean-review-footer rv-actions">
+        <div class="lean-review-primary-actions"><button class="button primary" id="approveReview" type="button" disabled>Zatwierdź <kbd>Enter</kbd></button><button class="button secondary" id="rejectReview" type="button">Odrzuć <kbd>X</kbd></button><button class="button secondary" id="reviewSkip" type="button">Pomiń <kbd>S</kbd></button></div>
+        <div class="lean-review-secondary-actions"><button class="button ghost" id="markAsSet" type="button">Zestaw <kbd>Z</kbd></button><button class="button ghost" id="reviewAddEdition" type="button">Dodaj do katalogu</button><button class="button ghost" id="reviewFocusToggle" type="button" aria-pressed="${document.body.classList.contains('review-focus')}">Tryb skupienia <kbd>F</kbd></button></div>
       </footer>
     </div>`;
   $('#approveReview').disabled = !$('#reviewBookSearch').dataset.editionId;
   const chosenEdition = $('#reviewChosenEdition');
   chosenEdition.textContent = suggested ? `Wybrane: ${suggested.work.title} — ${suggested.edition.title}` : 'Nie wybrano wydania.';
   const reviewPosition = filteredReviewOffers().findIndex((row) => row.id === job.id);
+  void loadProposals(job);
   $('#reviewBookSearch').addEventListener('input', (event) => {
     event.target.dataset.editionId = '';
     $('#approveReview').disabled = true;
@@ -290,6 +362,7 @@ function renderReviewDetail() {
         insufficient_offer_context: 'Za mało zgodnych informacji, żeby bezpiecznie przypisać ofertę.',
         metadata_invalid_or_incomplete: 'Metadane z zewnętrznych katalogów są niekompletne.',
         multiple_conflicting_isbn: 'Ogłoszenie ma sprzeczne numery ISBN.',
+        isbn_title_mismatch: 'Tytuł ogłoszenia nie pasuje do książki o tym ISBN.',
       };
       output.textContent = response.reason?.map((code) => reasons[code] || code).join(' · ')
         || 'Nie można bezpiecznie dopasować. Wybierz wydanie ręcznie.';
@@ -325,6 +398,8 @@ function renderReviewDetail() {
     }catch(error){toast('Nie zapisano przypisania. Sprawdź dane i spróbuj ponownie.');}
     finally{reviewDecisionPending=false;if($('#approveReview'))$('#approveReview').disabled=false;}
   });
+  $('#reviewSkip').addEventListener('click', () => skipReview());
+  $('#reviewFocusToggle').addEventListener('click', () => toggleReviewFocus());
   $('#reviewAddEdition').addEventListener('click',()=>{
     openCatalogForReview({ jobId: job.id, isbn: $('#reviewIsbnCheckInput').value });
   });
@@ -333,7 +408,7 @@ function renderReviewDetail() {
     if (reviewDecisionPending) return;
     const current = state.selectedReviewId;
     const offerId = job.offerId;
-    if (!current || !offerId || !confirm('Oznaczyć tę ofertę jako zestaw? Zniknie z weryfikacji pojedynczych książek.')) return;
+    if (!current || !offerId || !(await confirmDialog('Oznaczyć tę ofertę jako zestaw? Zniknie z weryfikacji pojedynczych książek.', { title: 'Oznaczanie jako zestaw', confirmLabel: 'Oznacz jako zestaw' }))) return;
     const button = $('#markAsSet');
     button.disabled = true;
     try {
@@ -354,6 +429,132 @@ function renderReviewDetail() {
   });
 
 }
+
+// Suggestions for offers without ISBN. Editions already in the catalogue come first (instant,
+// offline; choosing one selects that edition). Title proposals from BN / Open Library follow
+// (choosing one fills the ISBN field and runs the normal preview). Nothing is assigned until the
+// operator confirms.
+async function loadProposals(job) {
+  const box = $('#reviewProposals');
+  if (!box || job.offer?.observedIsbn) return;
+  box.hidden = false;
+  box.innerHTML = '<div class="rv-local-cands"></div><div class="rv-external-cands"><p class="inline-note">Szukam propozycji po tytule…</p></div>';
+  const localBox = box.querySelector('.rv-local-cands');
+  const externalBox = box.querySelector('.rv-external-cands');
+  const current = () => state.selectedReviewId === job.id && box.isConnected;
+  let localCount = 0;
+  const localTask = json(`/api/identification-jobs/${encodeURIComponent(job.id)}/local-candidates`)
+    .then(({ items = [] }) => {
+      if (!current() || !items.length) return;
+      localCount = items.length;
+      localBox.innerHTML =
+        `<div class="rv-section-title"><h4>Już w Twoim katalogu</h4><small>wybór wskazuje wydanie, <kbd>Enter</kbd> przypisuje</small></div><ol class="proposal-list rv-cands">` +
+        items
+          .map((item) => {
+            const title = tidyWorkTitle(item.title);
+            const author = parseBnPeople(item.authors.join(' '), item.authors)[0] || '';
+            const facts = [item.publicationYear, cleanPublisher(item.publisher), /^(?:pol|pl|polski)?$/i.test(item.language) ? '' : 'język: ' + item.language, item.offers ? `${item.offers} ${item.offers === 1 ? 'oferta' : [2, 3, 4].includes(item.offers % 10) && ![12, 13, 14].includes(item.offers % 100) ? 'oferty' : 'ofert'}` : '']
+              .filter(Boolean)
+              .map((text) => `<span class="fact">${escapeHtml(String(text))}</span>`)
+              .join('');
+            return `<li><button class="rv-cand is-local" type="button" data-proposal-edition="${escapeHtml(item.editionId)}" data-proposal-title="${escapeHtml(title)}" aria-label="Wybierz wydanie z katalogu: ${escapeHtml(title)}"><kbd class="rv-key"></kbd>${coverMarkup(item.cover || isbnCover(item.isbn), title, { size: 'sm', escapeHtml })}<span class="rv-cand-body"><b>${escapeHtml(title)}</b><small>${escapeHtml(author || 'autor nieznany')}</small><span class="rv-facts">${facts}</span><small class="rv-isbn-line">${item.isbn ? 'ISBN ' + escapeHtml(item.isbn) + ' · ' : ''}katalog</small></span><span class="rv-score" data-score="${Math.round(item.score * 10)}"><span class="rv-meter"><i></i></span>${Math.round(item.score * 100)}%</span></button></li>`;
+          })
+          .join('') +
+        '</ol>';
+      localBox.querySelectorAll('[data-proposal-edition]').forEach((button) =>
+        button.addEventListener('click', () => {
+          box.querySelectorAll('.rv-cand').forEach((other) => other.classList.toggle('is-chosen', other === button));
+          chooseCatalogEdition(button.dataset.proposalEdition, button.dataset.proposalTitle);
+        }),
+      );
+      renumberProposals(box);
+    })
+    .catch(() => {});
+  try {
+    const proposal = await json(`/api/identification-jobs/${encodeURIComponent(job.id)}/proposals`);
+    await localTask;
+    if (!current()) return;
+    const items = (proposal.candidates || []).slice(0, Math.max(2, 5 - localCount));
+    if (!items.length) {
+      externalBox.innerHTML = localCount
+        ? ''
+        : proposal.unavailable?.length
+          ? '<p class="inline-note">Katalog zewnętrzny jest chwilowo niedostępny — propozycji nie udało się pobrać.</p>'
+          : '<p class="inline-note">Brak propozycji po tytule. Wyszukaj wydanie ręcznie.</p>';
+      return;
+    }
+    const described = items.map(describeCandidate);
+    const differs = differingFields(described);
+    const fact = (field, text) => text ? `<span class="fact${differs.has(field) ? ' is-diff' : ''}">${escapeHtml(text)}</span>` : '';
+    externalBox.innerHTML =
+      `<div class="rv-section-title"><h4>${localCount ? 'Inne wydania (BN / Open Library)' : 'Propozycje po tytule'}</h4><small>${differs.size ? 'Podświetlono to, czym się różnią' : ''}</small></div><ol class="proposal-list rv-cands">` +
+      described
+        .map(
+          (item) =>
+            `<li><button class="rv-cand" type="button" data-proposal-isbn="${escapeHtml(item.isbn)}" aria-label="Użyj propozycji: ${escapeHtml(item.title)}"><kbd class="rv-key"></kbd>${coverMarkup(isbnCover(item.isbn), item.title, { size: 'sm', escapeHtml })}<span class="rv-cand-body"><b>${escapeHtml(item.title)}</b><small>${escapeHtml([item.author, ...item.contributors.slice(0, 1)].filter(Boolean).join(' · ') || 'autor nieznany')}</small><span class="rv-facts">${fact('year', item.year)}${fact('series', item.series ? item.series + (item.volume ? ' · t. ' + item.volume : '') : item.cycle)}${fact('publisher', item.publisher)}</span><small class="rv-isbn-line">ISBN ${escapeHtml(item.isbn)} · ${escapeHtml(item.source)}</small></span><span class="rv-score" data-score="${Math.round(item.score * 10)}"><span class="rv-meter"><i></i></span>${Math.round(item.score * 100)}%</span></button></li>`,
+        )
+        .join('') +
+      '</ol>';
+    externalBox.querySelectorAll('[data-proposal-isbn]').forEach((button) =>
+      button.addEventListener('click', () => {
+        box.querySelectorAll('.rv-cand').forEach((other) => other.classList.toggle('is-chosen', other === button));
+        useProposal(button.dataset.proposalIsbn);
+      }),
+    );
+    renumberProposals(box);
+    // A single sure proposal is previewed right away (read-only); the operator still confirms with
+    // Enter. With several editions — or a known catalogue edition — nothing is preselected.
+    if (proposal.confidence === 'high' && items.length === 1 && !localCount && !$('#reviewIsbnCheckInput')?.value)
+      externalBox.querySelector('.rv-cand')?.click();
+  } catch {
+    await localTask;
+    if (current()) externalBox.innerHTML = localCount ? '' : '<p class="inline-note">Nie udało się pobrać propozycji.</p>';
+  }
+}
+
+/** Keys 1–9 follow the on-screen order: catalogue editions first, then external proposals. */
+function renumberProposals(box) {
+  box.querySelectorAll('.rv-cand').forEach((button, index) => {
+    const key = button.querySelector('.rv-key');
+    if (key) key.textContent = index < 9 ? String(index + 1) : '';
+  });
+}
+
+function chooseCatalogEdition(editionId, title) {
+  const input = $('#reviewBookSearch');
+  if (!input || !editionId) return;
+  input.value = title;
+  input.dataset.editionId = editionId;
+  $('#reviewChosenEdition').textContent = `Wybrane z katalogu: ${title}`;
+  $('#approveReview').disabled = false;
+}
+
+function useProposal(isbn) {
+  const input = $('#reviewIsbnCheckInput');
+  if (!input || !isbn) return;
+  input.value = isbn;
+  $('#reviewIsbnMatchButton')?.click();
+}
+
+function skipReview() {
+  const id = state.selectedReviewId;
+  if (!id || reviewDecisionPending) return;
+  const rows = filteredReviewOffers();
+  const index = rows.findIndex((row) => row.id === id);
+  state.skippedReviewIds.add(id);
+  const next = rows[index + 1] || rows[index - 1];
+  state.selectedReviewId = null;
+  state.reviewDetail = null;
+  renderReview();
+  if (next) document.querySelector('[data-review-id="' + CSS.escape(next.id) + '"]')?.click();
+}
+
+function toggleReviewFocus(force) {
+  const on = document.body.classList.toggle('review-focus', force);
+  try { localStorage.setItem('bookflip.reviewFocus', on ? '1' : ''); } catch {}
+  $('#reviewFocusToggle')?.setAttribute('aria-pressed', String(on));
+}
+try { if (localStorage.getItem('bookflip.reviewFocus')) document.body.classList.add('review-focus'); } catch {}
 
 function navigateReview(step) {
   const rows = filteredReviewOffers();
@@ -472,15 +673,53 @@ async function decideReview(action, editionId = null, reason = null) {
   }
 }
 
-// Navigation shortcuts intentionally never submit decisions or capture typing fields.
+// Keyboard-first review. Plain keys work when no text field has focus; Alt+key works everywhere.
+// Decisions still go through the same buttons, so every guard (disabled state, pending) applies.
 document.addEventListener('keydown', (event) => {
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  if (event.ctrlKey || event.metaKey || event.shiftKey) return;
   const view = document.querySelector('#view-review');
-  if (!view || view.hidden) return;
-  if (event.target?.closest?.('input,select,textarea,[contenteditable="true"]')) return;
+  if (!view || view.hidden || document.querySelector('dialog[open]')) return;
+  const typing = event.target?.closest?.('input,select,textarea,[contenteditable="true"]');
+  if (typing && !event.altKey) {
+    if (event.key === 'Enter' && event.target.id === 'reviewIsbnCheckInput') {
+      event.preventDefault();
+      $('#reviewIsbnMatchButton')?.click();
+    }
+    if (event.key === 'Escape') event.target.blur();
+    return;
+  }
+  const key = event.key.length === 1 ? event.key.toLocaleLowerCase('pl') : event.key;
+  const press = (selector) => {
+    const button = $(selector);
+    if (button && !button.disabled) button.click();
+  };
+  if (key === 'Enter') {
+    // A focused ordinary button keeps its own Enter behaviour.
+    if (!event.altKey && event.target?.closest?.('button:not(.rv-cand),a,summary')) return;
+    event.preventDefault();
+    return press('#approveReview');
+  }
+  if (/^[1-9]$/.test(key)) {
+    event.preventDefault();
+    return document.querySelectorAll('#reviewProposals .rv-cand')[Number(key) - 1]?.click();
+  }
+  const actions = {
+    x: () => press('#rejectReview'),
+    z: () => press('#markAsSet'),
+    s: () => skipReview(),
+    ArrowRight: () => skipReview(),
+    f: () => toggleReviewFocus(),
+    Escape: () => toggleReviewFocus(false),
+    '/': () => $('#reviewSearch')?.focus(),
+    i: () => $('#reviewIsbnCheckInput')?.focus(),
+    ArrowDown: () => navigateReview(1),
+    j: () => navigateReview(1),
+    ArrowUp: () => navigateReview(-1),
+    k: () => navigateReview(-1),
+  };
+  if (!actions[key]) return;
   event.preventDefault();
-  navigateReview(event.key === 'ArrowDown' ? 1 : -1);
+  actions[key]();
 });
 
 return { filteredReviewOffers, visibleCatalogRows, renderReview, normalizedIsbn, reviewCandidateMarkup, renderReviewDetail, renderReviewBookChoices, approveReview, decideReview };

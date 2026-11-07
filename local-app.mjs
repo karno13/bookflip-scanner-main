@@ -4,6 +4,9 @@ import { listScanProfiles, putScanProfile, deleteScanProfile } from './scan-prof
 import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs';
 import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
+import { enrichOffers } from './offer-enrichment.mjs';
+import { createScanScheduler, localScanRunner } from './scan-schedule.mjs';
+import { computeProposal, loadProposal, refreshProposals } from './title-proposals.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
@@ -33,6 +36,7 @@ import {
   listCatalogWorks,
   listIdentificationJobs,
   matchIdentificationJobByIsbn,
+  localEditionCandidates,
 } from './catalog-api.mjs';
 import { analyzedOffers, bookHistory, allBookStatistics } from './price-analysis.mjs';
 import { sqliteHistoryModel } from './sqlite-history-read.mjs';
@@ -43,7 +47,21 @@ import {
   persistSqliteScan,
 } from './sqlite-single-store.mjs';
 import { createIdentificationScheduler } from './identification-scheduler.mjs';
+import { createBuybackService } from './buyback-quotes.mjs';
+import { createSkupksiazekClient } from './buyback-skupksiazek.mjs';
+import { createImageBackfill, fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
+import { catalogInsights } from './catalog-insights.mjs';
+import { catalogSeries, setWorkUniverse } from './catalog-series.mjs';
 
+let imageBackfill = null;
+let buyback = null;
+// One buyback service per process: the catalogue's quote cache plus the automatic background check.
+function getBuyback() {
+  const catalog = getProductionCatalog();
+  if (!catalog) return null;
+  buyback ||= createBuybackService(catalog.repository, createSkupksiazekClient());
+  return buyback;
+}
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -519,19 +537,58 @@ export async function withHistoryWriteLock(work) {
   }
 }
 
+// Reads detail pages of shops that publish the ISBN in structured data, in small paced batches,
+// before the resolver runs so that new evidence is used in the same pass.
+async function enrichPendingOffers(catalogStore) {
+  if (String(process.env.BOOKFLIP_DETAIL_ENRICHMENT ?? '1') === '0' || !catalogStore.repository?.database) return null;
+  try {
+    const report = await enrichOffers(catalogStore.repository, { limit: 10 });
+    if (report.checked) recordProgress({ type: 'detail_enrichment', ...report });
+    return report;
+  } catch (error) {
+    recordProgress({ type: 'detail_enrichment_error', code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'ENRICHMENT_ERROR' });
+    return null;
+  }
+}
+
+// Title proposals call the national catalogue (rate limited), so they run beside the resolver
+// in small batches and never delay it.
+let runningProposals = null;
+let proposalsPausedUntil = 0;
+function scheduleProposalRefresh(catalogStore) {
+  if (runningProposals || String(process.env.BOOKFLIP_DETAIL_ENRICHMENT ?? '1') === '0') return;
+  if (Date.now() < proposalsPausedUntil) return;
+  if (typeof catalogStore.findIsbnsByTitle !== 'function' || !catalogStore.repository?.database) return;
+  runningProposals = refreshProposals(catalogStore, { limit: 4 })
+    .then((report) => {
+      if (report.computed) recordProgress({ type: 'title_proposals', ...report });
+      // The national catalogue is down or throttling: do not retry every few seconds.
+      if (report.unavailable) proposalsPausedUntil = Date.now() + 10 * 60_000;
+    })
+    .catch((error) =>
+      recordProgress({ type: 'title_proposals_error', code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'PROPOSAL_ERROR' }),
+    )
+    .finally(() => {
+      runningProposals = null;
+    });
+}
+
 let runningCatalogResolution = null;
 function scheduleCatalogResolution(catalogStore) {
   if (runningCatalogResolution) return runningCatalogResolution;
   const startedAt = performance.now();
   runningCatalogResolution = new Promise((resolve) => setImmediate(resolve))
+    .then(() => enrichPendingOffers(catalogStore))
     .then(() => catalogStore.processQueued())
     .then((result) => {
-      recordProgress({
-        type: 'catalog_resolution',
-        processed: result.processed,
-        failed: result.failed || 0,
-        durationMs: Math.round(performance.now() - startedAt),
-      });
+      // An idle poll every few seconds must not grow the log: record only real work.
+      if (result.processed || result.failed)
+        recordProgress({
+          type: 'catalog_resolution',
+          processed: result.processed,
+          failed: result.failed || 0,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       return result;
     })
     .catch((error) => {
@@ -543,6 +600,7 @@ function scheduleCatalogResolution(catalogStore) {
     })
     .finally(() => {
       runningCatalogResolution = null;
+      scheduleProposalRefresh(catalogStore);
     });
   return runningCatalogResolution;
 }
@@ -603,8 +661,69 @@ export function createLocalAppServer({
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
-      if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
-          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works') {
+      if (request.method === 'GET' && url.pathname === '/api/image') {
+        try {
+          const image = await fetchCachedImage(url.searchParams.get('u'), {
+            cacheDirectory: join(runtimeDataDirectory, 'image-cache'),
+          });
+          response.writeHead(200, {
+            'Content-Type': image.type,
+            'Cache-Control': 'private, max-age=31536000, immutable',
+            'X-Content-Type-Options': 'nosniff',
+            'Referrer-Policy': 'no-referrer',
+            'Content-Security-Policy': "default-src 'none'",
+          });
+          return response.end(image.body);
+        } catch (error) {
+          return send(response, error.statusCode || 502, JSON.stringify({ error: error.message }));
+        }
+      }
+      const offerImage = request.method === 'GET' && url.pathname.match(/^\/api\/offers\/([^/]+)\/image$/);
+      if (offerImage) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const imageUrl = await offerImageUrl(catalog.repository, decodeURIComponent(offerImage[1]));
+        if (!imageUrl) return send(response, 404, JSON.stringify({ error: 'IMAGE_NOT_FOUND' }));
+        response.writeHead(302, { Location: proxiedImage(imageUrl), 'Cache-Control': 'no-store' });
+        return response.end();
+      }
+      if (url.pathname.startsWith('/api/buyback')) {
+        const buyback = getBuyback();
+        if (!buyback) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        if (request.method === 'GET' && url.pathname === '/api/buyback/quotes')
+          return send(response, 200, JSON.stringify({ quotes: buyback.many((url.searchParams.get('isbn') || '').split(',').slice(0, 200)) }));
+        if (request.method === 'GET' && url.pathname === '/api/buyback/batch')
+          return send(response, 200, JSON.stringify(buyback.status()));
+        if (request.method === 'POST' && url.pathname === '/api/buyback/batch')
+          return send(response, 202, JSON.stringify(buyback.start()));
+        if (request.method === 'PUT' && url.pathname === '/api/buyback/auto') {
+          const input = await readJson(request);
+          return send(response, 200, JSON.stringify(buyback.setAuto(input?.enabled === true)));
+        }
+        if (request.method === 'POST' && url.pathname === '/api/buyback/batch/cancel')
+          return send(response, 202, JSON.stringify(buyback.cancel()));
+        if (request.method === 'POST' && url.pathname === '/api/buyback/check') {
+          const input = await readJson(request);
+          try {
+            return send(response, 200, JSON.stringify(await buyback.check(input?.isbn, { force: input?.force === true })));
+          } catch (error) {
+            return send(response, error.status || 502, JSON.stringify({ error: error.message }));
+          }
+        }
+        return send(response, 405, JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
+      }
+      if (url.pathname === '/api/images/backfill' || url.pathname === '/api/images/backfill/cancel') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        imageBackfill ||= createImageBackfill(catalog.repository);
+        if (request.method === 'GET' && url.pathname === '/api/images/backfill')
+          return send(response, 200, JSON.stringify(imageBackfill.status()));
+        if (request.method === 'POST')
+          return send(response, 202, JSON.stringify(url.pathname.endsWith('/cancel') ? imageBackfill.cancel() : imageBackfill.start()));
+        return send(response, 405, JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
+      }
+      if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|scan-queries|scan-schedule|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
+          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/(?:work-duplicates(?:\/merge)?|title-conflicts(?:\/resolve)?)$/.test(url.pathname)) {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
         const data = await tradingRoute({repo:catalog.repository,method:request.method,path:url.pathname,
@@ -618,6 +737,22 @@ export function createLocalAppServer({
       }
       if (request.method === 'GET' && url.pathname === '/api/scan/status')
         return send(response, 200, JSON.stringify(currentScan || await readScanStatus()));
+      if (request.method === 'PUT' && url.pathname.startsWith('/api/catalog/universe/')) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.slice('/api/catalog/universe/'.length));
+        return send(response, 200, JSON.stringify(setWorkUniverse(catalog.repository, id, await readJson(request))));
+      }
+      if (request.method === 'GET' && url.pathname === '/api/catalog/series-tree') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify({ universes: catalogSeries(catalog.repository) }));
+      }
+      if (request.method === 'GET' && url.pathname === '/api/catalog/insights') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify(catalogInsights(catalog.repository)));
+      }
       if (request.method === 'GET' && url.pathname === '/api/catalog/summary') {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
@@ -862,6 +997,38 @@ export function createLocalAppServer({
           JSON.stringify(result),
         );
       }
+      if (request.method === 'GET' && /^\/api\/identification-jobs\/[^/]+\/local-candidates$/.test(url.pathname)) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const job = catalog.repository.database
+          .prepare('SELECT o.original_title FROM identification_jobs j JOIN offers o ON o.id=j.offer_id WHERE j.id=?')
+          .get(decodeURIComponent(url.pathname.split('/')[3]));
+        if (!job) return send(response, 404, JSON.stringify({ error: 'REVIEW_JOB_NOT_FOUND' }));
+        return send(response, 200, JSON.stringify({ items: localEditionCandidates(catalog.repository, job.original_title) }));
+      }
+      if (
+        ['GET', 'POST'].includes(request.method) &&
+        /^\/api\/identification-jobs\/[^/]+\/proposals$/.test(url.pathname)
+      ) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.split('/')[3]);
+        const job = catalog.repository.database
+          .prepare(
+            "SELECT j.id,j.offer_id,o.original_title,o.observed_isbn FROM identification_jobs j JOIN offers o ON o.id=j.offer_id WHERE j.id=? AND j.status='review_required'",
+          )
+          .get(id);
+        if (!job) return send(response, 404, JSON.stringify({ error: 'REVIEW_JOB_NOT_FOUND' }));
+        // GET reads the stored proposal and computes one when missing; POST forces a fresh lookup.
+        const stored = request.method === 'GET' ? loadProposal(catalog.repository, id) : null;
+        if (stored) return send(response, 200, JSON.stringify(stored));
+        const fresh = await computeProposal(catalog, job);
+        return send(
+          response,
+          200,
+          JSON.stringify({ jobId: id, queries: fresh.queries, candidates: fresh.candidates, confidence: fresh.confidence, unavailable: fresh.unavailable }),
+        );
+      }
       if (
         request.method === 'POST' &&
         /^\/api\/identification-jobs\/[^/]+\/find-isbn$/.test(url.pathname)
@@ -1069,7 +1236,13 @@ async function main() {
     }),
   });
   const server = createLocalAppServer({ identificationControl: scheduler });
-  server.on('close', () => { void scheduler.stop(); });
+  // Recurring scans of the saved profile (off until the user enables it in the Scanner view).
+  const scanScheduler = createScanScheduler({
+    getRepository: () => getProductionCatalog()?.repository ?? null,
+    runScan: localScanRunner(port),
+    onEvent: (event) => recordProgress(event),
+  });
+  server.on('close', () => { void scheduler.stop(); scanScheduler.stop(); buyback?.stopAuto(); });
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       console.log(`BookFlip Scanner już działa pod adresem ${url}`);
@@ -1082,6 +1255,8 @@ async function main() {
   });
   server.listen(port, '127.0.0.1', () => {
     if (enabled) scheduler.start();
+    if (String(process.env.BOOKFLIP_SCHEDULED_SCANS ?? '1') !== '0') scanScheduler.start();
+    if (String(process.env.BOOKFLIP_BUYBACK_AUTO ?? '1') !== '0') getBuyback()?.startAuto();
     console.log(`BookFlip Scanner działa: ${url}`);
     openLocalApp(url);
   });

@@ -8,7 +8,7 @@ test('public assets include first-party browser modules without a manual route l
   assert.equal(publicAssetPath('/views/scanner.js'), 'views/scanner.js');
   assert.equal(publicAssetPath('/views/future-module.js'), 'views/future-module.js');
   assert.equal(publicAssetPath('/core/formatters.js'), 'core/formatters.js');
-  assert.equal(publicAssetPath('/workflow.css'), 'workflow.css');
+  assert.equal(publicAssetPath('/app.css'), 'app.css');
 });
 
 test('public asset matching rejects arbitrary files, traversals and encoded paths', () => {

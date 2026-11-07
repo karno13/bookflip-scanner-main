@@ -36,7 +36,7 @@ export function mountOfferWorkspace(offer, container, onChange = () => {}, optio
   const notes = options.json ? (sqliteNotes || {}) : readOfferNotes();
   const current = notes[id] || {};
   const section = document.createElement('section');
-  section.className = 'detail-section offer-workspace';
+  section.className = 'detail-section offer-workspace trading-only';
   const title = document.createElement('h4');
   title.textContent = options.json ? 'Decyzja zakupowa' : 'Decyzja zakupowa (ta przeglądarka)';
   section.append(title);

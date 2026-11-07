@@ -1,5 +1,6 @@
 import { openDetailView } from '../core/detail-navigation.js';
 import { amountInput, readAmount, statusLabel, markDirty,watchForm } from '../core/ux.js';
+import { confirmDialog } from '../core/dialogs.js';
 export function installTradingControls({state,$,json,toast,showView,loadCatalogData,loadCatalogStatus,openOfferDrawer,onOfferFilters,onCatalogFilters}) {
   const write=(path,body,method='PUT')=>json(path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   let settingsLoaded=false;
@@ -12,6 +13,33 @@ export function installTradingControls({state,$,json,toast,showView,loadCatalogD
     $('#offerQuickViews').querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
     onOfferFilters();
   }));
+  // Presentation only: turns the run summary into scannable tiles and highlights the likely next step.
+  function renderScanResultCard(run, failed) {
+    const tiles = [
+      ['Znalezione oferty', run.found, ''],
+      ['Nowe oferty', run.newOffers, run.newOffers ? 'good' : ''],
+      ['Zmiany cen', run.priceChanges, run.priceChanges ? 'warn' : ''],
+      ['Problemy ze źródłami', failed, failed ? 'bad' : ''],
+    ];
+    const stats = $('#scanResultStats');
+    stats.replaceChildren(...tiles.map(([label, value, tone]) => {
+      const tile = document.createElement('div');
+      tile.className = 'scan-result-tile' + (tone ? ' is-' + tone : '');
+      tile.setAttribute('role', 'listitem');
+      const number = document.createElement('strong');
+      number.textContent = String(value ?? 0);
+      const caption = document.createElement('span');
+      caption.textContent = label;
+      tile.append(number, caption);
+      return tile;
+    }));
+    const prefer = run.newOffers > 0 ? '#scanNewResults' : '#scanAllResults';
+    for (const id of ['#scanAllResults', '#scanNewResults']) {
+      $(id).className = 'button ' + (id === prefer ? 'primary' : 'secondary');
+    }
+    const queue = state.catalogPages?.jobs?.total;
+    $('#scanReviewResults').textContent = Number.isFinite(queue) && queue > 0 ? 'Do weryfikacji (' + queue + ')' : 'Do weryfikacji';
+  }
   async function refreshRuns() {
     const response=await json('/api/scan-runs'); state.scanRuns=response.items || [];
     const selected=$('#offerScan').value;
@@ -28,6 +56,7 @@ export function installTradingControls({state,$,json,toast,showView,loadCatalogD
       const failed=run.errors?.length||0;
       $('#scanResultSummary').textContent=`Ostatni zapisany skan: ${run.found} ofert · ${run.newOffers} nowych · ${run.priceChanges} zmian cen${failed?' · '+failed+' zadań z problemami — wyniki mogą być niepełne':''}`;
       $('#retryFailedScan').hidden=!failed || !run.context;
+      renderScanResultCard(run, failed);
     }
   }
   async function showResults(change='',review=false) {
@@ -115,7 +144,7 @@ export function installTradingControls({state,$,json,toast,showView,loadCatalogD
         const label=document.createElement('span');label.textContent=row.title+' · '+statusLabel(row.action)+' · '+new Date(row.createdAt).toLocaleString('pl-PL');
         const reopen=document.createElement('button');reopen.type='button';reopen.className='button secondary';reopen.textContent=row.revisionId?'Otwarto ponownie':'Popraw decyzję';reopen.disabled=Boolean(row.revisionId);
         reopen.addEventListener('click',async()=>{
-          if(!confirm('Otworzyć ofertę do ponownej weryfikacji? Poprzednia decyzja pozostanie w historii. Aktualne przypisanie tej decyzji zostanie wycofane.')) return;
+          if(!(await confirmDialog('Otworzyć ofertę do ponownej weryfikacji? Poprzednia decyzja pozostanie w historii. Aktualne przypisanie tej decyzji zostanie wycofane.', { title: 'Ponowna weryfikacja', confirmLabel: 'Otwórz ponownie', danger: true }))) return;
           reopen.disabled=true;
           try {const result=await write('/api/review-decisions/'+encodeURIComponent(row.id)+'/reopen',{},'POST');state.reviewScan='';await loadCatalogData();state.selectedReviewId=result.jobId;showView('review');await refreshDecisions();await loadCatalogStatus();}
           catch(error){reopen.disabled=false;toast('Nie można poprawić tej decyzji: istnieje nowsza zmiana lub zadanie jest w toku.');}

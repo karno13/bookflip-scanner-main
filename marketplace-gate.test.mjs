@@ -92,3 +92,10 @@ test('scan cancellation aborts queued source request before any network fetch',a
   await assert.rejects(queued,/abort|ABORT/i);
   assert.equal(fetched,false);
 });
+
+test('acquire waits without an abort signal (null signal must not reach timers)', async () => {
+  const { setTimeout: realWait } = await import('node:timers/promises');
+  const gate = createMarketplaceGate({ intervalMs: 5 });
+  await gate.acquire('S', { pause: realWait });
+  await gate.acquire('S', { pause: realWait, signal: null });
+});

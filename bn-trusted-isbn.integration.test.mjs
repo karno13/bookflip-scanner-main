@@ -45,7 +45,7 @@ test('trusted BN ISBN creates edition despite translation and year disagreement'
     assert.equal(repo.findEditionByISBN(isbn)?.publication_year, 2019);
   } finally { repo.close(); }
 });
-test('matching ISBN identifies an edition despite different marketplace title', async () => {
+test('ISBN whose record shares no word with the listing is held for review', async () => {
   const repo = new SqliteCatalogRepository(':memory:');
   try {
     const bn = record('bn', 'Completely Different Title', 2019);
@@ -61,6 +61,8 @@ test('matching ISBN identifies an edition despite different marketplace title', 
         comparison: { status: 'single_source', conflicts: [] },
       }),
     }).resolve({ offerId: offer.id });
-    assert.equal(result.decision, 'created_work_and_edition');
+    assert.equal(result.decision, 'review_required');
+    assert.deepEqual(result.reason, ['isbn_title_mismatch']);
+    assert.equal(repo.counts().works, 0);
   } finally { repo.close(); }
 });
