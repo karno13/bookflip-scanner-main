@@ -47,6 +47,7 @@ import {
 } from './sqlite-single-store.mjs';
 import { createIdentificationScheduler } from './identification-scheduler.mjs';
 import { fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
+import { catalogInsights } from './catalog-insights.mjs';
 
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
 const contentTypes = {
@@ -688,6 +689,11 @@ export function createLocalAppServer({
       }
       if (request.method === 'GET' && url.pathname === '/api/scan/status')
         return send(response, 200, JSON.stringify(currentScan || await readScanStatus()));
+      if (request.method === 'GET' && url.pathname === '/api/catalog/insights') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        return send(response, 200, JSON.stringify(catalogInsights(catalog.repository)));
+      }
       if (request.method === 'GET' && url.pathname === '/api/catalog/summary') {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));

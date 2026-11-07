@@ -4,6 +4,21 @@ import {markDirty,statusLabel,confirmDiscard,watchForm} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
 import { mountSeriesEditor, readSeries, seriesSummary } from './series.js';
 import { confirmDialog } from '../core/dialogs.js';
+import { coverMarkup, isbnCover, tidyWorkTitle, parseBnPeople, splitBnTitle, cleanPublisher } from '../core/bibliography.js';
+
+const firstIsbn = (editions = []) =>
+  editions.flatMap((edition) => edition.identifiers || []).find((item) => String(item.scheme).startsWith('isbn'))?.value;
+const workCover = (work) => work.cover || isbnCover(firstIsbn(work.editions));
+const workAuthors = (work) => parseBnPeople((work.authors || []).join(' '), work.authors).join(', ');
+// What is still missing in a work record — shown as chips and used by the "incomplete" filter.
+function missingFacts(work) {
+  const editions = work.editions || [];
+  const missing = [];
+  if (editions.some((edition) => !edition.publicationYear)) missing.push('rok');
+  if (editions.some((edition) => !edition.publisher)) missing.push('wydawca');
+  if (!firstIsbn(editions)) missing.push('ISBN');
+  return missing;
+}
 // catalog workspace, preserving existing behavior while isolating its implementation.
 export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData }) {
 function catalogRows() {
@@ -89,18 +104,31 @@ function renderCatalog() {
   if (!state.history) return;
   renderSeriesSummary();
   if (sqliteAnnotations === null && !seriesRequest) void loadSeries().catch(() => {});
-  const rows = catalogRows();
+  const onlyIncomplete = $('#catalogIncompleteOnly')?.checked;
+  const rows = catalogRows().filter((row) => !onlyIncomplete || missingFacts(row).length);
+  $('#catalogList').classList.toggle('is-grid', document.body.dataset.catalogView === 'grid');
   $('#catalogList').innerHTML = rows.length
     ? visibleCatalogRows('works', rows)
         .map(
           (row) =>
-            `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title">${coverPreviewMarkup(row.editions.flatMap((edition) => edition.identifiers))}<span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap((e) => e.identifiers.filter((v) => v.scheme.startsWith('isbn')).map((v) => v.value))[0] || 'ISBN nieznany')}</small><small>${escapeHtml(row.editionCount === 1 ? [row.editions[0]?.publisher, row.editions[0]?.publicationYear, row.editions[0]?.language].filter(Boolean).join(' · ') || 'Brak danych wydania' : `${row.editionCount} wydań — otwórz szczegóły`)}</small></span></span><span>${row.editionCount}</span><span data-plural="${pluralForm(row.offerCount)}">${row.offerCount}</span><span><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(statusLabel(row.verificationStatus))}</span></span></button>`,
+            catalogRowMarkup(row),
         )
         .join('')
     : queryEmptyMarkup();
   $$('[data-catalog-id]').forEach((button) =>
     button.addEventListener('click', () => openCatalogDetail(button.dataset.catalogId)),
   );
+}
+
+function catalogRowMarkup(row) {
+  const title = tidyWorkTitle(row.title);
+  const parts = splitBnTitle(row.title);
+  const single = row.editionCount === 1 ? row.editions[0] : null;
+  const meta = single
+    ? [cleanPublisher(single.publisher), single.publicationYear].filter(Boolean).join(' · ') || 'Brak danych wydania'
+    : `${row.editionCount} wydań`;
+  const missing = missingFacts(row);
+  return `<button class="catalog-row work-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}" title="${escapeHtml(row.title)}"><span class="catalog-book-title">${coverMarkup(workCover(row), title, { size: 'md', escapeHtml })}<span class="catalog-book-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(workAuthors(row) || 'Autor nieznany')}</small><small class="work-meta">${escapeHtml(meta)}${parts.series ? ` · ${escapeHtml(parts.series)}${parts.volume ? ' ' + parts.volume : ''}` : ''}</small>${missing.length ? `<small class="missing-facts">${missing.map((item) => `<span>brak: ${escapeHtml(item)}</span>`).join('')}</small>` : ''}</span></span><span>${row.editionCount}</span><span data-plural="${pluralForm(row.offerCount)}">${row.offerCount}</span><span><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(statusLabel(row.verificationStatus))}</span></span></button>`;
 }
 
 function renderSeriesSummary() {
@@ -168,7 +196,7 @@ async function openCatalogDetail(id) {
     if (request !== detailRequest) return;
     renderEditionRail(row);
     detail.scrollTop = 0;
-    detail.innerHTML = `<section class="detail-section"><div class="book-detail-title"><div><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(statusLabel(row.verificationStatus))}</span><h3>${escapeHtml(row.title)}</h3><p>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</p></div><strong>${row.editions.length} wydań</strong></div></section><section class="detail-section"><h4>Wydania — wybierz, aby zobaczyć oferty i ceny</h4><div class="price-list">${row.editions.map((edition) => `<button type="button" class="link-button" data-edition-detail="${escapeHtml(edition.id)}"><span><strong>${escapeHtml(edition.title)}</strong><small>${escapeHtml([edition.publisher, edition.publicationYear, edition.language].filter(Boolean).join(' / ') || 'Brak szczegółów')}</small></span><b>${escapeHtml(edition.identifiers.find((item) => item.scheme.startsWith('isbn'))?.value || 'bez ISBN')}</b></button>`).join('') || '<p>Brak wydań.</p>'}</div></section><details class="detail-section"><summary>Pochodzenie danych bibliograficznych</summary><p class="inline-note">${row.externalRecords.length ? row.externalRecords.map((record) => `${escapeHtml(record.provider)}: ${escapeHtml(record.externalId)}`).join(', ') : 'Brak zewnętrznych rekordów bibliograficznych.'}</p></section>`;
+    detail.innerHTML = `<section class="detail-section"><div class="book-detail-title work-hero">${coverMarkup(workCover(row), tidyWorkTitle(row.title), { size: 'lg', escapeHtml })}<div><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(statusLabel(row.verificationStatus))}</span><h3 title="${escapeHtml(row.title)}">${escapeHtml(tidyWorkTitle(row.title))}</h3><p>${escapeHtml(workAuthors(row) || 'Autor nieznany')}</p></div><strong>${row.editions.length} wydań</strong></div></section><section class="detail-section"><h4>Wydania — wybierz, aby zobaczyć oferty i ceny</h4><div class="price-list">${row.editions.map((edition) => `<button type="button" class="link-button edition-line" data-edition-detail="${escapeHtml(edition.id)}">${coverMarkup(edition.cover || isbnCover(firstIsbn([edition])), edition.title, { size: 'xs', escapeHtml })}<span><strong>${escapeHtml(edition.title)}</strong><small>${escapeHtml([edition.publisher, edition.publicationYear, edition.language].filter(Boolean).join(' / ') || 'Brak szczegółów')}</small></span><b>${escapeHtml(edition.identifiers.find((item) => item.scheme.startsWith('isbn'))?.value || 'bez ISBN')}</b></button>`).join('') || '<p>Brak wydań.</p>'}</div></section><details class="detail-section"><summary>Pochodzenie danych bibliograficznych</summary><p class="inline-note">${row.externalRecords.length ? row.externalRecords.map((record) => `${escapeHtml(record.provider)}: ${escapeHtml(record.externalId)}`).join(', ') : 'Brak zewnętrznych rekordów bibliograficznych.'}</p></section>`;
     try { await loadSeries(); } catch (error) { /* Edytor pokaże błąd zapisu, jeśli baza jest niedostępna. */ }
     if (request !== detailRequest) return;
     mountWorkActions(row,detail);
@@ -232,7 +260,7 @@ async function openEditionDetail(id) {
         if (request === detailRequest) renderEditionRail(work, id);
       }).catch(() => { if (request === detailRequest) rail.textContent = 'Nie udało się odczytać listy wydań.'; });
     }
-    detail.innerHTML = `<section class="detail-section"><button class="link-button" id="backToWork" type="button">← Wróć do dzieła</button><div class="edition-identity">${coverPreviewMarkup(row.identifiers)}<div><h3>${escapeHtml(row.title)}</h3><p class="inline-note">${escapeHtml(row.authors?.join(', ') || 'Autor nieznany')}</p></div></div><div class="detail-grid"><span><b>ISBN</b><small>${escapeHtml(
+    detail.innerHTML = `<section class="detail-section"><button class="link-button" id="backToWork" type="button">← Wróć do dzieła</button><div class="edition-identity">${row.cover ? coverMarkup(row.cover, row.title, { size: 'lg', escapeHtml }) : coverPreviewMarkup(row.identifiers)}<div><h3>${escapeHtml(row.title)}</h3><p class="inline-note">${escapeHtml(row.authors?.join(', ') || 'Autor nieznany')}</p></div></div><div class="detail-grid"><span><b>ISBN</b><small>${escapeHtml(
       row.identifiers
         .filter((item) => item.scheme.startsWith('isbn'))
         .map((item) => item.value)

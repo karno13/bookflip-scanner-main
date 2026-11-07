@@ -53,7 +53,9 @@ export function imageFromDetailHtml(html) {
   for (const match of text.matchAll(/<meta\b([^>]*)>/gi)) {
     const attrs = match[1];
     if (!/\b(?:property|name)\s*=\s*["'](?:og:image|og:image:url|twitter:image)["']/i.test(attrs)) continue;
-    const content = attrs.match(/\bcontent\s*=\s*["']([^"']+)["']/i)?.[1];
+    // Allegro Lokalnie writes the value unquoted: content=https://a.allegroimg.com/…
+    const quoted = attrs.match(/\bcontent\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/i);
+    const content = quoted?.[1] ?? quoted?.[2] ?? quoted?.[3];
     const safe = safeImageUrl(content?.replace(/&amp;/g, '&'));
     if (safe) return safe;
   }

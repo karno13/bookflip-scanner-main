@@ -2,7 +2,7 @@ import {money,groszeToZloty,moneyFromZloty,safeOfferHref} from '../core/formatte
 import {markDirty,confirmDiscard,amountInput,readAmount,watchForm} from '../core/ux.js';
 export function mountSetTrading({active,target,json,refresh,toast,openOfferDrawer}) {
   const request=(method,path,body)=>json(path,{method,headers:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const section=document.createElement('section');section.className='set-trading';target.append(section);
+  const section=document.createElement('section');section.className='set-trading trading-only';target.append(section);
   const details=document.createElement('button');details.type='button';details.className='button secondary';details.textContent='Szczegóły oferty i decyzja zakupowa';details.addEventListener('click',()=>openOfferDrawer(active.offerId));
   const link=document.createElement('a');link.href=safeOfferHref(active.url);link.target='_blank';link.rel='noreferrer';link.className='button secondary';link.textContent='Otwórz ogłoszenie';section.append(details,link);
   const confirmation=document.createElement('label');const check=document.createElement('input');check.type='checkbox';check.checked=active.compositionConfirmed;check.disabled=Boolean(active.unknownItems?.length)||!active.editions.length;confirmation.append(check,document.createTextNode(' Potwierdzam pełny skład zestawu'));

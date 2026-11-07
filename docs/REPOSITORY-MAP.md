@@ -14,8 +14,10 @@
 | Weryfikacja (od 2026-11-07) | `title-proposals.mjs` (propozycje po tytule), `offer-enrichment.mjs` + `source-details.mjs` (dane ze strony produktu), `app/views/review.js` |
 | Katalog: dzieła i duplikaty | `work-grouping.mjs`, `app/views/duplicates.js` |
 | Skaner: harmonogram i jakość | `scan-schedule.mjs`, `offer-availability.mjs`, `app/views/scan-schedule.js` |
+| Zdjęcia i okładki | `offer-images.mjs` (walidacja URL, proxy `/api/image` z cache, `og:image`), `app/core/bibliography.js` (czyste etykiety BN, okładki) |
+| Pulpit i paleta | `catalog-insights.mjs` (`/api/catalog/insights`), `app/views/dashboard.js`, `app/views/palette.js`, `app/core/preferences.js` |
 | Trwały katalog danych / backup | `catalog-data-location.mjs`, `scripts/backup-catalog.mjs` |
-| Migracje — zachować | `migrations/001_catalog.sql` … `007_offer_sets.sql`, `099`–`107` |
+| Migracje — zachować | `migrations/001_catalog.sql` … `007_offer_sets.sql`, `099`–`108` |
 | Testy Node | `*.test.mjs`, `test/*.test.js`, `scripts/run-tests.mjs`, `.github/workflows/scanner-tests.yml` |
 | Test startu interfejsu | `scripts/browser-smoke.mjs`, `.github/workflows/browser-smoke.yml` |
 | Publiczne demo | Osobna gałąź `gh-pages` — bez produkcyjnego API |

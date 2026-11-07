@@ -58,6 +58,12 @@ zapasowej opisany poniżej. Szczegóły zmian: [Przebudowa UX/UI](docs/archive/Z
 
 **Katalog:** dodruki tej samej książki trafiają do jednego dzieła; istniejące duplikaty łączysz w panelu „Możliwe duplikaty dzieł”.
 
+**Zdjęcia i okładki:** skaner zapisuje zdjęcie ogłoszenia; starsze oferty dostają je przy pierwszym podglądzie albo kolejnym skanie. Obrazy są pobierane przez lokalny serwer i trzymane w `image-cache` obok bazy.
+
+**Weryfikacja z klawiatury:** `1`–`5` propozycja, `Enter` zatwierdź, `X` odrzuć, `S` pomiń, `Z` zestaw, `J`/`K` następna/poprzednia, `F` tryb skupienia. `Ctrl+K` otwiera paletę poleceń w całej aplikacji.
+
+**Tryb handlu** (Ustawienia → Interfejs) pokazuje statusy zakupu, ceny docelowe i koszty; domyślnie wyłączony, dopóki zbierasz dane.
+
 **Skaner:** w panelu zapisanych wyszukiwań można włączyć automatyczny skan profilu co N godzin (domyślnie wyłączony). Skuteczność każdej frazy jest w „Do weryfikacji → Ponawianie i szczegóły wyników”.
 
 Znajdowanie ISBN w źródłach zewnętrznych nie gwarantuje automatycznego przypisania. Sprzeczne lub słabe dowody nadal kierują ofertę do ręcznej weryfikacji.

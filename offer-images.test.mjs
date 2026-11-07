@@ -39,6 +39,10 @@ test('reads og:image or JSON-LD image from a detail page', () => {
     'https://dedalus.pl/img/b.jpg',
   );
   assert.equal(imageFromDetailHtml('<meta property="og:image" content="https://x.example/a.jpg">'), null);
+  assert.equal(
+    imageFromDetailHtml('<meta property="og:image" content=https://a.allegroimg.com/original/1e9edf/e29f>'),
+    'https://a.allegroimg.com/original/1e9edf/e29f',
+  );
 });
 
 test('Tezeusz card image skips the onerror placeholder', () => {

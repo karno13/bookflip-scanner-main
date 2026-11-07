@@ -18,6 +18,9 @@ import { createSettingsView } from './views/settings.js';
 import { createScannerView } from './views/scanner.js';
 import { requestScanCancellation } from './views/scanner.js';
 import { readSavedSearch, validateCatalogPage } from './frontend-utils.js';
+import { installCoverFallback, coverMarkup, tidyOfferTitle } from './core/bibliography.js';
+import { installPreferences } from './core/preferences.js';
+import { installCommandPalette } from './views/palette.js';
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -146,9 +149,9 @@ function renderScannerOffers() {
   mount.innerHTML = offers.length
     ? offers
         .map((item) => {
-          const title = item.title || item.originalTitle || 'Tytuł nieznany';
+          const title = tidyOfferTitle(item.title || item.originalTitle || 'Tytuł nieznany');
           const isbn = item.observedIsbn || item.isbn || 'ISBN nieznany';
-          return `<button class="scanner-offer-row" type="button" data-scanner-offer-id="${escapeHtml(item.id)}"><span class="book-spine" aria-hidden="true">▤</span><span class="scanner-offer-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(isbn)}</small><small>${escapeHtml(date(item.lastSeenAt))}</small></span><span class="scanner-offer-price">${money(item.currentPrice)}</span></button>`;
+          return `<button class="scanner-offer-row" type="button" data-scanner-offer-id="${escapeHtml(item.id)}">${coverMarkup(item.image, title, { size: 'sm', escapeHtml })}<span class="scanner-offer-copy"><strong>${escapeHtml(title)}</strong><small><span class="source-dot" data-source="${escapeHtml(item.source)}"></span>${escapeHtml(item.source)} · ${escapeHtml(isbn)}</small><small>${escapeHtml(date(item.lastSeenAt))}</small></span><span class="scanner-offer-price">${money(item.currentPrice)}</span></button>`;
         })
         .join('')
     : '<div class="empty-detail"><p>Brak ofert zgodnych z filtrami albo baza jest pusta.</p></div>';
@@ -954,6 +957,24 @@ void scanInsights.refresh();
 setInterval(() => { if (!document.hidden) void scanInsights.refresh(); }, 3000);
 
 installDetailNavigation();
+installCoverFallback();
+installPreferences({
+  $, $$,
+  onTradingChange: () => { renderOffers(); },
+  onCatalogViewChange: () => renderCatalog(),
+});
+$('#catalogIncompleteOnly')?.addEventListener('change', () => renderCatalog());
+installCommandPalette({
+  $, json, escapeHtml, money, showView, openOfferDrawer,
+  openWork: (id) => { if (showView('catalog')) void catalogView.openCatalogDetail(id); },
+  actions: [
+    { label: 'Rozpocznij skan', hint: 'Frazy i źródła z formularza skanera', run: () => { showView('scanner'); $('#startSearch')?.click(); } },
+    { label: 'Następna oferta do weryfikacji', hint: 'Otwiera kolejkę na pierwszej pozycji', run: () => { showView('review'); document.querySelector('#reviewList [data-review-id]')?.click(); } },
+    { label: 'Dodaj książkę do katalogu', hint: 'Przez ISBN albo ręcznie', run: () => $('#openCatalogForm')?.click() },
+    { label: 'Utwórz kopię zapasową', hint: 'Ustawienia → Dane i kopie zapasowe', run: () => { showView('settings'); $('#createBackup')?.focus(); } },
+    { label: 'Przełącz motyw', hint: 'Jasny / ciemny / systemowy', run: () => { const select = $('#prefTheme'); select.value = select.value === 'dark' ? 'light' : 'dark'; select.dispatchEvent(new Event('change')); } },
+  ],
+});
 
 document.addEventListener('bookflip-open-edition', event => {
   if (!event.detail?.editionId) return;

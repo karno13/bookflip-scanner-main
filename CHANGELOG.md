@@ -2,6 +2,17 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (2) — Zdjęcia, nowa weryfikacja i wygląd v5
+
+- **Zdjęcia ofert.** Skaner zapisuje zdjęcie z ogłoszenia (Vinted, Allegro, Allegro Lokalnie, OLX, Empik, Tezeusz.pl, Dedalus.pl); migracja 108 dodaje `offers.image_url`. Starsze oferty dostają zdjęcie przy pierwszym podglądzie (jednorazowy odczyt `og:image` strony ogłoszenia) albo przy kolejnym skanie. Obrazy idą przez lokalne `/api/image` z cache na dysku (`image-cache` w katalogu danych) i listą dozwolonych CDN — strona nadal ma `img-src 'self'`.
+- **Okładki wydań** w katalogu: zdjęcie przypisanej oferty (najpierw księgarnie), w drugiej kolejności Open Library po ISBN; zastępcza okładka z inicjałami.
+- **Weryfikacja od nowa:** duże zdjęcie z ogłoszenia obok propozycji; karty propozycji z oczyszczonym tytułem, autorem, serią i wydawcą BN oraz podświetleniem tego, czym kandydaci się różnią; stały pasek akcji; skróty jednym klawiszem (`1`–`5`, `Enter`, `X`, `S` pomiń, `Z` zestaw, `J/K`, `F` tryb skupienia, `/` szukaj); kolejka grupowana według frazy skanu (serii); pojedyncza pewna propozycja jest od razu sprawdzana (bez przypisywania).
+- **Pulpit skanera „Stan katalogu”** zamiast „Następnych kroków zakupowych”: lejek oferty → ISBN → katalog → decyzja, postęp każdej frazy/serii, jakość źródeł (ISBN, katalog, zdjęcia), kompletność wydań. Endpoint `/api/catalog/insights`.
+- **Katalog:** widok listy albo siatki okładek, filtr „Tylko niekompletne”, oczyszczone tytuły, autorzy i wydawcy z BN.
+- **Tryb handlu** (Ustawienia → Interfejs, domyślnie wyłączony) ukrywa statusy zakupu, ceny docelowe, kalkulator i koszty. Teksty interfejsu mówią o katalogu, nie o zakupach.
+- **Paleta poleceń `Ctrl+K`**: widoki, akcje, wyszukiwanie ofert i dzieł z miniaturami.
+- **Wygląd v5:** jeden arkusz `app/app.css` (scalone 5 plików), nowe tokeny, motyw jasny/ciemny/systemowy do wyboru, gęstość list, czcionki Segoe UI Variable i szeryfowe tytuły książek.
+
 ## 2026-11-07 — Skaner, katalog i weryfikacja
 
 - **BN: wszystkie formy ISBN.** Adapter pytał tylko o dokładną formę numeru, więc książki indeksowane w BN pod ISBN-10 uchodziły za nieznane. Teraz sprawdzane są obie formy. Migracja 105 usuwa stare negatywne odpowiedzi z cache i ponownie kolejkuje oferty zamknięte jako „nie znaleziono”.

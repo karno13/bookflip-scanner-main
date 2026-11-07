@@ -458,12 +458,14 @@ export function listIdentificationJobs(repository, options = {}) {
   const orderBy =
     options.sort === 'price'
       ? 'o.current_price ASC,j.id'
+      : options.sort === 'group'
+      ? "bookflip_fold(COALESCE(json_extract(o.matched_queries_json,'$[0]'),'~')),CASE p.confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,bookflip_fold(o.original_title),j.id"
       : options.sort === 'proposal'
       ? "CASE p.confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,p.best_score DESC,j.id"
       : "CASE j.status WHEN 'review_required' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,j.updated_at DESC,j.id";
   const rows = database
     .prepare(
-      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,o.availability,o.image_url,
+      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,o.availability,o.image_url,o.matched_queries_json,o.first_seen_at,
       p.confidence AS proposal_confidence,p.best_isbn AS proposal_isbn,p.best_score AS proposal_score
     FROM identification_jobs j JOIN offers o ON o.id=j.offer_id LEFT JOIN title_proposals p ON p.job_id=j.id
     ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
@@ -495,6 +497,8 @@ export function listIdentificationJobs(repository, options = {}) {
         lastSeenAt: row.last_seen_at,
         availability: row.availability,
         image: row.image_url ? proxiedImage(row.image_url) : null,
+        matchedQueries: json(row.matched_queries_json, []),
+        firstSeenAt: row.first_seen_at,
       },
     })),
   };
