@@ -201,8 +201,15 @@ function externalWork(repository, record) {
   );
 }
 
+/** BN first; Open Library when BN does not know the ISBN or is unreachable and OL has it. */
+function primarySource(result) {
+  if (result.bn?.status === 'not_found') return result.openLibrary;
+  if (result.bn?.status === 'temporary_error' && result.openLibrary?.status === 'found') return result.openLibrary;
+  return result.bn;
+}
+
 function mergeRecords(result) {
-  const source = result.bn?.status === 'not_found' ? result.openLibrary : result.bn;
+  const source = primarySource(result);
   const records = source?.status === 'found' ? source.records ?? [] : [];
   return records.length === 1 ? { record: records[0], records } : null;
 }
@@ -330,7 +337,10 @@ export class CatalogResolver {
         workExternalId: record.workExternalId,
         payloadHash: record.payloadHash,
       }));
-    const source = metadata.bn?.status === 'not_found' ? metadata.openLibrary : metadata.bn;
+    proof.bnStatus = metadata.bn?.status ?? null;
+    if (metadata.bn?.status === 'temporary_error')
+      proof.bnError = metadata.bn.error?.code || metadata.bn.error?.message || (metadata.bn.httpStatus ? `HTTP ${metadata.bn.httpStatus}` : null);
+    const source = primarySource(metadata);
     if (source?.status === 'temporary_error')
       return decision('retry_pending', ['metadata_source_temporary_error'], proof);
     if (source?.status === 'not_found')

@@ -82,6 +82,23 @@ export function installDashboard({ state, showView }) {
     `<span class="mini-bar${tone ? ' is-' + tone : ''}" data-pct="${Math.max(0, Math.min(100, Math.round(value / 5) * 5))}"><i></i></span>`;
   const rate = (value) => `${String(value).replace('.', ',')}%`;
 
+  // Why the automatic queue does not move: BN is down. Told plainly, with what the app does about it.
+  const outageReasons = {
+    CERT_HAS_EXPIRED: 'serwer BN ma wygasły certyfikat bezpieczeństwa',
+    CERT_NOT_YET_VALID: 'serwer BN ma nieważny certyfikat',
+    ENOTFOUND: 'brak połączenia z BN (DNS)',
+    EAI_AGAIN: 'brak połączenia z BN (DNS)',
+    ECONNREFUSED: 'serwer BN odrzuca połączenia',
+    ECONNRESET: 'serwer BN zrywa połączenia',
+    ETIMEDOUT: 'serwer BN nie odpowiada',
+  };
+  function outageMarkup(outage) {
+    if (!outage) return '';
+    const reason = outageReasons[outage.reason] || (/^HTTP \d+/.test(outage.reason || '') ? `błąd serwera BN (${outage.reason})` : 'serwer BN nie odpowiada');
+    const next = Date.parse(outage.nextRun) > Date.now() ? new Date(outage.nextRun).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : null;
+    return `<div class="insight-alert" role="status"><strong>Biblioteka Narodowa niedostępna — ${escapeHtml(reason)}.</strong> ${outage.waiting} ${outage.waiting === 1 ? 'oferta z ISBN czeka' : 'ofert z ISBN czeka'} na rozpoznanie. Aplikacja ponawia coraz rzadziej (najwyżej co godzinę${next ? `, następna próba ok. ${next}` : ''}), korzysta zastępczo z Open Library i ruszy sama, gdy BN odpowie. To problem po stronie BN — nic nie trzeba robić.</div>`;
+  }
+
   async function refresh() {
     let data;
     try {
@@ -98,7 +115,7 @@ export function installDashboard({ state, showView }) {
       ['Czeka na decyzję', f.review, 'review', `${f.queued} w kolejce automatu`],
     ];
     const top = Math.max(1, f.offers);
-    panel.innerHTML = `
+    panel.innerHTML = `${outageMarkup(data.outage)}
       <div class="insight-head">
         <div><p class="section-eyebrow">STAN KATALOGU</p><h3>Od oferty do rozpoznanego wydania</h3></div>
         <button type="button" class="button primary compact" data-go="review">Weryfikuj ${f.review ? `(${f.review})` : ''}</button>

@@ -81,7 +81,9 @@ function temporaryNetworkError(error) {
 }
 
 function errorDetails(error) {
-  return { name: error?.name ?? 'Error', message: error?.message ?? String(error) };
+  // The cause code tells an outage (ECONNRESET) from a broken server (CERT_HAS_EXPIRED).
+  const code = error?.cause?.code || error?.code;
+  return { name: error?.name ?? 'Error', message: error?.message ?? String(error), ...(code ? { code: String(code) } : {}) };
 }
 
 export function createJsonRequester({

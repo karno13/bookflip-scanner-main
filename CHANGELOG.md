@@ -2,6 +2,14 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (7) — Kolejka identyfikacji przy awarii BN
+
+- **Przyczyna zatoru:** serwer `data.bn.org.pl` ma wygasły certyfikat TLS (`CERT_HAS_EXPIRED`), więc każde zapytanie do BN kończy się błędem. Weryfikacja certyfikatu nie jest wyłączana.
+- **Nowe oferty przed zaległymi:** zadania były brane według daty utworzenia, a ~120 ponowień co 5 minut zajmowało całą przepustowość — 104 nowe pozycje nie zostały ani razu sprawdzone. Teraz najpierw idą zadania z najmniejszą liczbą prób.
+- **Coraz rzadsze ponowienia:** 5, 10, 20, 40 min, potem co godzinę (zamiast co 5 min w nieskończoność). Gdy BN znów odpowie na którekolwiek zapytanie, czekające zadania ruszają od razu.
+- **Open Library zastępczo:** gdy BN jest niedostępna, a Open Library zna ISBN, rozpoznanie idzie z jej danych (wcześniej OL pytano tylko, gdy BN nie znała numeru).
+- **Pulpit:** komunikat „Biblioteka Narodowa niedostępna — <przyczyna>” z liczbą czekających ofert i tym, co aplikacja z tym robi. Przyczyna błędu sieci (kod `CERT_HAS_EXPIRED`, `ECONNRESET`, HTTP 503…) jest zapisywana w wyniku zadania.
+
 ## 2026-11-07 (6) — Zgodność ISBN z tytułem, braki w seriach
 
 - **ISBN innej książki nie trafia już do katalogu.** Jeśli tytuł ogłoszenia nie ma ani jednego wspólnego słowa z rekordem dla podanego ISBN (tytuł, seria, uniwersum, nazwisko autora; „Świat Dysku” = „Discworld”, odmiana po rdzeniu), resolver zostawia ofertę w weryfikacji z powodem `isbn_title_mismatch` zamiast przypisać ją lub tworzyć nowe dzieło. Ogólne ogłoszenia („Książka Warcraft”) dalej przechodzą. ISBN wpisany lub sprawdzony ręcznie w weryfikacji nie podlega tej kontroli. W kolejce: etykieta „ISBN innej książki?” i ostrzeżenie nad propozycjami.

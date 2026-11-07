@@ -4,7 +4,7 @@ import { lookupISBN } from './metadata-lookup.mjs';
 import { findTitleIsbnCandidates } from './catalog-title-isbn.mjs';
 
 for (const status of ['found', 'temporary_error', 'invalid_response', 'not_found']) {
-  test(`BN ${status}: Open Library is called only after absence`, async () => {
+  test(`BN ${status}: Open Library is called only after absence or outage`, async () => {
     const calls = [];
     const result = await lookupISBN('9780306406157', {
       bnAdapter: { source: 'bn', lookup: async () => {
@@ -16,8 +16,9 @@ for (const status of ['found', 'temporary_error', 'invalid_response', 'not_found
         return { status: 'not_found', records: [] };
       } },
     });
-    assert.deepEqual(calls, status === 'not_found' ? ['bn', 'ol'] : ['bn']);
-    assert.equal(result.openLibrary.status, status === 'not_found' ? 'not_found' : 'skipped');
+    const fallback = ['not_found', 'temporary_error'].includes(status);
+    assert.deepEqual(calls, fallback ? ['bn', 'ol'] : ['bn']);
+    assert.equal(result.openLibrary.status, fallback ? 'not_found' : 'skipped');
   });
 }
 

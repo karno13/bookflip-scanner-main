@@ -31,7 +31,8 @@ export function claimIdentificationJob(
       SELECT id FROM identification_jobs
       WHERE ((status IN ('queued','retry_wait') AND (run_after IS NULL OR run_after<=?))
         OR (status='running' AND lease_expires_at<=?))
-      ORDER BY created_at,id LIMIT 1
+      -- Fresh jobs first: a long retry backlog (source down) must not starve new offers.
+      ORDER BY attempt_count,created_at,id LIMIT 1
     ) RETURNING *`,
         )
         .get(leaseToken, leaseExpiresAt, at, at, at) ?? null,
@@ -53,6 +54,7 @@ export class IdentificationWorker {
     now = () => new Date(),
     leaseMs = 60_000,
     retryDelayMs = 5 * 60_000,
+    maxRetryDelayMs = 60 * 60_000,
     maxAttempts = 5,
   } = {}) {
     if (!repository || !resolver) throw new TypeError('repository and resolver are required');
@@ -61,6 +63,7 @@ export class IdentificationWorker {
     this.now = now;
     this.leaseMs = leaseMs;
     this.retryDelayMs = retryDelayMs;
+    this.maxRetryDelayMs = Math.max(retryDelayMs, maxRetryDelayMs);
     this.maxAttempts = maxAttempts;
   }
 
@@ -79,8 +82,11 @@ export class IdentificationWorker {
       const result = await this.resolver.resolve({ offerId: job.offer_id });
       const status = DECISION_TO_JOB_STATUS[result.decision] ?? 'failed';
       const now = this.now();
-      const runAfter =
-        status === 'retry_wait' ? new Date(now.getTime() + this.retryDelayMs).toISOString() : null;
+      // A source that keeps failing (e.g. BN with an expired certificate) is asked less and less
+      // often: 5, 10, 20, 40 min, then hourly. When it answers again the backlog is woken up below.
+      const attempts = Math.max(1, Number(job.attempt_count) || 1);
+      const delay = Math.min(this.retryDelayMs * 2 ** Math.min(attempts - 1, 20), this.maxRetryDelayMs);
+      const runAfter = status === 'retry_wait' ? new Date(now.getTime() + delay).toISOString() : null;
       const saved = this.repository.database
         .prepare(
           `UPDATE identification_jobs
@@ -97,6 +103,13 @@ export class IdentificationWorker {
           job.lease_token,
         );
       if (Number(saved.changes) !== 1) throw new Error('JOB_LEASE_LOST');
+      if (['found', 'not_found'].includes(result.evidence?.bnStatus))
+        // BN answered: jobs that were waiting out its outage can run now.
+        this.repository.database
+          .prepare(
+            "UPDATE identification_jobs SET run_after=? WHERE status='retry_wait' AND last_error='METADATA_TEMPORARY_ERROR' AND run_after>?",
+          )
+          .run(now.toISOString(), now.toISOString());
       return {
         job: this.repository.database
           .prepare('SELECT * FROM identification_jobs WHERE id=?')

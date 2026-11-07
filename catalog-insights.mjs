@@ -119,5 +119,18 @@ export function catalogInsights(repository) {
     .slice(0, 12)
     .map((item) => ({ ...item, matchRate: pct(item.matched, item.offers) }));
 
-  return { funnel, sources, completeness, series, generatedAt: new Date().toISOString() };
+  // Jobs waiting out a metadata outage, with the latest reason BN gave (expired certificate, HTTP 503…).
+  const waiting = db
+    .prepare(
+      `SELECT count(*) AS n, min(run_after) AS nextRun,
+         (SELECT json_extract(result_json,'$.evidence.bnError') FROM identification_jobs
+            WHERE status='retry_wait' AND json_extract(result_json,'$.evidence.bnError') IS NOT NULL
+            ORDER BY updated_at DESC LIMIT 1) AS reason
+       FROM identification_jobs WHERE status='retry_wait' AND last_error='METADATA_TEMPORARY_ERROR'`,
+    )
+    .get();
+  const outage = Number(waiting.n)
+    ? { source: 'BN', waiting: Number(waiting.n), reason: waiting.reason || null, nextRun: waiting.nextRun }
+    : null;
+  return { funnel, sources, completeness, series, outage, generatedAt: new Date().toISOString() };
 }
