@@ -539,12 +539,16 @@ async function enrichPendingOffers(catalogStore) {
 // Title proposals call the national catalogue (rate limited), so they run beside the resolver
 // in small batches and never delay it.
 let runningProposals = null;
+let proposalsPausedUntil = 0;
 function scheduleProposalRefresh(catalogStore) {
   if (runningProposals || String(process.env.BOOKFLIP_DETAIL_ENRICHMENT ?? '1') === '0') return;
+  if (Date.now() < proposalsPausedUntil) return;
   if (typeof catalogStore.findIsbnsByTitle !== 'function' || !catalogStore.repository?.database) return;
   runningProposals = refreshProposals(catalogStore, { limit: 4 })
     .then((report) => {
       if (report.computed) recordProgress({ type: 'title_proposals', ...report });
+      // The national catalogue is down or throttling: do not retry every few seconds.
+      if (report.unavailable) proposalsPausedUntil = Date.now() + 10 * 60_000;
     })
     .catch((error) =>
       recordProgress({ type: 'title_proposals_error', code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'PROPOSAL_ERROR' }),
