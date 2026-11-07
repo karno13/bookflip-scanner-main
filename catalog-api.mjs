@@ -472,6 +472,7 @@ export function listIdentificationJobs(repository, options = {}) {
     ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     )
     .all(...params, limit, offset);
+  const matcher = rows.some((row) => !row.observed_isbn) ? createLocalWorkMatcher(repository) : null;
   return {
     total,
     limit,
@@ -479,6 +480,11 @@ export function listIdentificationJobs(repository, options = {}) {
     items: rows.map((row) => ({
       id: row.id,
       offerId: row.offer_id,
+      catalogMatch: (() => {
+        if (row.observed_isbn || row.status !== 'review_required' || !matcher) return null;
+        const best = matcher(row.original_title, { limit: 1 })[0];
+        return best ? { workId: best.work.id, title: best.work.title, score: best.score } : null;
+      })(),
       status: row.status,
       attemptCount: row.attempt_count,
       lastError: row.last_error,
@@ -680,24 +686,48 @@ export function decideIdentificationJob(
  * so offers without ISBN that are reprints of known books get a one-key proposal even when BN is
  * slow. Advice only: the operator still approves the chosen edition.
  */
-export function localEditionCandidates(repository, offerTitle, { limit = 4, minScore = 0.6 } = {}) {
-  const { database } = repository;
-  const works = database.prepare('SELECT id, title, authors_json FROM works').all();
-  const offerWords = new Set(titleTokens(offerTitle, { dropBrand: true }));
-  // Universe names ("World of Warcraft", "Warhammer") are on every cover: the work's own words must match.
-  const ownWordsMatch = (title) => {
-    const own = titleTokens(String(title).split(' / ')[0], { dropBrand: true });
-    return own.length > 0 && own.filter((word) => offerWords.has(word)).length / own.length >= 0.6;
+/**
+ * Title matcher over the live (not merged) works, built once per request. Universe names
+ * ("World of Warcraft", "Warhammer") are on every cover, so the work's own words must match;
+ * an inverted index keeps it fast when the catalogue grows.
+ */
+export function createLocalWorkMatcher(repository) {
+  const works = repository.database
+    .prepare(
+      'SELECT id, title, authors_json FROM works w WHERE NOT EXISTS (SELECT 1 FROM catalog_work_merges x WHERE x.source_id=w.id)',
+    )
+    .all()
+    .map((work) => ({
+      work,
+      authors: json(work.authors_json, []),
+      own: titleTokens(String(work.title).split(' / ')[0], { dropBrand: true }),
+    }))
+    .filter((item) => item.own.length);
+  const index = new Map();
+  for (const item of works)
+    for (const word of item.own) {
+      if (!index.has(word)) index.set(word, []);
+      index.get(word).push(item);
+    }
+  return (offerTitle, { limit = 4, minScore = 0.6 } = {}) => {
+    const offerWords = new Set(titleTokens(offerTitle, { dropBrand: true }));
+    const pool = new Set([...offerWords].flatMap((word) => index.get(word) || []));
+    return [...pool]
+      .filter((item) => item.own.filter((word) => offerWords.has(word)).length / item.own.length >= 0.6)
+      .map((item) => ({
+        work: item.work,
+        authors: item.authors,
+        score: scoreCandidate(offerTitle, { title: item.work.title, authors: item.authors }),
+      }))
+      .filter((item) => item.score >= minScore)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
   };
-  const scored = works
-    .filter((work) => ownWordsMatch(work.title))
-    .map((work) => {
-      const authors = JSON.parse(work.authors_json || '[]');
-      return { work, authors, score: scoreCandidate(offerTitle, { title: work.title, authors }) };
-    })
-    .filter((item) => item.score >= minScore)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+}
+
+export function localEditionCandidates(repository, offerTitle, { limit = 4, minScore = 0.6, matcher } = {}) {
+  const { database } = repository;
+  const scored = (matcher || createLocalWorkMatcher(repository))(offerTitle, { limit, minScore });
   if (!scored.length) return [];
   const editions = database
     .prepare(

@@ -5,6 +5,7 @@ BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track 
 ## 2026-11-07 (4) — Propozycje z własnego katalogu
 
 - **„Już w Twoim katalogu”** w weryfikacji ofert bez ISBN: wydania dzieł, które już są w katalogu i pasują tytułem, pojawiają się od razu (bez BN, bez sieci), nad propozycjami z BN / Open Library. Wybór klawiszem `1`–`9` wskazuje wydanie, `Enter` przypisuje. Nazwy uniwersów („World of Warcraft”, „Warhammer”) nie wystarczą do dopasowania — muszą się zgadzać słowa samego tytułu. Najpierw polskie wydania i te z największą liczbą ofert. Endpoint `GET /api/identification-jobs/:id/local-candidates`. Na obecnej bazie dotyczy 53 z 257 ofert bez ISBN.
+- **Kolejka:** pozycje bez ISBN pasujące do dzieła z katalogu mają etykietę „jest w katalogu”, są pierwsze w swojej grupie, a filtr „Pasuje do katalogu” pokazuje tylko je (najszybsze decyzje: `1` + `Enter`). Sortowanie „Najpewniejsze propozycje” nazywa się teraz „Najszybsze decyzje”.
 - **Duplikaty dzieł:** przedrostek uniwersum na okładce („World of Warcraft: Illidan” vs „Illidan / World of Warcraft”) nie rozdziela już dzieła — panel „Możliwe duplikaty dzieł” pokazuje takie pary (autor nadal musi się zgadzać), a nowe wydania trafiają do istniejącego dzieła.
 
 ## 2026-11-07 (3) — Uzupełnianie zdjęć i telefon

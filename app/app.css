@@ -3074,3 +3074,7 @@ body[data-catalog-view='grid'] #view-catalog .catalog-table-header {
 .rv-external-cands:empty {
   display: none;
 }
+.proposal-chip.is-catalog {
+  background: var(--brand-soft);
+  color: var(--brand);
+}

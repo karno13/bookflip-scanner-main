@@ -18,21 +18,21 @@ function filteredReviewOffers() {
           .toLocaleLowerCase('pl')
           .includes(query)) &&
       (!source || offer.source === source) &&
-      (!isbn || (isbn === 'present') === Boolean(offer.observedIsbn))
+      (!isbn || (isbn === 'catalog' ? Boolean(job.catalogMatch) : (isbn === 'present') === Boolean(offer.observedIsbn)))
     );
   });
   if ($('#reviewSort').value === 'group')
     return rows.sort(
       (a, b) =>
         groupSortKey(a).localeCompare(groupSortKey(b), 'pl') ||
-        (confidenceRank[a.proposal?.confidence] ?? 3) - (confidenceRank[b.proposal?.confidence] ?? 3) ||
+        quickRank(a) - quickRank(b) ||
         String(a.offer.title).localeCompare(String(b.offer.title), 'pl'),
     );
   if ($('#reviewSort').value === 'proposal')
     return rows.sort(
       (a, b) =>
-        (confidenceRank[a.proposal?.confidence] ?? 3) - (confidenceRank[b.proposal?.confidence] ?? 3) ||
-        (b.proposal?.score ?? 0) - (a.proposal?.score ?? 0),
+        quickRank(a) - quickRank(b) ||
+        (b.catalogMatch?.score ?? b.proposal?.score ?? 0) - (a.catalogMatch?.score ?? a.proposal?.score ?? 0),
     );
   return rows.sort((a, b) =>
     $('#reviewSort').value === 'price'
@@ -75,7 +75,10 @@ function reviewGroup(job) {
 }
 const groupSortKey = (job) => (job.offer?.matchedQueries?.[0] ? reviewGroup(job) : '￿');
 state.skippedReviewIds ??= new Set();
+/** Catalogue match first (one key + Enter), then BN proposals by confidence. */
+const quickRank = (job) => (job.catalogMatch ? -1 : (confidenceRank[job.proposal?.confidence] ?? 3));
 function proposalChip(job) {
+  if (job.catalogMatch) return ' · <span class="proposal-chip is-catalog">jest w katalogu</span>';
   const label = proposalLabels[job.proposal?.confidence];
   return label ? ` · <span class="proposal-chip is-${job.proposal.confidence}">${label}</span>` : '';
 }

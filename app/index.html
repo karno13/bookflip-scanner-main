@@ -4,7 +4,7 @@
   <meta charset=utf-8>
   <meta name=viewport content=width=device-width,initial-scale=1>
   <title>BookFlip — skaner i katalog książek</title>
-  <link rel=stylesheet href=/app.css?v=14>
+  <link rel=stylesheet href=/app.css?v=15>
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Przejdź do treści</a>
@@ -97,10 +97,10 @@
             </details>
           </section>
           <div class="filterbar">
-            <label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="reviewSearch" type="search" placeholder="Szukaj po tytule, źródle lub ISBN"></label><p class="shortcut-hint" id="reviewShortcutHint"><span><kbd>↑</kbd><kbd>↓</kbd> oferta</span><span><kbd>1</kbd>–<kbd>5</kbd> propozycja</span><span><kbd>Enter</kbd> zatwierdź</span><span><kbd>X</kbd> odrzuć</span><span><kbd>S</kbd> pomiń</span><span><kbd>Z</kbd> zestaw</span><span><kbd>F</kbd> skupienie</span></p></div><details class="compact-filters"><summary>Filtry weryfikacji</summary><div class="filterbar">
+            <label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="reviewSearch" type="search" placeholder="Szukaj po tytule, źródle lub ISBN"></label><p class="shortcut-hint" id="reviewShortcutHint"><span><kbd>↑</kbd><kbd>↓</kbd> oferta</span><span><kbd>1</kbd>–<kbd>9</kbd> propozycja</span><span><kbd>Enter</kbd> zatwierdź</span><span><kbd>X</kbd> odrzuć</span><span><kbd>S</kbd> pomiń</span><span><kbd>Z</kbd> zestaw</span><span><kbd>F</kbd> skupienie</span></p></div><details class="compact-filters"><summary>Filtry weryfikacji</summary><div class="filterbar">
             <select id="reviewSource" aria-label="Źródło oferty"><option value="">Wszystkie źródła</option></select>
-            <select id="reviewIsbn" aria-label="Status ISBN"><option value="">Każdy status ISBN</option><option value="present">ISBN wykryty</option><option value="missing">Brak ISBN</option></select>
-            <select id="reviewSort" aria-label="Sortowanie"><option value="group" selected>Według frazy (serie)</option><option value="newest">Najnowsze</option><option value="price">Cena rosnąco</option><option value="proposal">Najpewniejsze propozycje</option></select>
+            <select id="reviewIsbn" aria-label="Status ISBN"><option value="">Każdy status ISBN</option><option value="present">ISBN wykryty</option><option value="missing">Brak ISBN</option><option value="catalog">Pasuje do katalogu</option></select>
+            <select id="reviewSort" aria-label="Sortowanie"><option value="group" selected>Według frazy (serie)</option><option value="newest">Najnowsze</option><option value="price">Cena rosnąco</option><option value="proposal">Najszybsze decyzje</option></select>
           </div></details>
           <p id="reviewScanScope" role="status" hidden></p><details class="review-history"><summary>Ostatnie decyzje i poprawianie pomyłek</summary><div id="reviewDecisionHistory"></div></details>
           <div class="split-workspace">
