@@ -552,3 +552,25 @@ test('review ISBN preview accepts matching ISBN despite different offer metadata
     repository.close();
   }
 });
+
+test('a BN-only reprint of a known book joins the existing work instead of creating a new one', async () => {
+  const repository = new SqliteCatalogRepository(':memory:');
+  try {
+    // BN carries no work identifier, so only title + first author can tell it is the same book.
+    const bnOnly = async (isbn) => ({
+      ...(await lookupFor()(isbn)),
+      openLibrary: { source: 'open_library', status: 'not_found', records: [] },
+    });
+    const resolver = new CatalogResolver({ repository, lookupMetadata: bnOnly });
+    const first = await resolver.resolve({ offerId: offer(repository, { id: 'p1', isbn: ISBN_A }).id });
+    const second = await resolver.resolve({ offerId: offer(repository, { id: 'p2', isbn: ISBN_B }).id });
+    assert.equal(first.decision, 'created_work_and_edition');
+    assert.equal(second.decision, 'created_edition');
+    assert.ok(second.reason.includes('same_title_and_author_work'));
+    assert.equal(second.workId, first.workId);
+    assert.equal(repository.counts().works, 1);
+    assert.equal(repository.counts().editions, 2);
+  } finally {
+    repository.close();
+  }
+});

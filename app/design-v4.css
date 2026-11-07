@@ -1297,3 +1297,14 @@ kbd {
 .proposal-list b { overflow-wrap: anywhere; }
 .proposal-list small { color: var(--muted); }
 .proposal-list .button { flex: none; min-height: 44px; }
+
+/* 15. Duplikaty dzieł w katalogu */
+.catalog-duplicates { margin: 0 0 12px; }
+.catalog-duplicates > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.duplicate-group { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.duplicate-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-width: 0; }
+.duplicate-group li { display: grid; gap: 1px; overflow-wrap: anywhere; }
+.duplicate-group li small { color: var(--muted); }
+.duplicate-group li.is-target span { font-weight: 600; }
+.duplicate-group .button { flex: none; min-height: 44px; }
+@media (max-width: 600px) { .duplicate-group { flex-direction: column; align-items: stretch; } }

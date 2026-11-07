@@ -642,7 +642,7 @@ export function createLocalAppServer({
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
       if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
-          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works') {
+          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/work-duplicates(?:\/merge)?$/.test(url.pathname)) {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
         const data = await tradingRoute({repo:catalog.repository,method:request.method,path:url.pathname,

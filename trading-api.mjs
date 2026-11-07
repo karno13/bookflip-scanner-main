@@ -3,6 +3,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { backupCatalog } from './scripts/backup-catalog.mjs';
 
+import { findDuplicateWorkGroups } from './work-grouping.mjs';
 function fail(code, statusCode = 400) { throw Object.assign(Error(code), { statusCode }); }
 export function amount(value) {
   if (value === null) return null;
@@ -99,11 +100,29 @@ export function mergeCatalogWorks(repo,sourceId,targetId,confirm=false) {
     if(oldSeries&&!newSeries) db.prepare('INSERT INTO work_series_annotations VALUES(?,?,?,?)').run(targetId,oldSeries.series,oldSeries.volume,new Date().toISOString());
     db.prepare('DELETE FROM work_series_annotations WHERE work_id=?').run(sourceId);
     db.prepare('UPDATE editions SET work_id=?,updated_at=? WHERE work_id=?').run(targetId,new Date().toISOString(),sourceId);
-    db.prepare('UPDATE external_records SET work_id=? WHERE work_id=?').run(targetId,sourceId);
+    // external_records are immutable (a trigger refuses updates). Work-level links are re-pointed
+    // by adding links for the target; the originals stay as history.
+    db.prepare('INSERT OR IGNORE INTO external_record_links(external_record_id,work_id,edition_id,linked_at) SELECT external_record_id,?,NULL,? FROM external_record_links WHERE work_id=? AND edition_id IS NULL').run(targetId,new Date().toISOString(),sourceId);
     // Keep historical external links and decisions intact. The alias resolves old links.
     db.prepare('INSERT INTO catalog_work_merges VALUES(?,?,?)').run(sourceId,targetId,new Date().toISOString());
     return {...summary,merged:true};
   });
+}
+export function listWorkDuplicates(repo) {
+  return { groups: findDuplicateWorkGroups(repo) };
+}
+/** Merges every source work of a group into its target; each merge keeps the existing safeguards. */
+export function mergeWorkGroup(repo, targetId, sourceIds) {
+  if (!Array.isArray(sourceIds) || !sourceIds.length || sourceIds.length > 50) fail('INVALID_CATALOG_FIELDS');
+  const group = findDuplicateWorkGroups(repo).find(
+    (item) => item.targetId === targetId || item.works.some((work) => work.id === targetId),
+  );
+  // Only works that the strict key considers the same book may be merged through this shortcut.
+  const allowed = new Set(group?.works.map((work) => work.id) ?? []);
+  if (!allowed.has(targetId) || sourceIds.some((id) => !allowed.has(id) || id === targetId)) fail('NOT_A_DUPLICATE_GROUP', 409);
+  return repo.transaction(() => ({
+    merged: sourceIds.map((id) => mergeCatalogWorks(repo, id, targetId, true)),
+  }));
 }
 export async function dataOverview(repo) {
   if(repo.path===':memory:') return { databasePath:':memory:',backups:[],lastBackupAt:null };
@@ -167,6 +186,8 @@ export async function tradingRoute({repo,method,path,input}) {
   if(work&&method==='PUT') return editCatalogWork(repo,decodeURIComponent(work[1]),input);
   const edition=path.match(/^\/api\/catalog\/editions\/([^/]+)$/);
   if(edition&&method==='PUT') return editCatalogEdition(repo,decodeURIComponent(edition[1]),input);
+  if(path==='/api/catalog/work-duplicates'&&method==='GET') return listWorkDuplicates(repo);
+  if(path==='/api/catalog/work-duplicates/merge'&&method==='POST') return mergeWorkGroup(repo,input?.targetId,input?.sourceIds);
   if(path==='/api/catalog/merge-works'&&method==='POST') return mergeCatalogWorks(repo,input?.sourceId,input?.targetId,input?.confirm===true);
   if(path==='/api/data/overview'&&method==='GET') return dataOverview(repo);
   if(path==='/api/data/backup'&&method==='POST') {

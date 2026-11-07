@@ -4,6 +4,7 @@ import { extractOfferISBN } from './isbn.mjs';
 import { isbnKeys, normalizeISBN } from './isbn-normalization.mjs';
 import { persistMetadataResults } from './metadata-lookup.mjs';
 
+import { findWorkByKey } from './work-grouping.mjs';
 const TRUSTED = new Set(['structured', 'labelled_description']);
 const REVIEW_ONLY = new Set(['unlabelled_description', 'ocr', 'uncertain', 'legacy']);
 
@@ -421,18 +422,29 @@ export class CatalogResolver {
       this.repository,
       selected.records.find((record) => record.workExternalId),
     );
+    // BN has no work identifier: a reprint of a known book (same title and first author) joins
+    // the existing work instead of creating a new one.
+    const sameBook = existingWork
+      ? null
+      : findWorkByKey(this.repository, selected.record.title, selected.record.authors);
+    const reuseWork = existingWork ?? sameBook;
     const workId =
-      existingWork?.id ?? stableId('resolver_work', selected.record.workExternalId ?? isbn);
+      reuseWork?.id ?? stableId('resolver_work', selected.record.workExternalId ?? isbn);
     const editionId = stableId(
       'resolver_edition',
       isbnKeys(isbn).find((key) => key.length === 13) ?? isbn,
     );
-    const type = existingWork ? 'created_edition' : 'created_work_and_edition';
+    const type = reuseWork ? 'created_edition' : 'created_work_and_edition';
+    const workReason = existingWork
+      ? 'external_work_exists'
+      : sameBook
+        ? 'same_title_and_author_work'
+        : null;
     if (dryRun)
       return decision(
         type,
         [
-          existingWork ? 'external_work_exists' : 'no_external_work_match',
+          workReason ?? 'no_external_work_match',
           'metadata_and_offer_context_match',
         ],
         proof,
@@ -453,7 +465,7 @@ export class CatalogResolver {
       if (concurrent)
         return this.#matchExisting(concurrent, currentOffer, offerId, isbnEvidence, proof, false);
       const work =
-        existingWork ??
+        reuseWork ??
         this.repository.createWork({
           id: workId,
           title: selected.record.title,
@@ -531,7 +543,7 @@ export class CatalogResolver {
       return decision(
         type,
         [
-          existingWork ? 'external_work_exists' : 'new_external_work',
+          workReason ?? 'new_external_work',
           'metadata_and_offer_context_match',
         ],
         proof,
