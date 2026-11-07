@@ -3022,3 +3022,44 @@ body[data-catalog-view='grid'] #view-catalog .catalog-table-header {
   background: transparent;
   box-shadow: none;
 }
+
+/* v5.21 — photo backfill row on the insight board */
+.insight-board .photo-backfill {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line, rgba(127, 127, 127, 0.3));
+  border-radius: 10px;
+}
+.insight-board .photo-backfill .inline-note { margin: 0; }
+.insight-board .photo-backfill .mini-bar { grid-column: 1 / -1; grid-row: 2; }
+.insight-board .photo-backfill .button { grid-column: 2; grid-row: 1; }
+
+/* v5.22 — phone fixes: keyboard hints are useless on touch, quality table fits 390px */
+@media (max-width: 900px), (hover: none) {
+  #view-review .shortcut-hint {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .source-quality th,
+  .source-quality td {
+    padding: 6px 4px;
+    font-size: 12px;
+  }
+  .source-quality thead th {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+  .insight-board .photo-backfill {
+    grid-template-columns: 1fr;
+  }
+  .insight-board .photo-backfill .button {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: start;
+  }
+}

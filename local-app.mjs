@@ -46,9 +46,10 @@ import {
   persistSqliteScan,
 } from './sqlite-single-store.mjs';
 import { createIdentificationScheduler } from './identification-scheduler.mjs';
-import { fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
+import { createImageBackfill, fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
 import { catalogInsights } from './catalog-insights.mjs';
 
+let imageBackfill = null;
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -673,6 +674,16 @@ export function createLocalAppServer({
         if (!imageUrl) return send(response, 404, JSON.stringify({ error: 'IMAGE_NOT_FOUND' }));
         response.writeHead(302, { Location: proxiedImage(imageUrl), 'Cache-Control': 'no-store' });
         return response.end();
+      }
+      if (url.pathname === '/api/images/backfill' || url.pathname === '/api/images/backfill/cancel') {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        imageBackfill ||= createImageBackfill(catalog.repository);
+        if (request.method === 'GET' && url.pathname === '/api/images/backfill')
+          return send(response, 200, JSON.stringify(imageBackfill.status()));
+        if (request.method === 'POST')
+          return send(response, 202, JSON.stringify(url.pathname.endsWith('/cancel') ? imageBackfill.cancel() : imageBackfill.start()));
+        return send(response, 405, JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
       }
       if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|scan-queries|scan-schedule|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
           (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/work-duplicates(?:\/merge)?$/.test(url.pathname)) {

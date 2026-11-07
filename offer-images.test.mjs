@@ -9,6 +9,7 @@ import {
   imageFromDetailHtml,
   fetchCachedImage,
   offerImageUrl,
+  createImageBackfill,
 } from './offer-images.mjs';
 import { parseMarketplace } from './marketplaces.mjs';
 import { SqliteCatalogRepository } from './sqlite-catalog-repository.mjs';
@@ -96,6 +97,59 @@ test('stores scanned image and backfills a missing one from the listing page onc
     assert.equal(await offerImageUrl(repository, bare.id, { readHtml }), 'https://ireland.apollo.olxcdn.com/v1/files/a/image');
     assert.equal(await offerImageUrl(repository, bare.id, { readHtml }), 'https://ireland.apollo.olxcdn.com/v1/files/a/image');
     assert.equal(reads, 1);
+  } finally {
+    repository.close?.();
+  }
+});
+
+test('background backfill fills photos and gives up on a blocked source', async () => {
+  const repository = new SqliteCatalogRepository(':memory:');
+  try {
+    for (let i = 0; i < 3; i++)
+      repository.upsertOffer({ source: 'Vinted', normalizedUrl: `https://www.vinted.pl/items/${i}`, originalTitle: 'v' + i, currentPrice: 100 });
+    for (let i = 0; i < 6; i++)
+      repository.upsertOffer({ source: 'OLX', normalizedUrl: `https://www.olx.pl/d/oferta/${i}`, originalTitle: 'o' + i, currentPrice: 100 });
+    const reads = { Vinted: 0, OLX: 0 };
+    const backfill = createImageBackfill(repository, {
+      readHtml: async (url, source) => {
+        reads[source]++;
+        if (source === 'OLX') throw Error('HTTP_403');
+        return `<meta property="og:image" content="https://images1.vinted.net/t/${url.split('/').pop()}.webp">`;
+      },
+    });
+    assert.equal(backfill.start().state, 'running');
+    while (backfill.status().state === 'running') await new Promise((resolve) => setTimeout(resolve, 5));
+    const status = backfill.status();
+    assert.equal(status.filled, 3);
+    assert.equal(reads.OLX, 3);
+    assert.deepEqual(status.skippedSources, ['OLX']);
+    assert.equal(status.done, status.total);
+  } finally {
+    repository.close?.();
+  }
+});
+
+test('backfill waits on HTTP 429 and retries the same offer instead of skipping the source', async () => {
+  const repository = new SqliteCatalogRepository(':memory:');
+  try {
+    for (let i = 0; i < 4; i++)
+      repository.upsertOffer({ source: 'OLX', normalizedUrl: `https://www.olx.pl/d/oferta/${i}`, originalTitle: 'o' + i, currentPrice: 100 });
+    let calls = 0;
+    const backfill = createImageBackfill(repository, {
+      throttleWaitMs: 1,
+      readHtml: async () => {
+        calls++;
+        if (calls <= 4) throw Error('SOURCE_HTTP_429');
+        return '<meta property="og:image" content="https://ireland.apollo.olxcdn.com/v1/files/a/image">';
+      },
+    });
+    backfill.start();
+    while (backfill.status().state === 'running') await new Promise((resolve) => setTimeout(resolve, 5));
+    // Three waits are allowed per streak; the fourth 429 counts as a failure, then reads succeed.
+    const status = backfill.status();
+    assert.equal(status.filled, 3);
+    assert.equal(status.failed, 1);
+    assert.deepEqual(status.skippedSources, []);
   } finally {
     repository.close?.();
   }

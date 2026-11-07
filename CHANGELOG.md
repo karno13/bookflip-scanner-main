@@ -2,6 +2,11 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (3) — Uzupełnianie zdjęć i telefon
+
+- **„Uzupełnij zdjęcia”** na pulpicie skanera: w tle odczytuje `og:image` ogłoszeń bez zdjęcia (najpierw kolejka weryfikacji, potem oferty z katalogu), jeden wątek na źródło przez wspólną bramkę tempa. Źródło, które od początku blokuje (3 błędy z rzędu), jest pomijane w tym przebiegu; odpowiedź 429 („za szybko”) oznacza przerwę 1/2/4 min i ponowienie, a nie pominięcie. Endpointy `GET/POST /api/images/backfill`, `POST /api/images/backfill/cancel`.
+- **Telefon (390 px):** podpowiedź skrótów klawiszowych nie rozpycha już weryfikacji w poziomie, tabela jakości źródeł mieści się w ekranie.
+
 ## 2026-11-07 (2) — Zdjęcia, nowa weryfikacja i wygląd v5
 
 - **Zdjęcia ofert.** Skaner zapisuje zdjęcie z ogłoszenia (Vinted, Allegro, Allegro Lokalnie, OLX, Empik, Tezeusz.pl, Dedalus.pl); migracja 108 dodaje `offers.image_url`. Starsze oferty dostają zdjęcie przy pierwszym podglądzie (jednorazowy odczyt `og:image` strony ogłoszenia) albo przy kolejnym skanie. Obrazy idą przez lokalne `/api/image` z cache na dysku (`image-cache` w katalogu danych) i listą dozwolonych CDN — strona nadal ma `img-src 'self'`.

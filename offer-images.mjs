@@ -160,3 +160,106 @@ export async function offerImageUrl(repository, offerId, { readHtml, now = Date.
     return null;
   }
 }
+
+const abortableWait = (ms, signal) =>
+  new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
+  });
+
+/**
+ * Background fill of missing listing photos for offers stored before photos were captured.
+ * One serial worker per source (the shared marketplace gate keeps each source polite); a source
+ * that fails three times in a row is skipped for this run (captcha / 403 / listing gone). HTTP 429
+ * means "slower", not "blocked": the worker waits (1, 2, 4 min) and retries the same offer.
+ * Offers waiting for review go first, then catalog-linked ones, newest first.
+ */
+export function createImageBackfill(repository, { readHtml, limitPerSource = 400, throttleWaitMs = 60_000 } = {}) {
+  let status = { state: 'idle', done: 0, filled: 0, failed: 0, total: 0, skippedSources: [], waitingSources: [], startedAt: null, finishedAt: null };
+  let controller = null;
+  const pending = () =>
+    repository.database
+      .prepare(
+        `SELECT o.id, o.source, o.normalized_url FROM offers o
+         LEFT JOIN identification_jobs j ON j.offer_id=o.id
+         LEFT JOIN offer_matches m ON m.offer_id=o.id AND m.status='active'
+         WHERE o.image_url IS NULL AND o.normalized_url LIKE 'https://%'
+         ORDER BY (j.status='review_required') DESC, (m.offer_id IS NOT NULL) DESC, o.last_seen_at DESC`,
+      )
+      .all();
+  async function run(signal) {
+    if (!readHtml) {
+      const { readSourceHtml } = await import('./marketplaces.mjs');
+      readHtml = (url, source) => readSourceHtml(url, { source, signal });
+    }
+    const bySource = new Map();
+    const seen = new Set();
+    for (const row of pending()) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      const list = bySource.get(row.source) || [];
+      if (list.length < limitPerSource) list.push(row);
+      bySource.set(row.source, list);
+    }
+    status.total = [...bySource.values()].reduce((sum, list) => sum + list.length, 0);
+    const update = repository.database.prepare('UPDATE offers SET image_url=? WHERE id=? AND image_url IS NULL');
+    await Promise.all(
+      [...bySource].map(async ([source, list]) => {
+        let streak = 0;
+        let sourceFilled = 0;
+        let throttled = 0;
+        for (let index = 0; index < list.length; index++) {
+          const row = list[index];
+          if (signal.aborted) return;
+          let image = null;
+          try {
+            image = imageFromDetailHtml(await readHtml(row.normalized_url, row.source));
+            throttled = 0;
+          } catch (error) {
+            if (/HTTP_429/.test(String(error?.message)) && throttled < 3) {
+              status.waitingSources.push(source);
+              await abortableWait(throttleWaitMs * 2 ** throttled++, signal);
+              status.waitingSources = status.waitingSources.filter((name) => name !== source);
+              index--;
+              continue;
+            }
+          }
+          status.done++;
+          if (image) {
+            update.run(image, row.id);
+            status.filled++;
+            sourceFilled++;
+            streak = 0;
+          } else {
+            status.failed++;
+            // Blocked from the start → give up quickly; occasional dead listings are tolerated.
+            if (++streak >= (sourceFilled ? 6 : 3)) {
+              status.skippedSources.push(source);
+              status.done += list.length - index - 1;
+              return;
+            }
+          }
+        }
+      }),
+    );
+  }
+  return {
+    status: () => ({ ...status, skippedSources: [...status.skippedSources], waitingSources: [...status.waitingSources] }),
+    start() {
+      if (status.state === 'running') return this.status();
+      controller = new AbortController();
+      status = { state: 'running', done: 0, filled: 0, failed: 0, total: 0, skippedSources: [], waitingSources: [], startedAt: new Date().toISOString(), finishedAt: null };
+      run(controller.signal)
+        .catch(() => {})
+        .finally(() => {
+          status.state = controller.signal.aborted ? 'cancelled' : 'finished';
+          status.finishedAt = new Date().toISOString();
+        });
+      return this.status();
+    },
+    cancel() {
+      controller?.abort();
+      return this.status();
+    },
+  };
+}

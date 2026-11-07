@@ -15,7 +15,49 @@ export function installDashboard({ state, showView }) {
   if (anchor) anchor.before(panel);
   else scanner.append(panel);
 
-  panel.addEventListener('click', (event) => {
+  let backfillTimer = null;
+  let backfillWasRunning = false;
+  function backfillMarkup(status) {
+    if (status.state === 'running')
+      return `<span class="inline-note">Uzupełniam zdjęcia: ${status.done}/${status.total} · znaleziono ${status.filled}${status.waitingSources?.length ? ` · ${escapeHtml(status.waitingSources.join(', '))} prosi o wolniejsze tempo, czekam` : ''}</span>${bar(status.total ? (status.done / status.total) * 100 : 0)}<button type="button" class="button secondary compact" data-backfill="cancel">Zatrzymaj</button>`;
+    const summary = status.finishedAt
+      ? `Ostatnio: ${status.filled} nowych zdjęć${status.skippedSources.length ? ' · pominięte (blokada): ' + escapeHtml(status.skippedSources.join(', ')) : ''}`
+      : 'Starsze oferty nie mają zdjęć — pobiorę je z ogłoszeń w tle, w tempie bezpiecznym dla serwisów.';
+    return `<span class="inline-note">${summary}</span><button type="button" class="button secondary compact" data-backfill="start">Uzupełnij zdjęcia</button>`;
+  }
+  async function backfillTick() {
+    clearTimeout(backfillTimer);
+    let status;
+    try {
+      status = await json('/api/images/backfill');
+    } catch {
+      return;
+    }
+    const box = panel.querySelector('#photoBackfill');
+    if (box) box.innerHTML = backfillMarkup(status);
+    const running = status.state === 'running';
+    if (running) backfillTimer = setTimeout(backfillTick, 2000);
+    else if (backfillWasRunning) void refresh();
+    backfillWasRunning = running;
+  }
+
+  panel.addEventListener('click', async (event) => {
+    const action = event.target.closest('[data-backfill]');
+    if (action) {
+      action.disabled = true;
+      try {
+        await json('/api/images/backfill' + (action.dataset.backfill === 'cancel' ? '/cancel' : ''), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+      } catch {
+        // The status line below shows the real state either way.
+      }
+      backfillWasRunning = true;
+      void backfillTick();
+      return;
+    }
     const target = event.target.closest('[data-go]');
     if (!target) return;
     showView(target.dataset.go);
@@ -98,11 +140,11 @@ export function installDashboard({ state, showView }) {
           ]
             .map(([label, value]) => `<div><dt>${label}</dt><dd>${rate(value)}${bar(value)}</dd></div>`)
             .join('')}</dl>
-          <p class="inline-note">${data.completeness.works} dzieł · ${data.completeness.editions} wydań${
-            f.withImage < f.offers ? ' · zdjęcia ofert uzupełnią się przy kolejnym skanie' : ''
-          }</p>
+          <p class="inline-note">${data.completeness.works} dzieł · ${data.completeness.editions} wydań</p>
+          ${f.withImage < f.offers ? '<div class="photo-backfill" id="photoBackfill"></div>' : ''}
         </section>
       </div>`;
+    if (panel.querySelector('#photoBackfill')) void backfillTick();
   }
   void refresh();
   return refresh;
