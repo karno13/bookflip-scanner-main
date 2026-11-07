@@ -1,5 +1,6 @@
 import { json } from '../core/api.js';
 import { escapeHtml } from '../core/formatters.js';
+import { mountBuybackBatch } from './buyback.js';
 
 // Scanner home: how much of the collected market data is already identified, how good each source
 // is, and how far each followed series (scan phrase) has been catalogued.
@@ -159,9 +160,12 @@ export function installDashboard({ state, showView }) {
             .join('')}</dl>
           <p class="inline-note">${data.completeness.works} dzieł · ${data.completeness.editions} wydań</p>
           ${f.withImage < f.offers ? '<div class="photo-backfill" id="photoBackfill"></div>' : ''}
+          <div id="buybackSlot"></div>
         </section>
       </div>`;
     if (panel.querySelector('#photoBackfill')) void backfillTick();
+    const buybackSlot = panel.querySelector('#buybackSlot');
+    if (buybackSlot) mountBuybackBatch(buybackSlot);
   }
   void refresh();
   return refresh;

@@ -47,11 +47,14 @@ import {
   persistSqliteScan,
 } from './sqlite-single-store.mjs';
 import { createIdentificationScheduler } from './identification-scheduler.mjs';
+import { createBuybackService } from './buyback-quotes.mjs';
+import { createSkupksiazekClient } from './buyback-skupksiazek.mjs';
 import { createImageBackfill, fetchCachedImage, offerImageUrl, proxiedImage } from './offer-images.mjs';
 import { catalogInsights } from './catalog-insights.mjs';
 import { catalogSeries, setWorkUniverse } from './catalog-series.mjs';
 
 let imageBackfill = null;
+let buyback = null;
 const appDirectory = fileURLToPath(new URL('./app/', import.meta.url));
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -676,6 +679,28 @@ export function createLocalAppServer({
         if (!imageUrl) return send(response, 404, JSON.stringify({ error: 'IMAGE_NOT_FOUND' }));
         response.writeHead(302, { Location: proxiedImage(imageUrl), 'Cache-Control': 'no-store' });
         return response.end();
+      }
+      if (url.pathname.startsWith('/api/buyback')) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        buyback ||= createBuybackService(catalog.repository, createSkupksiazekClient());
+        if (request.method === 'GET' && url.pathname === '/api/buyback/quotes')
+          return send(response, 200, JSON.stringify({ quotes: buyback.many((url.searchParams.get('isbn') || '').split(',').slice(0, 200)) }));
+        if (request.method === 'GET' && url.pathname === '/api/buyback/batch')
+          return send(response, 200, JSON.stringify(buyback.status()));
+        if (request.method === 'POST' && url.pathname === '/api/buyback/batch')
+          return send(response, 202, JSON.stringify(buyback.start()));
+        if (request.method === 'POST' && url.pathname === '/api/buyback/batch/cancel')
+          return send(response, 202, JSON.stringify(buyback.cancel()));
+        if (request.method === 'POST' && url.pathname === '/api/buyback/check') {
+          const input = await readJson(request);
+          try {
+            return send(response, 200, JSON.stringify(await buyback.check(input?.isbn, { force: input?.force === true })));
+          } catch (error) {
+            return send(response, error.status || 502, JSON.stringify({ error: error.message }));
+          }
+        }
+        return send(response, 405, JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
       }
       if (url.pathname === '/api/images/backfill' || url.pathname === '/api/images/backfill/cancel') {
         const catalog = getProductionCatalog();

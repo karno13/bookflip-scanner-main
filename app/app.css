@@ -3295,3 +3295,16 @@ body[data-catalog-view='series'] #view-catalog#view-catalog #catalogDetail:has(>
 .universe-editor-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .universe-editor-row select { flex: 1 1 180px; width: auto; }
 .universe-editor-row .button { min-height: 44px; }
+
+/* v5.29 Skup hurtowy (skupksiazek.pl) */
+.buyback-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.buyback-price { font-size: 16px; font-weight: 600; color: var(--muted, inherit); font-variant-numeric: tabular-nums; }
+.buyback-price.is-priced { color: var(--good); font-size: 24px; font-weight: 700; }
+.buyback-price.is-error { color: var(--warn, #b7791f); }
+.buyback-row .button { min-height: 44px; }
+.buyback-box .inline-note { margin: 6px 0 0; overflow-wrap: anywhere; }
+.buyback-chip { display: inline-block; margin-top: 2px; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: var(--surface-2, rgba(127,127,127,.12)); color: var(--muted, inherit); white-space: nowrap; }
+.buyback-chip.is-priced { background: var(--good-soft); color: var(--good); font-weight: 600; }
+.insight-board .buyback-batch { display: grid; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line, rgba(127,127,127,.2)); }
+.insight-board .buyback-batch .inline-note { margin: 0; }
+.insight-board .buyback-batch .button { justify-self: start; min-height: 40px; }

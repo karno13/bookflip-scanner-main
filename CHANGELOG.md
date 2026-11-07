@@ -2,6 +2,13 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (9) — Cena skupu hurtowego (skupksiazek.pl)
+
+- **Minimalna cena odsprzedaży:** karta wydania pokazuje wstępną wycenę skupksiazek.pl („Sprawdź cenę skupu” / „Sprawdź ponownie”), lista wydań w karcie dzieła — znacznik „skup: X zł”. Stany: cena, wycena ręczna, nie skupują, błąd.
+- **Jak:** serwis nie ma API wyceny; klient robi to co formularz „Wyceń” — sesja + token CSRF ze strony, `POST /cart/{kod}` z ISBN, odczyt ceny z pozycji koszyka i natychmiastowe `DELETE` tej pozycji. Wygasła sesja (419) jest odnawiana raz.
+- **Ostrożnie wobec serwisu:** najwyżej jedno zapytanie na 8 s (wycena ≈ 16 s), wyniki w bazie na 7 dni (błędy 6 h), dobra stara wycena nie jest nadpisywana chwilowym błędem. Sprawdzanie całego katalogu tylko na przycisk na pulpicie („Sprawdź ceny skupu (N)”), wydania z ofertami najpierw, przerwanie po 5 błędach z rzędu.
+- Migracja 110 (`buyback_quotes`), endpointy `GET /api/buyback/quotes?isbn=`, `POST /api/buyback/check`, `GET|POST /api/buyback/batch`, `POST /api/buyback/batch/cancel`.
+
 ## 2026-11-07 (8) — Uniwersum dzieła, nazwy grup
 
 - **Uniwersum ręcznie:** w karcie dzieła pole „Uniwersum w widoku Serie” (Automatycznie / istniejące uniwersa / Poza seriami) — przenosi dzieło przypisane tylko przez frazę skanu na właściwą półkę. Migracja 109 (`work_universe_overrides`), endpoint `PUT /api/catalog/universe/:workId`; łączenie dzieł zachowuje wybór.

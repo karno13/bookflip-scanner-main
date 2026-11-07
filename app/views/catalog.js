@@ -1,4 +1,5 @@
 import { mountEditionHistory } from './edition-history.js';
+import { mountEditionBuyback, annotateEditionLines } from './buyback.js';
 import { openDetailView } from '../core/detail-navigation.js';
 import {markDirty,statusLabel,confirmDiscard,watchForm} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
@@ -355,6 +356,7 @@ async function openCatalogDetail(id) {
     mountWorkActions(row,detail);
     mountSeriesEditor(row, detail, renderSeriesSummary, { annotations: sqliteAnnotations || {}, save: saveSeries });
     void mountUniverseEditor(row, detail);
+    void annotateEditionLines(row, detail);
     detail.querySelectorAll('[data-edition-detail]').forEach((button) =>
       button.addEventListener('click', () => openEditionDetail(button.dataset.editionDetail)),
     );
@@ -396,6 +398,7 @@ async function mountUniverseEditor(row, detail) {
       if (document.body.dataset.catalogView === 'series') void renderSeriesTree();
       section.remove();
       void mountUniverseEditor(row, detail);
+    void annotateEditionLines(row, detail);
     } catch (error) {
       toast('Nie zapisano uniwersum: ' + error.message);
       button.disabled = false;
@@ -462,6 +465,7 @@ async function openEditionDetail(id) {
     detail.querySelectorAll('[data-edition-offer]').forEach(button=>button.addEventListener('click',()=>openOfferDrawer(button.dataset.editionOffer)));
     const history = mountEditionHistory({ row, target: detail, json, money, openOfferDrawer });
     detail.querySelectorAll('.detail-section')[2].before(history);
+    mountEditionBuyback({ row, target: detail, toast });
     mountEditionActions(row,detail);
     $('#backToWork').addEventListener('click', () => openCatalogDetail(row.workId));
   } catch (error) {
