@@ -8,7 +8,7 @@
   <link rel=stylesheet href=/workflow.css>
   <link rel=stylesheet href=/trading.css>
   <link rel=stylesheet href=/mobile-repair.css?v=20261107-pruned>
-  <link rel=stylesheet href=/design-v4.css?v=4>
+  <link rel=stylesheet href=/design-v4.css?v=7>
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Przejdź do treści</a>
@@ -95,6 +95,7 @@
               <p id="identificationProgressDetails"></p>
               <p id="scanIsbnUpdated"></p><p>Dopasowano do istniejących wydań: <strong id="scanIsbnMatched">—</strong></p>
                           <section class="panel settings-card"><h3>Wyniki identyfikacji</h3><p>Stan wszystkich zadań i powody zakończenia bez wpisu w katalogu.</p><div class="row"><label for="retryMode">Ponów identyfikację</label><select id="retryMode"><option value="unresolved">Wszystkie nierozstrzygnięte</option><option value="failed">Błędy</option><option value="not_found">Nieznalezione ISBN</option><option value="review_required">Wymagające weryfikacji</option></select><button id="retryIdentification" class="button secondary" type="button">Ponów wybraną grupę</button></div><p class="inline-note">Ręczne przypisania pozostaną chronione. Ponowienie może wykonać zapytania do zewnętrznych źródeł.</p><div id="identificationStats" class="settings-list" aria-live="polite"><span><small>Ładowanie statystyk…</small></span></div></section>
+                          <details class="panel settings-card" id="queryStats"><summary><h3>Skuteczność zapytań</h3></summary><p>Ile ofert przyniosła każda fraza, ile trafiło do katalogu i ile czeka na decyzję.</p><div id="queryStatsBody" class="query-stats" aria-live="polite"></div></details>
               <div class="scan-isbn-reasons"><div><h5>Najczęstsze powody weryfikacji</h5><div id="scanIsbnReasons"><p>Brak danych.</p></div></div><div><h5>Błędy techniczne</h5><div id="scanIsbnFailures"><p>Brak błędów.</p></div></div></div>
 
             </details>

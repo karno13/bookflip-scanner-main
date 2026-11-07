@@ -16,9 +16,12 @@ function stableId(prefix, ...values) {
   return `${prefix}_${createHash('sha256').update(JSON.stringify(values)).digest('hex').slice(0, 32)}`;
 }
 
+// Prices are stored in grosze. Marketplaces show joke / placeholder prices (e.g. 10 000 zl for a
+// paperback); such a value is unknown, not a real price, and would distort every statistic.
+export const MAX_PLAUSIBLE_PRICE_GROSZE = 1_000_000;
 function integerPrice(value) {
   const price = Number(value);
-  return Number.isFinite(price) && price > 0 ? Math.round(price) : null;
+  return Number.isFinite(price) && price > 0 && price < MAX_PLAUSIBLE_PRICE_GROSZE ? Math.round(price) : null;
 }
 
 export function productionCatalogEnabled(environment = process.env) {

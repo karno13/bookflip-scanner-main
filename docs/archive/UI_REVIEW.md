@@ -13,7 +13,7 @@ Dostępność: zachowano natywne przyciski i details/summary, widoczny fokus, mi
 
 ## Pełna przebudowa warstwy wizualnej
 
-Zastąpiono główny arkusz styles.css, usunięto stare konkurujące układy w workflow.css i trading.css, a mobile-repair.css zawiera teraz kompozycję responsywną i prezentację szczegółów. Kopię wcześniejszych plików zachowano w artifacts/ui-before-rebuild.
+Zastąpiono główny arkusz styles.css, usunięto stare konkurujące układy w workflow.css i trading.css, a mobile-repair.css zawiera teraz kompozycję responsywną i prezentację szczegółów. Kopię wcześniejszych plików usunięto; pozostaje historia Git.
 
 Desktop ma poziomą nawigację zamiast szerokiej kolumny bocznej. Skaner rozdziela formularz wyszukiwania i ostatnie oferty na dwie kolumny. Na telefonie interfejs jest jednokolumnowy, z dolną nawigacją i osobnymi widokami szczegółów. Zastosowano jasnoszare tło, białe obszary pracy, wspólną typografię systemową i zielony akcent. Akcję otwarcia ogłoszenia przeniesiono bezpośrednio pod tytuł szczegółów.
 

@@ -32,6 +32,8 @@ Przed uruchomieniem niezaaplikowanych migracji istniejącej bazy wykonywany jest
 | `BOOKFLIP_METADATA_TIMEOUT_MS` | Timeout zewnętrznych metadanych |
 | `BOOKFLIP_CATALOG_LEASE_MS`, `BOOKFLIP_CATALOG_RETRY_MS` | Lease i opóźnienie ponowień |
 | `BOOKFLIP_LOCAL_PORT` | Port lokalnego serwera (domyślnie 4317) |
+| `BOOKFLIP_DETAIL_ENRICHMENT=0` | Wyłączenie czytania stron szczegółów (Tezeusz.pl) i propozycji po tytule |
+| `BOOKFLIP_SCHEDULED_SCANS=0` | Wyłączenie harmonogramu automatycznych skanów |
 
 ## Zasady integralności
 
@@ -48,3 +50,12 @@ Przed uruchomieniem niezaaplikowanych migracji istniejącej bazy wykonywany jest
 ## Diagnostyka i testy
 
 Log serwera: `%LOCALAPPDATA%\BookFlip\data\local-app.log`. Uruchom `npm test`, `npm run lint` i `npm run check:syntax`. CI sprawdza backend na Windows/Linux oraz podstawowy start interfejsu w Chromium. Te testy nie gwarantują, że zewnętrzny portal aktualnie pozwala na skanowanie.
+
+## Weryfikacja i katalog (od 2026-11-07)
+
+- BN jest pytana o każdą równoważną formę ISBN (13- i 10-cyfrową). Odpowiedź "nie znaleziono" oznacza, że żadna forma nie zwróciła rekordu.
+- Ważny ISBN nieznany BN i Open Library nie zamyka zadania: oferta zostaje w weryfikacji z powodem „ISBN nieznany źródłom”.
+- ISBN ze strony szczegółów jest uznawany wyłącznie z danych strukturalnych produktu. Pliki fixture: `fixtures/details/`.
+- Propozycje po tytule (tabela `title_proposals`) nigdy nie przypisują oferty same; służą do wypełnienia pola ISBN i uruchomienia zwykłego podglądu.
+- Nowe wydanie o tym samym tytule i pierwszym autorze co istniejące dzieło trafia do tego dzieła (powód `same_title_and_author_work`). Niejednoznaczny klucz (kilka takich dzieł) nie jest łączony automatycznie.
+- Ceny ≥ 10 000 zł są traktowane jako nieznane (`MAX_PLAUSIBLE_PRICE_GROSZE`).

@@ -5,6 +5,7 @@ import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs'
 import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
 import { enrichOffers } from './offer-enrichment.mjs';
+import { createScanScheduler, localScanRunner } from './scan-schedule.mjs';
 import { computeProposal, loadProposal, refreshProposals } from './title-proposals.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
@@ -641,7 +642,7 @@ export function createLocalAppServer({
       if (rejected)
         return send(response, rejected.status, JSON.stringify({ error: rejected.error }));
       const url = new URL(request.url || '/', 'http://127.0.0.1');
-      if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
+      if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|scan-queries|scan-schedule|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
           (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/work-duplicates(?:\/merge)?$/.test(url.pathname)) {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
@@ -1130,7 +1131,13 @@ async function main() {
     }),
   });
   const server = createLocalAppServer({ identificationControl: scheduler });
-  server.on('close', () => { void scheduler.stop(); });
+  // Recurring scans of the saved profile (off until the user enables it in the Scanner view).
+  const scanScheduler = createScanScheduler({
+    getRepository: () => getProductionCatalog()?.repository ?? null,
+    runScan: localScanRunner(port),
+    onEvent: (event) => recordProgress(event),
+  });
+  server.on('close', () => { void scheduler.stop(); scanScheduler.stop(); });
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       console.log(`BookFlip Scanner już działa pod adresem ${url}`);
@@ -1143,6 +1150,7 @@ async function main() {
   });
   server.listen(port, '127.0.0.1', () => {
     if (enabled) scheduler.start();
+    if (String(process.env.BOOKFLIP_SCHEDULED_SCANS ?? '1') !== '0') scanScheduler.start();
     console.log(`BookFlip Scanner działa: ${url}`);
     openLocalApp(url);
   });

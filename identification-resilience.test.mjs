@@ -71,3 +71,21 @@ test('an ISBN unknown to the national sources stays in the review queue instead 
     catalog.repository.close();
   }
 });
+
+test('a placeholder price is stored as unknown instead of polluting price history', () => {
+  const catalog = createProductionCatalog({ databasePath: ':memory:' });
+  try {
+    catalog.ingestOffers(
+      [
+        { source: 'fixture', url: 'https://example.test/items/301', title: 'Joke price', price: 1_000_000 },
+        { source: 'fixture', url: 'https://example.test/items/302', title: 'Real price', price: 3200 },
+      ],
+      new Date('2026-01-01T10:00:00Z'),
+    );
+    const rows = catalog.repository.database.prepare('SELECT original_title t,current_price p FROM offers ORDER BY t').all();
+    assert.deepEqual(rows.map((r) => [r.t, r.p]), [['Joke price', null], ['Real price', 3200]]);
+    assert.equal(catalog.repository.database.prepare('SELECT count(*) n FROM offer_price_history').get().n, 1);
+  } finally {
+    catalog.repository.close();
+  }
+});

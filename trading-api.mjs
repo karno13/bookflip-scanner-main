@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { backupCatalog } from './scripts/backup-catalog.mjs';
 
 import { findDuplicateWorkGroups } from './work-grouping.mjs';
+import { getScanSchedule, saveScanSchedule, nextRunAt } from './scan-schedule.mjs';
 function fail(code, statusCode = 400) { throw Object.assign(Error(code), { statusCode }); }
 export function amount(value) {
   if (value === null) return null;
@@ -108,6 +109,31 @@ export function mergeCatalogWorks(repo,sourceId,targetId,confirm=false) {
     return {...summary,merged:true};
   });
 }
+/** How well each search phrase performs: found offers, how many reached the catalogue, how many wait. */
+export function scanQueryStats(repo) {
+  const rows = repo.database
+    .prepare(
+      `SELECT q.value AS query, o.source AS source, count(*) AS offers,
+         sum(EXISTS(SELECT 1 FROM offer_matches m WHERE m.offer_id=o.id AND m.status='active')) AS matched,
+         sum(EXISTS(SELECT 1 FROM identification_jobs j WHERE j.offer_id=o.id AND j.status='review_required')) AS waiting,
+         sum(o.observed_isbn IS NULL OR o.observed_isbn='') AS withoutIsbn,
+         max(o.last_seen_at) AS lastSeen
+       FROM offers o, json_each(CASE WHEN json_valid(o.matched_queries_json) THEN o.matched_queries_json ELSE '[]' END) q
+       GROUP BY q.value, o.source ORDER BY offers DESC LIMIT 200`,
+    )
+    .all();
+  return {
+    items: rows.map((row) => ({
+      query: String(row.query),
+      source: row.source,
+      offers: Number(row.offers),
+      matched: Number(row.matched),
+      waiting: Number(row.waiting),
+      withoutIsbn: Number(row.withoutIsbn),
+      lastSeen: row.lastSeen,
+    })),
+  };
+}
 export function listWorkDuplicates(repo) {
   return { groups: findDuplicateWorkGroups(repo) };
 }
@@ -186,6 +212,9 @@ export async function tradingRoute({repo,method,path,input}) {
   if(work&&method==='PUT') return editCatalogWork(repo,decodeURIComponent(work[1]),input);
   const edition=path.match(/^\/api\/catalog\/editions\/([^/]+)$/);
   if(edition&&method==='PUT') return editCatalogEdition(repo,decodeURIComponent(edition[1]),input);
+  if(path==='/api/scan-queries/stats'&&method==='GET') return scanQueryStats(repo);
+  if(path==='/api/scan-schedule'&&method==='GET') { const s=getScanSchedule(repo); return {...s,nextRunAt:nextRunAt(s)}; }
+  if(path==='/api/scan-schedule'&&method==='PUT') { const s=saveScanSchedule(repo,input); return {...s,nextRunAt:nextRunAt(s)}; }
   if(path==='/api/catalog/work-duplicates'&&method==='GET') return listWorkDuplicates(repo);
   if(path==='/api/catalog/work-duplicates/merge'&&method==='POST') return mergeWorkGroup(repo,input?.targetId,input?.sourceIds);
   if(path==='/api/catalog/merge-works'&&method==='POST') return mergeCatalogWorks(repo,input?.sourceId,input?.targetId,input?.confirm===true);

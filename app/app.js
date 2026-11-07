@@ -10,6 +10,7 @@ import { createSetsView } from './views/sets.js';
 import { createReviewView } from './views/review.js';
 import { createCatalogView } from './views/catalog.js';
 import { mountDuplicates } from './views/duplicates.js';
+import { mountScanSchedule } from './views/scan-schedule.js';
 import { createOffersView } from './views/offers.js';
 import { json } from './core/api.js';
 import { escapeHtml, money, date, shortTime } from './core/formatters.js';
@@ -577,7 +578,8 @@ const { startSearch, renderSourceRows } = createScannerView({
   loadHistory, loadCatalogStatus, loadCatalogData,
 });
 
-const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
+const { renderSettings, runDiagnostics, mountQueryStats } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
+mountQueryStats(json);
 
 function visibleCatalogRows(...args) { return reviewView.visibleCatalogRows(...args); }
 function renderReview(...args) { const result = reviewView.renderReview(...args); syncItemUrl(); return result; }
@@ -916,7 +918,7 @@ const refreshWorkflowDashboard = installDashboard({ state, showView });
 const startupView = viewFromSearch(location.search);
 const startupItem = idFromSearch(location.search);
 showView(startupView);
-Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast, json })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus(), tradingControls.refreshRuns()]).catch(
+Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast, json }).then(() => mountScanSchedule({ panel: $('.scanner-form-panel'), json, toast, escapeHtml }))), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus(), tradingControls.refreshRuns()]).catch(
   (error) => {
     $('#connectionLabel').textContent = 'Błąd połączenia';
     toast(`Nie udało się wczytać aplikacji: ${error.message}`);

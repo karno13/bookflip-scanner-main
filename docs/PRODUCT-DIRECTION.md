@@ -6,6 +6,10 @@
 
 Każda planowana funkcja powinna mieć jasne uzasadnienie w procesie handlowym: pozwalać szybciej znaleźć potencjalnie rentowną ofertę, poprawniej wycenić książkę, ograniczyć koszt lub ryzyko zakupu, sprawniej prowadzić zapasy przeznaczone na sprzedaż albo skuteczniej sprzedać towar.
 
+## Aktualny priorytet (od 2026-11-07)
+
+Właściciel projektu nie handluje w tej chwili. Rozwój koncentruje się na **skanerze, katalogu i weryfikacji**: pokrycie i niezawodność źródeł, struktura dzieł/wydań/serii oraz szybkość i trafność rozpoznawania książek. Funkcje stricte handlowe (ocena okazji, zysk, rejestr transakcji, alerty zakupowe) są odłożone do czasu zmiany tej decyzji.
+
 ## Główne procesy
 
 1. **Sourcing:** przeszukiwanie marketplace'ów, wykrywanie nowych ofert, filtrowanie szumu, zapisywanie kryteriów poszukiwania i obserwacja cen.

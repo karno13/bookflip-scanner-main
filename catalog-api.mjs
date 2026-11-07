@@ -439,7 +439,7 @@ export function listIdentificationJobs(repository, options = {}) {
       : "CASE j.status WHEN 'review_required' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,j.updated_at DESC,j.id";
   const rows = database
     .prepare(
-      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,
+      `SELECT j.*,o.source,o.original_title,o.current_price,o.currency,o.normalized_url,o.observed_isbn,o.last_seen_at,o.availability,
       p.confidence AS proposal_confidence,p.best_isbn AS proposal_isbn,p.best_score AS proposal_score
     FROM identification_jobs j JOIN offers o ON o.id=j.offer_id LEFT JOIN title_proposals p ON p.job_id=j.id
     ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
@@ -469,6 +469,7 @@ export function listIdentificationJobs(repository, options = {}) {
         url: row.normalized_url,
         observedIsbn: row.observed_isbn,
         lastSeenAt: row.last_seen_at,
+        availability: row.availability,
       },
     })),
   };

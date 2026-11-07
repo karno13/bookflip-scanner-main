@@ -1308,3 +1308,18 @@ kbd {
 .duplicate-group li.is-target span { font-weight: 600; }
 .duplicate-group .button { flex: none; min-height: 44px; }
 @media (max-width: 600px) { .duplicate-group { flex-direction: column; align-items: stretch; } }
+
+/* 16. Skuteczność zapytań */
+.query-stats { overflow-x: auto; }
+.query-stats table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.query-stats th, .query-stats td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.query-stats th { color: var(--muted); font-weight: 600; }
+
+/* 17. Automatyczny skan */
+.scan-schedule { margin-top: 12px; }
+.scan-schedule > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.scan-schedule-body { display: grid; gap: 10px; max-width: 420px; }
+.scan-schedule-body .check { display: flex; gap: 8px; align-items: flex-start; }
+
+/* 18. Oferty, których nie widać w ostatnim pełnym skanie */
+.proposal-chip.is-stale { background: var(--bad-soft); color: var(--bad); }

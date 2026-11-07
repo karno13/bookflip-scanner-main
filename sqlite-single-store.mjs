@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { markUnseenOffers } from './offer-availability.mjs';
 import { normalizedIsbn } from './offer-history.mjs';
 import { sourceOfferId, offerExternalId } from './offer-identity.mjs';
 import { sqliteHistoryModel } from './sqlite-history-read.mjs';
@@ -123,6 +124,8 @@ export function persistSqliteScan(catalog, { offers, searchedAt, errors = [], sc
     const membership = db.prepare('INSERT OR REPLACE INTO scan_offer_results VALUES(?,?,?,?)');
     for (const row of outcomes) if (db.prepare('SELECT id FROM offers WHERE id=?').get(row.id))
       membership.run(at,row.id,Number(row.isNew),Number(row.changed));
+    // Offers absent from a complete scan of their phrase are most likely sold or withdrawn.
+    if (scanContext) markUnseenOffers(db, scanContext.results || [], at);
     if (scanContext) {
       const grouped = new Map();
       for(const result of scanContext.results || []) {
