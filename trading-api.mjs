@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { backupCatalog } from './scripts/backup-catalog.mjs';
 
 import { findDuplicateWorkGroups } from './work-grouping.mjs';
+import { findTitleConflicts, resolveTitleConflict } from './title-consistency.mjs';
 import { getScanSchedule, saveScanSchedule, nextRunAt } from './scan-schedule.mjs';
 function fail(code, statusCode = 400) { throw Object.assign(Error(code), { statusCode }); }
 export function amount(value) {
@@ -216,6 +217,8 @@ export async function tradingRoute({repo,method,path,input}) {
   if(path==='/api/scan-schedule'&&method==='GET') { const s=getScanSchedule(repo); return {...s,nextRunAt:nextRunAt(s)}; }
   if(path==='/api/scan-schedule'&&method==='PUT') { const s=saveScanSchedule(repo,input); return {...s,nextRunAt:nextRunAt(s)}; }
   if(path==='/api/catalog/work-duplicates'&&method==='GET') return listWorkDuplicates(repo);
+  if(path==='/api/catalog/title-conflicts'&&method==='GET') return {conflicts:findTitleConflicts(repo)};
+  if(path==='/api/catalog/title-conflicts/resolve'&&method==='POST') return resolveTitleConflict(repo,input);
   if(path==='/api/catalog/work-duplicates/merge'&&method==='POST') return mergeWorkGroup(repo,input?.targetId,input?.sourceIds);
   if(path==='/api/catalog/merge-works'&&method==='POST') return mergeCatalogWorks(repo,input?.sourceId,input?.targetId,input?.confirm===true);
   if(path==='/api/data/overview'&&method==='GET') return dataOverview(repo);

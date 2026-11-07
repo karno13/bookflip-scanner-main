@@ -15,6 +15,7 @@ export function createScanInsights({ $, json, escapeHtml }) {
     invalid_isbn: 'Nieprawidłowy ISBN',
     manual_assignment_conflicts_with_isbn: 'Konflikt z ręcznym przypisaniem',
     offer_is_set: 'Oferta oznaczona jako zestaw',
+    isbn_title_mismatch: 'ISBN innej książki niż w tytule',
   };
   function refreshIsbn(data) {
     if (!data.enabled) {

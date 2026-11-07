@@ -10,6 +10,7 @@ import { createSetsView } from './views/sets.js';
 import { createReviewView } from './views/review.js';
 import { createCatalogView } from './views/catalog.js';
 import { mountDuplicates } from './views/duplicates.js';
+import { mountTitleConflicts } from './views/title-conflicts.js';
 import { mountScanSchedule } from './views/scan-schedule.js';
 import { createOffersView } from './views/offers.js';
 import { json } from './core/api.js';
@@ -905,8 +906,9 @@ $('#reviewList').addEventListener('scroll', async (event) => {
 });
 
 const reviewView = createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog, openCatalogForReview });
-const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData });
+const catalogView = createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData, toast, showView });
 mountDuplicates({ $, json, escapeHtml, toast, loadCatalogData });
+mountTitleConflicts({ $, json, escapeHtml, toast, loadCatalogData });
 const onFiltersChange = () => void changeOfferPage(state.offerPage);
 const offersView = createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats, onFiltersChange });
 

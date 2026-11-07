@@ -688,7 +688,7 @@ export function createLocalAppServer({
         return send(response, 405, JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
       }
       if (/^\/api\/(?:trading-defaults|trading-summary|scan-runs|source-health|review-decisions|scan-queries|scan-schedule|offer-scenarios|data\/|set-details|set-items|set-unknown)/.test(url.pathname) ||
-          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/work-duplicates(?:\/merge)?$/.test(url.pathname)) {
+          (request.method === 'PUT' && /^\/api\/catalog\/(?:works|editions)\//.test(url.pathname)) || url.pathname === '/api/catalog/merge-works' || /^\/api\/catalog\/(?:work-duplicates(?:\/merge)?|title-conflicts(?:\/resolve)?)$/.test(url.pathname)) {
         const catalog = getProductionCatalog();
         if (!catalog) return send(response,503,JSON.stringify({error:'CATALOG_DISABLED'}));
         const data = await tradingRoute({repo:catalog.repository,method:request.method,path:url.pathname,

@@ -4,7 +4,7 @@
   <meta charset=utf-8>
   <meta name=viewport content=width=device-width,initial-scale=1>
   <title>BookFlip — skaner i katalog książek</title>
-  <link rel=stylesheet href=/app.css?v=19>
+  <link rel=stylesheet href=/app.css?v=21>
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Przejdź do treści</a>
@@ -113,6 +113,7 @@
           <div class="stats-grid catalog-stats"><article class="metric"><span>Dzieła</span><strong id="catalogWorks">0</strong><small>książek w katalogu</small></article><article class="metric"><span>Wydania</span><strong id="catalogEditions">0</strong><small>różnych wydań</small></article><article class="metric"><span>Ręczna weryfikacja</span><strong id="catalogIncomplete">0</strong><small>wymaga decyzji</small></article></div>
           <div class="filterbar"><label class="search-field"><span class="sr-only">Szukaj w katalogu</span><input id="catalogSearch" type="search" placeholder="Szukaj: tytuł, autor lub ISBN"></label><select id="catalogSort" aria-label="Sortowanie katalogu"><option value="title">Tytuł A–Z</option><option value="offers">Najwięcej ofert</option><option value="recent">Ostatnio aktualizowane</option></select><label class="toggle-chip"><input type="checkbox" id="catalogIncompleteOnly"><span>Tylko niekompletne</span></label><div class="segmented" role="group" aria-label="Widok katalogu"><button type="button" data-catalog-view="list" aria-pressed="true">Lista</button><button type="button" data-catalog-view="grid" aria-pressed="false">Okładki</button><button type="button" data-catalog-view="series" aria-pressed="false">Serie</button></div></div>
           <details class="catalog-duplicates" id="catalogDuplicates"><summary>Możliwe duplikaty dzieł</summary><div id="catalogDuplicatesBody"></div></details>
+          <details class="catalog-duplicates catalog-conflicts" id="catalogConflicts"><summary>Podejrzane przypisania</summary><div id="catalogConflictsBody"></div></details>
           <details class="catalog-filters"><summary>Więcej filtrów: język, wydawca, rok, oprawa</summary><div class="filterbar"><label class="field"><span>Język</span><input id="catalogLanguage" placeholder="np. pl"></label><label class="field"><span>Wydawca</span><input id="catalogPublisher"></label><label class="field"><span>Rok</span><input id="catalogYear" type="number" min="1400" max="2100"></label><label class="field"><span>Oprawa</span><input id="catalogBinding"></label></div></details>
           <div class="catalog-layout"><div class="panel catalog-list-panel"><div class="catalog-table-header"><span>Dzieło</span><span>Wydania</span><span>Oferty</span><span>Status</span></div><div id="catalogList"></div></div><aside class="catalog-editions-panel" id="catalogEditionsPanel" aria-label="Wydania wybranej książki"><div class="edition-rail-heading">Wydania</div><p class="edition-rail-empty">Wybierz książkę z katalogu.</p></aside><div class="detail-panel catalog-detail" id="catalogDetail"><div class="empty-detail"><h3>Wybierz dzieło</h3><p>Zobaczysz jego wydania, okładki, przypisane oferty i historię obserwacji cen.</p></div></div></div>
         </section>

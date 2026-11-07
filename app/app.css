@@ -1497,6 +1497,19 @@ kbd {
 .duplicate-group .button { flex: none; min-height: 44px; }
 @media (max-width: 600px) { .duplicate-group { flex-direction: column; align-items: stretch; } }
 
+/* v5.25 Podejrzane przypisania: ISBN wskazuje inną książkę niż tytuł ogłoszenia */
+.conflict-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.conflict-pair { display: grid; gap: 4px; min-width: 0; }
+.conflict-pair span { overflow-wrap: anywhere; }
+.conflict-pair small { color: var(--muted); overflow-wrap: anywhere; }
+.conflict-pair .conflict-arrow { color: var(--muted); font-size: 12px; }
+.conflict-pair a { color: inherit; }
+.conflict-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.conflict-actions .button { min-height: 44px; }
+.proposal-chip.is-mismatch { background: color-mix(in srgb, var(--danger, #c0392b) 14%, transparent); color: var(--danger, #c0392b); }
+.rv-mismatch { margin: 0 0 10px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid color-mix(in srgb, var(--danger, #c0392b) 40%, transparent); background: color-mix(in srgb, var(--danger, #c0392b) 8%, transparent); font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .conflict-row { grid-template-columns: 1fr; } .conflict-actions { justify-content: stretch; } .conflict-actions .button { flex: 1; } }
+
 /* 16. Skuteczność zapytań */
 .query-stats { overflow-x: auto; }
 .query-stats table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -3267,3 +3280,9 @@ body[data-catalog-view='series'] #view-catalog#view-catalog .catalog-layout:has(
 body[data-catalog-view='series'] #view-catalog#view-catalog #catalogDetail:has(> .empty-detail) {
   display: none;
 }
+
+/* v5.26 Braki w seriach */
+.series-gaps { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 0 0 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--radius-sm, 8px); background: var(--surface); font-size: 13px; }
+.series-gaps b { font-weight: 650; }
+.series-cycle-head .series-find { margin-left: auto; min-height: 36px; padding: 6px 10px; font-size: 12px; }
+@media (max-width: 600px) { .series-cycle-head .series-find { margin-left: 0; min-height: 44px; } .series-gaps .button { min-height: 44px; } }

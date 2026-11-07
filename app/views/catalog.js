@@ -20,7 +20,7 @@ function missingFacts(work) {
   return missing;
 }
 // catalog workspace, preserving existing behavior while isolating its implementation.
-export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData }) {
+export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData, toast, showView }) {
 function catalogRows() {
   // Preserve the ordering and full-dataset filters returned by the server.
   return [...state.catalogWorks];
@@ -148,6 +148,34 @@ async function loadSeriesTree(force = false) {
 const foldText = (text) => String(text ?? '').toLocaleLowerCase('pl').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l');
 const offersLabel = (n) => `${n} ${n === 1 ? 'oferta' : pluralForm(n) === 'few' ? 'oferty' : 'ofert'}`;
 const collapsedUniverses = new Set();
+// Cycles with gaps, by index, for the "find missing" buttons of the current render.
+let missingTargets = [];
+const MAX_SCAN_QUERIES = 10;
+
+function missingQueries(target) {
+  return target.missing.slice(0, MAX_SCAN_QUERIES).map((number) => `${target.name} tom ${number}`);
+}
+
+function missingListText(targets) {
+  return targets
+    .map((target) => `${target.universe === target.name ? target.name : `${target.universe} — ${target.name}`}: tomy ${target.missing.join(', ')}`)
+    .join('\n');
+}
+
+function findMissing(target) {
+  const queries = missingQueries(target);
+  const field = $('#queries');
+  if (!field || !queries.length) return;
+  field.value = queries.join('\n');
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  showView('scanner');
+  field.focus();
+  toast(
+    target.missing.length > MAX_SCAN_QUERIES
+      ? `Wpisano frazy dla ${MAX_SCAN_QUERIES} z ${target.missing.length} brakujących tomów (limit skanu). Wybierz źródła i uruchom skan.`
+      : `Wpisano ${queries.length} ${queries.length === 1 ? 'frazę' : pluralForm(queries.length) === 'few' ? 'frazy' : 'fraz'} dla brakujących tomów. Wybierz źródła i uruchom skan.`,
+  );
+}
 
 function shelfBookMarkup(work) {
   const title = tidyWorkTitle(work.title);
@@ -174,7 +202,14 @@ function cycleMarkup(cycle, universe, onlyCycle) {
     `${cycle.works.length} ${cycle.works.length === 1 ? 'dzieło' : pluralForm(cycle.works.length) === 'few' ? 'dzieła' : 'dzieł'}`,
   ].filter(Boolean);
   const name = cycle.name || (onlyCycle ? universe : 'Pozostałe');
-  return `<div class="series-cycle${cycle.name ? '' : ' is-loose'}"><div class="series-cycle-head"><h4>${escapeHtml(name)}</h4><small>${escapeHtml(facts.join(' · '))}</small></div><div class="series-shelf">${items.join('')}</div></div>`;
+  // Unnamed cycles carry the universe's own numbering ("Discworld series t. 14").
+  const searchName = cycle.name || universe;
+  let finder = '';
+  if (cycle.missing.length) {
+    missingTargets.push({ name: searchName, universe, missing: cycle.missing });
+    finder = `<button class="button ghost compact series-find" type="button" data-find-missing="${missingTargets.length - 1}" title="Wpisz do skanera frazy „${escapeHtml(searchName)} tom N” dla brakujących tomów">Szukaj brakujących</button>`;
+  }
+  return `<div class="series-cycle${cycle.name ? '' : ' is-loose'}"><div class="series-cycle-head"><h4>${escapeHtml(name)}</h4><small>${escapeHtml(facts.join(' · '))}</small>${finder}</div><div class="series-shelf">${items.join('')}</div></div>`;
 }
 
 async function renderSeriesTree() {
@@ -202,15 +237,31 @@ async function renderSeriesTree() {
       return cycles.length ? { ...universe, cycles } : null;
     })
     .filter(Boolean);
+  missingTargets = [];
+  const universeMarkup = visible
+    .map((universe) => {
+      const named = universe.cycles.filter((cycle) => cycle.name).length;
+      return `<details class="series-universe" id="series-${escapeHtml(foldText(universe.name).replace(/[^a-z0-9]+/g, '-'))}" data-universe="${escapeHtml(universe.name)}"${collapsedUniverses.has(universe.name) ? '' : ' open'}><summary><h3>${escapeHtml(universe.name)}</h3><small>${universe.works} dzieł · ${offersLabel(universe.offers)}${named ? ` · cykle: ${named}` : ''}</small></summary>${universe.cycles.map((cycle) => cycleMarkup(cycle, universe.name, universe.cycles.length === 1)).join('')}</details>`;
+    })
+    .join('');
+  const missingTotal = missingTargets.reduce((sum, target) => sum + target.missing.length, 0);
+  const gapsBar = missingTotal
+    ? `<div class="series-gaps"><span><b>Braki w seriach: ${missingTotal}</b> ${missingTotal === 1 ? 'tom' : pluralForm(missingTotal) === 'few' ? 'tomy' : 'tomów'} w ${missingTargets.length} ${missingTargets.length === 1 ? 'cyklu' : 'cyklach'}</span><button class="button ghost compact" type="button" id="copySeriesGaps">Kopiuj listę braków</button></div>`
+    : '';
   list.innerHTML = visible.length
-    ? `<nav class="series-jump" aria-label="Uniwersa">${visible.map((universe) => `<a href="#series-${escapeHtml(foldText(universe.name).replace(/[^a-z0-9]+/g, '-'))}">${escapeHtml(universe.name)} <small>${universe.works}</small></a>`).join('')}</nav>` +
-      visible
-        .map((universe) => {
-          const named = universe.cycles.filter((cycle) => cycle.name).length;
-          return `<details class="series-universe" id="series-${escapeHtml(foldText(universe.name).replace(/[^a-z0-9]+/g, '-'))}" data-universe="${escapeHtml(universe.name)}"${collapsedUniverses.has(universe.name) ? '' : ' open'}><summary><h3>${escapeHtml(universe.name)}</h3><small>${universe.works} dzieł · ${offersLabel(universe.offers)}${named ? ` · cykle: ${named}` : ''}</small></summary>${universe.cycles.map((cycle) => cycleMarkup(cycle, universe.name, universe.cycles.length === 1)).join('')}</details>`;
-        })
-        .join('')
+    ? gapsBar + `<nav class="series-jump" aria-label="Uniwersa">${visible.map((universe) => `<a href="#series-${escapeHtml(foldText(universe.name).replace(/[^a-z0-9]+/g, '-'))}">${escapeHtml(universe.name)} <small>${universe.works}</small></a>`).join('')}</nav>` + universeMarkup
     : queryEmptyMarkup();
+  list.querySelectorAll('[data-find-missing]').forEach((button) =>
+    button.addEventListener('click', () => findMissing(missingTargets[Number(button.dataset.findMissing)])),
+  );
+  $('#copySeriesGaps')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(missingListText(missingTargets));
+      toast('Skopiowano listę brakujących tomów.');
+    } catch {
+      toast('Schowek jest niedostępny w tej przeglądarce.');
+    }
+  });
   list.querySelectorAll('[data-series-work]').forEach((button) =>
     button.addEventListener('click', () => openCatalogDetail(button.dataset.seriesWork)),
   );

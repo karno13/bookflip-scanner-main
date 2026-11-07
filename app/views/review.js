@@ -77,7 +77,10 @@ const groupSortKey = (job) => (job.offer?.matchedQueries?.[0] ? reviewGroup(job)
 state.skippedReviewIds ??= new Set();
 /** Catalogue match first (one key + Enter), then BN proposals by confidence. */
 const quickRank = (job) => (job.catalogMatch ? -1 : (confidenceRank[job.proposal?.confidence] ?? 3));
+const titleMismatch = (job) => [].concat(job.result?.reason ?? []).includes('isbn_title_mismatch');
+
 function proposalChip(job) {
+  if (titleMismatch(job)) return ' · <span class="proposal-chip is-mismatch">ISBN innej książki?</span>';
   if (job.catalogMatch) return ' · <span class="proposal-chip is-catalog">jest w katalogu</span>';
   const label = proposalLabels[job.proposal?.confidence];
   return label ? ` · <span class="proposal-chip is-${job.proposal.confidence}">${label}</span>` : '';
@@ -207,6 +210,7 @@ function renderReviewDetail() {
       <div class="lean-review-body rv-body">
         <figure class="rv-photo">${coverMarkup(photo, offerTitle, { size: 'xl', escapeHtml })}<figcaption>Zdjęcie z ogłoszenia · widziana ${escapeHtml(date(offer.lastSeenAt))}</figcaption></figure>
         <div class="rv-work">
+          ${titleMismatch(job) ? `<p class="rv-mismatch" role="note">ISBN z ogłoszenia prowadzi do <b>${escapeHtml(String(suggested?.edition.title || result.candidate?.title || 'innej książki').split(' / ')[0])}</b>, a tytuł ogłoszenia nie ma z nią nic wspólnego. Sprawdź zdjęcie: jeśli to ta książka, kliknij „Sprawdź ISBN” i zatwierdź; jeśli nie — wybierz właściwe wydanie.</p>` : ''}
           <section class="lean-review-proposals rv-proposals" id="reviewProposals" aria-live="polite" hidden></section>
           <section class="lean-review-isbn rv-isbn">
             <label for="reviewIsbnCheckInput">ISBN <span>wpisz, wklej albo wybierz propozycję</span></label>
@@ -358,6 +362,7 @@ function renderReviewDetail() {
         insufficient_offer_context: 'Za mało zgodnych informacji, żeby bezpiecznie przypisać ofertę.',
         metadata_invalid_or_incomplete: 'Metadane z zewnętrznych katalogów są niekompletne.',
         multiple_conflicting_isbn: 'Ogłoszenie ma sprzeczne numery ISBN.',
+        isbn_title_mismatch: 'Tytuł ogłoszenia nie pasuje do książki o tym ISBN.',
       };
       output.textContent = response.reason?.map((code) => reasons[code] || code).join(' · ')
         || 'Nie można bezpiecznie dopasować. Wybierz wydanie ręcznie.';

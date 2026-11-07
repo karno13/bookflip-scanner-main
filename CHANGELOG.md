@@ -2,6 +2,12 @@
 
 BookFlip uses small pull requests and GitHub Actions on Ubuntu/Windows to track changes.
 
+## 2026-11-07 (6) — Zgodność ISBN z tytułem, braki w seriach
+
+- **ISBN innej książki nie trafia już do katalogu.** Jeśli tytuł ogłoszenia nie ma ani jednego wspólnego słowa z rekordem dla podanego ISBN (tytuł, seria, uniwersum, nazwisko autora; „Świat Dysku” = „Discworld”, odmiana po rdzeniu), resolver zostawia ofertę w weryfikacji z powodem `isbn_title_mismatch` zamiast przypisać ją lub tworzyć nowe dzieło. Ogólne ogłoszenia („Książka Warcraft”) dalej przechodzą. ISBN wpisany lub sprawdzony ręcznie w weryfikacji nie podlega tej kontroli. W kolejce: etykieta „ISBN innej książki?” i ostrzeżenie nad propozycjami.
+- **Katalog → „Podejrzane przypisania”**: dotychczasowe automatyczne przypisania z tym samym problemem (na obecnej bazie 8, m.in. „Logik der Forschung” pod Warcraftem). „Do weryfikacji” cofa przypisanie i wraca ofertę do kolejki; „To prawidłowe” zamienia je w ręczne i nie pokazuje ponownie. Endpointy `GET /api/catalog/title-conflicts`, `POST /api/catalog/title-conflicts/resolve`.
+- **Braki w seriach** (widok „Serie”): licznik brakujących tomów, „Kopiuj listę braków” oraz przy każdym cyklu z lukami „Szukaj brakujących” — wpisuje do skanera frazy „<cykl> tom N” (do 10) i przełącza na Skaner.
+
 ## 2026-11-07 (5) — Serie w katalogu
 
 - **Katalog → widok „Serie”** (obok „Lista” i „Okładki”): uniwersum (Świat Dysku, Warhammer, Warcraft, Dragonlance, Forgotten Realms; inne — według frazy skanu) → cykl z numerami tomów (Herezja Horusa, Legenda Drizzta, Duchy Gaunta…) → półka okładek. Brakujące tomy są pustymi, przerywanymi miejscami; przy długich lukach (Świat Dysku 1…41) tylko podsumowanie. Cykl i tom pochodzą z opisu serii BN; ręczne oznaczenie serii w karcie dzieła ma pierwszeństwo. Numeracja wydawnicza („Wielka kolekcja”, „Czarna Biblioteka”) nie jest traktowana jako cykl. Endpoint `GET /api/catalog/series-tree`. Widok pokazuje też źle przypisane dzieła (np. obca książka pod Warcraftem) — łatwo je wyłapać.

@@ -5,6 +5,7 @@ import { isbnKeys, normalizeISBN } from './isbn-normalization.mjs';
 import { persistMetadataResults } from './metadata-lookup.mjs';
 
 import { findWorkByKey } from './work-grouping.mjs';
+import { titleConflict } from './title-consistency.mjs';
 const TRUSTED = new Set(['structured', 'labelled_description']);
 const REVIEW_ONLY = new Set(['unlabelled_description', 'ocr', 'uncertain', 'legacy']);
 
@@ -206,6 +207,19 @@ function mergeRecords(result) {
   return records.length === 1 ? { record: records[0], records } : null;
 }
 
+/** An ISBN typed or chosen by the operator in review is their assertion: no title check. */
+function operatorEvidence(evidence) {
+  return (evidence?.observations ?? []).some((row) => String(row.source ?? '').startsWith('review:'));
+}
+
+function allRecords(metadata) {
+  return [metadata?.bn, metadata?.openLibrary].flatMap((entry) => (entry?.status === 'found' ? entry.records ?? [] : []));
+}
+
+function offerTitleOf(offer) {
+  return offer?.original_title ?? offer?.title ?? '';
+}
+
 function decision(type, reason, evidence, ids = {}, extra = {}) {
   return {
     decision: type,
@@ -378,6 +392,16 @@ export class CatalogResolver {
         { workId: edition.work_id, editionId: edition.id, offerMatchId: current.id },
         { context, dryRun },
       );
+    if (offerId && !operatorEvidence(isbnEvidence)) {
+      const work = this.repository.database
+        .prepare('SELECT title, authors_json FROM works WHERE id=?')
+        .get(edition.work_id);
+      if (titleConflict(offerTitleOf(offer), { title: edition.title, workTitle: work?.title, authors: work?.authors_json }))
+        return decision('review_required', ['isbn_title_mismatch'], proof, {
+          workId: edition.work_id,
+          editionId: edition.id,
+        });
+    }
     const matchId = offerId ? stableId('resolver_match', offerId, edition.id) : null;
     if (!dryRun && offerId)
       this.repository.transaction(() => {
@@ -418,6 +442,20 @@ export class CatalogResolver {
     dryRun,
     context,
   }) {
+    // The listing names a different book than the ISBN record: hold it back before creating
+    // a work that would only exist because of a typo.
+    if (
+      offerId &&
+      !operatorEvidence(isbnEvidence) &&
+      titleConflict(offerTitleOf(currentOffer), {
+        // Any source agreeing with the listing is enough (BN and Open Library may word it differently).
+        title: allRecords(metadata).map((record) => record.title).join(' '),
+        authors: allRecords(metadata).flatMap((record) => record.authors ?? []),
+      })
+    )
+      return decision('review_required', ['isbn_title_mismatch'], proof, {}, {
+        candidate: { title: selected.record.title, authors: selected.record.authors, isbn },
+      });
     const existingWork = externalWork(
       this.repository,
       selected.records.find((record) => record.workExternalId),
