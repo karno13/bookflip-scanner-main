@@ -1284,3 +1284,16 @@ kbd {
   width: 20px;
   height: 20px;
 }
+
+/* 14. Propozycje po tytule w weryfikacji */
+.proposal-chip { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 18px; background: var(--brand-soft); color: var(--brand); }
+.proposal-chip.is-medium { background: var(--warn-soft); color: var(--warn); }
+.lean-review-proposals { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+.lean-review-proposals h4 { margin: 0 0 8px; font-size: 13px; }
+.lean-review-proposals h4 small { color: var(--muted); font-weight: 400; }
+.proposal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.proposal-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.proposal-list li > div { display: grid; gap: 2px; min-width: 0; }
+.proposal-list b { overflow-wrap: anywhere; }
+.proposal-list small { color: var(--muted); }
+.proposal-list .button { flex: none; min-height: 44px; }

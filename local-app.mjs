@@ -5,6 +5,7 @@ import { createSqliteVintedDetailCache } from './vinted-detail-sqlite-cache.mjs'
 import { publicAssetPath } from './static-asset-path.mjs';
 import { retryIdentificationJobs } from './identification-retry.mjs';
 import { enrichOffers } from './offer-enrichment.mjs';
+import { computeProposal, loadProposal, refreshProposals } from './title-proposals.mjs';
 import { historyBookLabels } from './history-brief.mjs';
 import { scanCancelled, awaitScan } from './scan-cancellation.mjs';
 import { createVintedDetailCache } from './vinted-detail-cache.mjs';
@@ -534,6 +535,24 @@ async function enrichPendingOffers(catalogStore) {
   }
 }
 
+// Title proposals call the national catalogue (rate limited), so they run beside the resolver
+// in small batches and never delay it.
+let runningProposals = null;
+function scheduleProposalRefresh(catalogStore) {
+  if (runningProposals || String(process.env.BOOKFLIP_DETAIL_ENRICHMENT ?? '1') === '0') return;
+  if (typeof catalogStore.findIsbnsByTitle !== 'function' || !catalogStore.repository?.database) return;
+  runningProposals = refreshProposals(catalogStore, { limit: 4 })
+    .then((report) => {
+      if (report.computed) recordProgress({ type: 'title_proposals', ...report });
+    })
+    .catch((error) =>
+      recordProgress({ type: 'title_proposals_error', code: /^[A-Z0-9_]+$/.test(error?.message) ? error.message : 'PROPOSAL_ERROR' }),
+    )
+    .finally(() => {
+      runningProposals = null;
+    });
+}
+
 let runningCatalogResolution = null;
 function scheduleCatalogResolution(catalogStore) {
   if (runningCatalogResolution) return runningCatalogResolution;
@@ -561,6 +580,7 @@ function scheduleCatalogResolution(catalogStore) {
     })
     .finally(() => {
       runningCatalogResolution = null;
+      scheduleProposalRefresh(catalogStore);
     });
   return runningCatalogResolution;
 }
@@ -878,6 +898,29 @@ export function createLocalAppServer({
           response,
           200,
           JSON.stringify(result),
+        );
+      }
+      if (
+        ['GET', 'POST'].includes(request.method) &&
+        /^\/api\/identification-jobs\/[^/]+\/proposals$/.test(url.pathname)
+      ) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const id = decodeURIComponent(url.pathname.split('/')[3]);
+        const job = catalog.repository.database
+          .prepare(
+            "SELECT j.id,j.offer_id,o.original_title,o.observed_isbn FROM identification_jobs j JOIN offers o ON o.id=j.offer_id WHERE j.id=? AND j.status='review_required'",
+          )
+          .get(id);
+        if (!job) return send(response, 404, JSON.stringify({ error: 'REVIEW_JOB_NOT_FOUND' }));
+        // GET reads the stored proposal and computes one when missing; POST forces a fresh lookup.
+        const stored = request.method === 'GET' ? loadProposal(catalog.repository, id) : null;
+        if (stored) return send(response, 200, JSON.stringify(stored));
+        const fresh = await computeProposal(catalog, job);
+        return send(
+          response,
+          200,
+          JSON.stringify({ jobId: id, queries: fresh.queries, candidates: fresh.candidates, confidence: fresh.confidence, unavailable: fresh.unavailable }),
         );
       }
       if (

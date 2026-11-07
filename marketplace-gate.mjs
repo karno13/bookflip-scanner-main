@@ -14,7 +14,7 @@ export function createMarketplaceGate({ intervalMs = 2000 } = {}) {
       const turn = state.queue.then(async () => {
         if (signal?.aborted) throw signal.reason || Error('ABORTED');
         const delay = Math.max(0, state.nextAt - now(), state.cooldownUntil - now());
-        if (delay) await pause(delay, undefined, {signal});
+        if (delay) await pause(delay, undefined, signal ? { signal } : undefined);
         if (signal?.aborted) throw signal.reason || Error('ABORTED');
         state.nextAt = Math.max(state.nextAt, state.cooldownUntil, now()) + intervalMs;
       });

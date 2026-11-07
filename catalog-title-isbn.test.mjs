@@ -37,3 +37,19 @@ test('title discovery reports unavailable metadata source without inventing ISBN
     requestOpenLibrary: async () => ({ status: 'not_found' }),
   }), /TITLE_TOO_SHORT/);
 });
+
+test('an ISBN-10 and ISBN-13 of the same edition yield one candidate; articles are ignored', async () => {
+  const result = await findTitleIsbnCandidates('Przebudzenie cieni', {
+    requestBn: async () => ({
+      status: 'found',
+      payload: {
+        bibs: [
+          { title: 'Przebudzenie cieni', kind: 'książka', isbnIssn: ['8366575152', '9788366575158'] },
+          { title: 'Przebudzenie cieni (artykuł)', kind: 'artykuł', isbnIssn: ['9780306406157'] },
+        ],
+      },
+    }),
+    requestOpenLibrary: async () => ({ status: 'not_found' }),
+  });
+  assert.deepEqual(result.candidates.map((item) => item.isbn), ['9788366575158']);
+});

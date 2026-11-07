@@ -1,4 +1,20 @@
 import { isbnCandidates } from './metadata-record.mjs';
+import { isbnKeys } from './isbn-normalization.mjs';
+
+// One candidate per edition: an ISBN-10 and its ISBN-13 are the same book, keep the 13-digit form.
+function distinctEditions(values, max = 3) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const keys = isbnKeys(value);
+    const canonical = keys.find((key) => key.length === 13) ?? value;
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    out.push(canonical);
+    if (out.length >= max) break;
+  }
+  return out;
+}
 
 // This is discovery only. Never create or assign editions from a title search:
 // the same work can have many editions, translations and ISBNs.
@@ -21,11 +37,16 @@ export async function findTitleIsbnCandidates(
   if (bnResponse.status === 'found') {
     const books = bnResponse.payload?.bibs ?? bnResponse.payload?.records ?? [];
     for (const book of Array.isArray(books) ? books.slice(0, 8) : []) {
-      for (const isbn of isbnCandidates(book.isbnIssn ?? book.isbn ?? book.isbns ?? []).slice(0, 3))
+      // BN title search also returns articles and periodicals; only monographs are candidates.
+      if (book.kind && !/ksi[aą][zż]ka|book/i.test(String(book.kind))) continue;
+      for (const isbn of distinctEditions(isbnCandidates(book.isbnIssn ?? book.isbn ?? book.isbns ?? [])))
         candidates.push({
           isbn, source: 'bn',
           title: String(book.title ?? title).slice(0, 220),
+          // BN returns authors as one free-text string ("Pratchett, Terry (1948-2015) ...").
           authors: Array.isArray(book.authors) ? book.authors.map(String).slice(0, 3) : [],
+          authorText: String(book.author ?? '').slice(0, 160),
+          publisher: String(book.publisher ?? '').slice(0, 80),
           language: String(book.language ?? '').slice(0, 50),
           publicationYear: String(book.publicationYear ?? '').slice(0, 10),
         });
@@ -36,7 +57,7 @@ export async function findTitleIsbnCandidates(
     : { status: 'skipped' };
   if (olResponse.status === 'found') {
     for (const book of (Array.isArray(olResponse.payload?.docs) ? olResponse.payload.docs : []).slice(0, 8)) {
-      for (const isbn of isbnCandidates(book.isbn ?? []).slice(0, 3))
+      for (const isbn of distinctEditions(isbnCandidates(book.isbn ?? [])))
         candidates.push({
           isbn, source: 'open_library',
           title: String(book.title ?? title).slice(0, 220),

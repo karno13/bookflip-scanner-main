@@ -54,3 +54,20 @@ test('the scanner no longer awaits remote ISBN resolution before responding', ()
   assert.doesNotMatch(app, /await catalogStore\.processQueued\(\)/);
   assert.match(app, /runningCatalogResolution/);
 });
+
+test('an ISBN unknown to the national sources stays in the review queue instead of closing the job', async () => {
+  const catalog = createProductionCatalog({ databasePath: ':memory:' });
+  try {
+    catalog.ingestOffers(
+      [{ source: 'fixture', url: 'https://example.test/items/201', title: 'Obscure book', price: 120 }],
+      new Date('2026-01-01T10:00:00Z'),
+    );
+    catalog.resolver.resolve = async () => ({ decision: 'not_found', reason: ['isbn_not_found_in_metadata_sources'] });
+    await catalog.processQueued(1);
+    const job = catalog.repository.database.prepare('SELECT status,result_json FROM identification_jobs').get();
+    assert.equal(job.status, 'review_required');
+    assert.equal(JSON.parse(job.result_json).decision, 'not_found');
+  } finally {
+    catalog.repository.close();
+  }
+});

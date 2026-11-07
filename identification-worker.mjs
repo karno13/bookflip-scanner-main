@@ -5,7 +5,9 @@ const DECISION_TO_JOB_STATUS = Object.freeze({
   created_edition: 'completed',
   created_work_and_edition: 'completed',
   review_required: 'review_required',
-  not_found: 'completed',
+  // A valid ISBN that the national sources do not know still needs a human (add to catalogue or reject);
+  // closing it silently would drop the offer from both the catalogue and the review queue.
+  not_found: 'review_required',
   retry_pending: 'retry_wait',
 });
 

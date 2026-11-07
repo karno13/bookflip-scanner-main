@@ -8,7 +8,7 @@
   <link rel=stylesheet href=/workflow.css>
   <link rel=stylesheet href=/trading.css>
   <link rel=stylesheet href=/mobile-repair.css?v=20261107-pruned>
-  <link rel=stylesheet href=/design-v4.css?v=1>
+  <link rel=stylesheet href=/design-v4.css?v=3>
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Przejdź do treści</a>
@@ -100,10 +100,10 @@
             </details>
           </section>
           <div class="filterbar">
-            <label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="reviewSearch" type="search" placeholder="Szukaj po tytule, źródle lub ISBN"></label><p class="shortcut-hint" id="reviewShortcutHint"><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> — poprzednia / następna oferta</p></div><details class="compact-filters"><summary>Filtry weryfikacji</summary><div class="filterbar">
+            <label class="search-field"><span class="sr-only">Szukaj ofert</span><input id="reviewSearch" type="search" placeholder="Szukaj po tytule, źródle lub ISBN"></label><p class="shortcut-hint" id="reviewShortcutHint"><kbd>Alt</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> — poprzednia / następna oferta · <kbd>Alt</kbd> + <kbd>Enter</kbd> — zatwierdź · <kbd>Alt</kbd> + <kbd>1</kbd>…<kbd>5</kbd> — użyj propozycji</p></div><details class="compact-filters"><summary>Filtry weryfikacji</summary><div class="filterbar">
             <select id="reviewSource" aria-label="Źródło oferty"><option value="">Wszystkie źródła</option></select>
             <select id="reviewIsbn" aria-label="Status ISBN"><option value="">Każdy status ISBN</option><option value="present">ISBN wykryty</option><option value="missing">Brak ISBN</option></select>
-            <select id="reviewSort" aria-label="Sortowanie"><option value="newest">Najnowsze</option><option value="price">Cena rosnąco</option></select>
+            <select id="reviewSort" aria-label="Sortowanie"><option value="newest">Najnowsze</option><option value="price">Cena rosnąco</option><option value="proposal">Najpewniejsze propozycje</option></select>
           </div></details>
           <p id="reviewScanScope" role="status" hidden></p><details class="review-history"><summary>Ostatnie decyzje i poprawianie pomyłek</summary><div id="reviewDecisionHistory"></div></details>
           <div class="split-workspace">
