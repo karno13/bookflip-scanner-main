@@ -3063,3 +3063,14 @@ body[data-catalog-view='grid'] #view-catalog .catalog-table-header {
     justify-self: start;
   }
 }
+
+/* v5.23 — catalogue editions proposed in review (offline, above BN proposals) */
+.rv-local-cands:not(:empty) {
+  margin-bottom: 14px;
+}
+.rv-cand.is-local:not(.is-chosen) {
+  border-left: 3px solid var(--brand);
+}
+.rv-external-cands:empty {
+  display: none;
+}

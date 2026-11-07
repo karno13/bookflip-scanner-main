@@ -36,6 +36,7 @@ import {
   listCatalogWorks,
   listIdentificationJobs,
   matchIdentificationJobByIsbn,
+  localEditionCandidates,
 } from './catalog-api.mjs';
 import { analyzedOffers, bookHistory, allBookStatistics } from './price-analysis.mjs';
 import { sqliteHistoryModel } from './sqlite-history-read.mjs';
@@ -948,6 +949,15 @@ export function createLocalAppServer({
           200,
           JSON.stringify(result),
         );
+      }
+      if (request.method === 'GET' && /^\/api\/identification-jobs\/[^/]+\/local-candidates$/.test(url.pathname)) {
+        const catalog = getProductionCatalog();
+        if (!catalog) return send(response, 503, JSON.stringify({ error: 'CATALOG_DISABLED' }));
+        const job = catalog.repository.database
+          .prepare('SELECT o.original_title FROM identification_jobs j JOIN offers o ON o.id=j.offer_id WHERE j.id=?')
+          .get(decodeURIComponent(url.pathname.split('/')[3]));
+        if (!job) return send(response, 404, JSON.stringify({ error: 'REVIEW_JOB_NOT_FOUND' }));
+        return send(response, 200, JSON.stringify({ items: localEditionCandidates(catalog.repository, job.original_title) }));
       }
       if (
         ['GET', 'POST'].includes(request.method) &&

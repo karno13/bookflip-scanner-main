@@ -2,7 +2,7 @@ import { openDetailView } from '../core/detail-navigation.js';
 import {statusLabel} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
 import { confirmDialog } from '../core/dialogs.js';
-import { describeCandidate, differingFields, tidyOfferTitle, coverMarkup, isbnCover } from '../core/bibliography.js';
+import { describeCandidate, differingFields, tidyOfferTitle, tidyWorkTitle, coverMarkup, isbnCover, parseBnPeople, cleanPublisher } from '../core/bibliography.js';
 // review workspace, preserving existing behavior while isolating its implementation.
 export function createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog, openCatalogForReview }) {
 function filteredReviewOffers() {
@@ -422,48 +422,103 @@ function renderReviewDetail() {
 
 }
 
-// Title-based suggestions: shown for offers without ISBN. Using one only fills the ISBN field and
-// runs the normal preview, so nothing is assigned until the operator confirms.
+// Suggestions for offers without ISBN. Editions already in the catalogue come first (instant,
+// offline; choosing one selects that edition). Title proposals from BN / Open Library follow
+// (choosing one fills the ISBN field and runs the normal preview). Nothing is assigned until the
+// operator confirms.
 async function loadProposals(job) {
   const box = $('#reviewProposals');
   if (!box || job.offer?.observedIsbn) return;
   box.hidden = false;
-  box.innerHTML = '<p class="inline-note">Szukam propozycji po tytule…</p>';
+  box.innerHTML = '<div class="rv-local-cands"></div><div class="rv-external-cands"><p class="inline-note">Szukam propozycji po tytule…</p></div>';
+  const localBox = box.querySelector('.rv-local-cands');
+  const externalBox = box.querySelector('.rv-external-cands');
+  const current = () => state.selectedReviewId === job.id && box.isConnected;
+  let localCount = 0;
+  const localTask = json(`/api/identification-jobs/${encodeURIComponent(job.id)}/local-candidates`)
+    .then(({ items = [] }) => {
+      if (!current() || !items.length) return;
+      localCount = items.length;
+      localBox.innerHTML =
+        `<div class="rv-section-title"><h4>Już w Twoim katalogu</h4><small>wybór wskazuje wydanie, <kbd>Enter</kbd> przypisuje</small></div><ol class="proposal-list rv-cands">` +
+        items
+          .map((item) => {
+            const title = tidyWorkTitle(item.title);
+            const author = parseBnPeople(item.authors.join(' '), item.authors)[0] || '';
+            const facts = [item.publicationYear, cleanPublisher(item.publisher), /^(?:pol|pl|polski)?$/i.test(item.language) ? '' : 'język: ' + item.language, item.offers ? `${item.offers} ${item.offers === 1 ? 'oferta' : [2, 3, 4].includes(item.offers % 10) && ![12, 13, 14].includes(item.offers % 100) ? 'oferty' : 'ofert'}` : '']
+              .filter(Boolean)
+              .map((text) => `<span class="fact">${escapeHtml(String(text))}</span>`)
+              .join('');
+            return `<li><button class="rv-cand is-local" type="button" data-proposal-edition="${escapeHtml(item.editionId)}" data-proposal-title="${escapeHtml(title)}" aria-label="Wybierz wydanie z katalogu: ${escapeHtml(title)}"><kbd class="rv-key"></kbd>${coverMarkup(item.cover || isbnCover(item.isbn), title, { size: 'sm', escapeHtml })}<span class="rv-cand-body"><b>${escapeHtml(title)}</b><small>${escapeHtml(author || 'autor nieznany')}</small><span class="rv-facts">${facts}</span><small class="rv-isbn-line">${item.isbn ? 'ISBN ' + escapeHtml(item.isbn) + ' · ' : ''}katalog</small></span><span class="rv-score" data-score="${Math.round(item.score * 10)}"><span class="rv-meter"><i></i></span>${Math.round(item.score * 100)}%</span></button></li>`;
+          })
+          .join('') +
+        '</ol>';
+      localBox.querySelectorAll('[data-proposal-edition]').forEach((button) =>
+        button.addEventListener('click', () => {
+          box.querySelectorAll('.rv-cand').forEach((other) => other.classList.toggle('is-chosen', other === button));
+          chooseCatalogEdition(button.dataset.proposalEdition, button.dataset.proposalTitle);
+        }),
+      );
+      renumberProposals(box);
+    })
+    .catch(() => {});
   try {
     const proposal = await json(`/api/identification-jobs/${encodeURIComponent(job.id)}/proposals`);
-    if (state.selectedReviewId !== job.id || !box.isConnected) return;
-    const items = (proposal.candidates || []).slice(0, 5);
+    await localTask;
+    if (!current()) return;
+    const items = (proposal.candidates || []).slice(0, Math.max(2, 5 - localCount));
     if (!items.length) {
-      box.innerHTML = proposal.unavailable?.length
-        ? '<p class="inline-note">Katalog zewnętrzny jest chwilowo niedostępny — propozycji nie udało się pobrać.</p>'
-        : '<p class="inline-note">Brak propozycji po tytule. Wyszukaj wydanie ręcznie.</p>';
+      externalBox.innerHTML = localCount
+        ? ''
+        : proposal.unavailable?.length
+          ? '<p class="inline-note">Katalog zewnętrzny jest chwilowo niedostępny — propozycji nie udało się pobrać.</p>'
+          : '<p class="inline-note">Brak propozycji po tytule. Wyszukaj wydanie ręcznie.</p>';
       return;
     }
     const described = items.map(describeCandidate);
     const differs = differingFields(described);
     const fact = (field, text) => text ? `<span class="fact${differs.has(field) ? ' is-diff' : ''}">${escapeHtml(text)}</span>` : '';
-    box.innerHTML =
-      `<div class="rv-section-title"><h4>Propozycje po tytule</h4><small>${differs.size ? 'Podświetlono to, czym się różnią · ' : ''}<kbd>1</kbd>–<kbd>${items.length}</kbd> wybiera</small></div><ol class="proposal-list rv-cands">` +
+    externalBox.innerHTML =
+      `<div class="rv-section-title"><h4>${localCount ? 'Inne wydania (BN / Open Library)' : 'Propozycje po tytule'}</h4><small>${differs.size ? 'Podświetlono to, czym się różnią' : ''}</small></div><ol class="proposal-list rv-cands">` +
       described
         .map(
-          (item, index) =>
-            `<li><button class="rv-cand" type="button" data-proposal-isbn="${escapeHtml(item.isbn)}" aria-label="Użyj propozycji ${index + 1}: ${escapeHtml(item.title)}"><kbd class="rv-key">${index + 1}</kbd>${coverMarkup(isbnCover(item.isbn), item.title, { size: 'sm', escapeHtml })}<span class="rv-cand-body"><b>${escapeHtml(item.title)}</b><small>${escapeHtml([item.author, ...item.contributors.slice(0, 1)].filter(Boolean).join(' · ') || 'autor nieznany')}</small><span class="rv-facts">${fact('year', item.year)}${fact('series', item.series ? item.series + (item.volume ? ' · t. ' + item.volume : '') : item.cycle)}${fact('publisher', item.publisher)}</span><small class="rv-isbn-line">ISBN ${escapeHtml(item.isbn)} · ${escapeHtml(item.source)}</small></span><span class="rv-score" data-score="${Math.round(item.score * 10)}"><span class="rv-meter"><i></i></span>${Math.round(item.score * 100)}%</span></button></li>`,
+          (item) =>
+            `<li><button class="rv-cand" type="button" data-proposal-isbn="${escapeHtml(item.isbn)}" aria-label="Użyj propozycji: ${escapeHtml(item.title)}"><kbd class="rv-key"></kbd>${coverMarkup(isbnCover(item.isbn), item.title, { size: 'sm', escapeHtml })}<span class="rv-cand-body"><b>${escapeHtml(item.title)}</b><small>${escapeHtml([item.author, ...item.contributors.slice(0, 1)].filter(Boolean).join(' · ') || 'autor nieznany')}</small><span class="rv-facts">${fact('year', item.year)}${fact('series', item.series ? item.series + (item.volume ? ' · t. ' + item.volume : '') : item.cycle)}${fact('publisher', item.publisher)}</span><small class="rv-isbn-line">ISBN ${escapeHtml(item.isbn)} · ${escapeHtml(item.source)}</small></span><span class="rv-score" data-score="${Math.round(item.score * 10)}"><span class="rv-meter"><i></i></span>${Math.round(item.score * 100)}%</span></button></li>`,
         )
         .join('') +
       '</ol>';
-    box.querySelectorAll('[data-proposal-isbn]').forEach((button) =>
+    externalBox.querySelectorAll('[data-proposal-isbn]').forEach((button) =>
       button.addEventListener('click', () => {
         box.querySelectorAll('.rv-cand').forEach((other) => other.classList.toggle('is-chosen', other === button));
         useProposal(button.dataset.proposalIsbn);
       }),
     );
+    renumberProposals(box);
     // A single sure proposal is previewed right away (read-only); the operator still confirms with
-    // Enter. With several editions nothing is preselected — the photo decides which one it is.
-    if (proposal.confidence === 'high' && items.length === 1 && !$('#reviewIsbnCheckInput')?.value)
-      box.querySelector('.rv-cand')?.click();
+    // Enter. With several editions — or a known catalogue edition — nothing is preselected.
+    if (proposal.confidence === 'high' && items.length === 1 && !localCount && !$('#reviewIsbnCheckInput')?.value)
+      externalBox.querySelector('.rv-cand')?.click();
   } catch {
-    if (box.isConnected) box.innerHTML = '<p class="inline-note">Nie udało się pobrać propozycji.</p>';
+    await localTask;
+    if (current()) externalBox.innerHTML = localCount ? '' : '<p class="inline-note">Nie udało się pobrać propozycji.</p>';
   }
+}
+
+/** Keys 1–9 follow the on-screen order: catalogue editions first, then external proposals. */
+function renumberProposals(box) {
+  box.querySelectorAll('.rv-cand').forEach((button, index) => {
+    const key = button.querySelector('.rv-key');
+    if (key) key.textContent = index < 9 ? String(index + 1) : '';
+  });
+}
+
+function chooseCatalogEdition(editionId, title) {
+  const input = $('#reviewBookSearch');
+  if (!input || !editionId) return;
+  input.value = title;
+  input.dataset.editionId = editionId;
+  $('#reviewChosenEdition').textContent = `Wybrane z katalogu: ${title}`;
+  $('#approveReview').disabled = false;
 }
 
 function useProposal(isbn) {
@@ -636,9 +691,9 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     return press('#approveReview');
   }
-  if (/^[1-5]$/.test(key)) {
+  if (/^[1-9]$/.test(key)) {
     event.preventDefault();
-    return document.querySelectorAll('#reviewProposals [data-proposal-isbn]')[Number(key) - 1]?.click();
+    return document.querySelectorAll('#reviewProposals .rv-cand')[Number(key) - 1]?.click();
   }
   const actions = {
     x: () => press('#rejectReview'),

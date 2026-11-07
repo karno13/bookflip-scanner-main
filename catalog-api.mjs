@@ -1,6 +1,7 @@
 import { normalizeISBN } from './isbn-normalization.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { proxiedImage } from './offer-images.mjs';
+import { scoreCandidate, titleTokens } from './title-proposals.mjs';
 
 const json = (value, fallback = null) => {
   try {
@@ -672,4 +673,67 @@ export function decideIdentificationJob(
       },
     };
   });
+}
+
+/**
+ * Editions already in the catalogue whose work title matches an offer title. Offline and instant,
+ * so offers without ISBN that are reprints of known books get a one-key proposal even when BN is
+ * slow. Advice only: the operator still approves the chosen edition.
+ */
+export function localEditionCandidates(repository, offerTitle, { limit = 4, minScore = 0.6 } = {}) {
+  const { database } = repository;
+  const works = database.prepare('SELECT id, title, authors_json FROM works').all();
+  const offerWords = new Set(titleTokens(offerTitle, { dropBrand: true }));
+  // Universe names ("World of Warcraft", "Warhammer") are on every cover: the work's own words must match.
+  const ownWordsMatch = (title) => {
+    const own = titleTokens(String(title).split(' / ')[0], { dropBrand: true });
+    return own.length > 0 && own.filter((word) => offerWords.has(word)).length / own.length >= 0.6;
+  };
+  const scored = works
+    .filter((work) => ownWordsMatch(work.title))
+    .map((work) => {
+      const authors = JSON.parse(work.authors_json || '[]');
+      return { work, authors, score: scoreCandidate(offerTitle, { title: work.title, authors }) };
+    })
+    .filter((item) => item.score >= minScore)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+  if (!scored.length) return [];
+  const editions = database
+    .prepare(
+      `SELECT e.id, e.work_id, e.title, e.publisher, e.publication_year, e.language,
+              (SELECT normalized_value FROM edition_identifiers i WHERE i.edition_id=e.id AND i.scheme IN ('isbn13','isbn10') ORDER BY i.scheme DESC LIMIT 1) AS isbn,
+              (SELECT count(*) FROM offer_matches m WHERE m.edition_id=e.id AND m.status='active') AS offers
+       FROM editions e WHERE e.work_id IN (${scored.map(() => '?').join(',')})`,
+    )
+    .all(...scored.map((item) => item.work.id));
+  const covers = editionCovers(database, editions.map((row) => row.id));
+  const rank = new Map(scored.map((item, index) => [item.work.id, index]));
+  return editions
+    .map((row) => {
+      const { work, authors, score } = scored[rank.get(row.work_id)];
+      return {
+        editionId: row.id,
+        workId: work.id,
+        title: work.title,
+        authors,
+        publisher: row.publisher || '',
+        publicationYear: row.publication_year || null,
+        language: row.language || '',
+        isbn: row.isbn || '',
+        offers: Number(row.offers || 0),
+        cover: covers.get(row.id) || null,
+        score,
+      };
+    })
+    // Among good matches the edition the operator already uses most (and Polish ones) goes first.
+    .sort(
+      (a, b) =>
+        (b.score >= 0.8) - (a.score >= 0.8) ||
+        (!/^(?:pol|pl|polski)?$/i.test(a.language)) - (!/^(?:pol|pl|polski)?$/i.test(b.language)) ||
+        b.offers - a.offers ||
+        b.score - a.score ||
+        (b.publicationYear || 0) - (a.publicationYear || 0),
+    )
+    .slice(0, limit);
 }
