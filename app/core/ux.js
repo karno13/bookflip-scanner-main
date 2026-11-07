@@ -9,6 +9,7 @@ const labels = {
   metadata_source_temporary_error:'Źródło metadanych chwilowo niedostępne',approved:'Zatwierdzone wydanie',excluded:'Odrzucona oferta',not_book:'To nie jest książka',requeued:'Ponowiona identyfikacja',proposal_rejected:'Odrzucona propozycja',
 };
 export function statusLabel(value) { return labels[value] || (value ? 'Wymaga sprawdzenia' : 'Brak danych'); }
+import { confirmDialog } from './dialogs.js';
 const dirtyScopes = new Set();
 const discardHandlers = new Map();
 export function markDirty(scope, dirty=true) { if(dirty) dirtyScopes.add(scope); else dirtyScopes.delete(scope); }
@@ -16,6 +17,14 @@ export function hasUnsavedChanges() { return dirtyScopes.size>0; }
 export function allowDiscard() {
   if(!hasUnsavedChanges()) return true;
   if(!confirm('Masz niezapisane zmiany. Odrzucić je i kontynuować?')) return false;
+  for(const scope of dirtyScopes) discardHandlers.get(scope)?.();
+  dirtyScopes.clear(); return true;
+}
+// Non-blocking variant for the UI: accessible <dialog> instead of window.confirm.
+export async function confirmDiscard() {
+  if(!hasUnsavedChanges()) return true;
+  const ok = await confirmDialog('Masz niezapisane zmiany. Odrzucić je i kontynuować?', { title: 'Niezapisane zmiany', confirmLabel: 'Odrzuć zmiany', cancelLabel: 'Wróć do edycji', danger: true });
+  if(!ok) return false;
   for(const scope of dirtyScopes) discardHandlers.get(scope)?.();
   dirtyScopes.clear(); return true;
 }

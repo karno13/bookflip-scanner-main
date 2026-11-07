@@ -1,0 +1,86 @@
+/* Hidden views and controls must stay hidden regardless of layout specificity. */
+[hidden]{display:none!important}
+.quick-actions,.offer-quick-views{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.offer-quick-views button{padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer}
+.offer-quick-views button[aria-pressed=true]{background:var(--green);color:white;border-color:var(--green)}
+.scan-advanced,.advanced-settings,.offer-extra-filters,.catalog-filters,.review-history,.catalog-edit{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+:is(.scan-advanced,.advanced-settings,.offer-extra-filters,.catalog-filters,.review-history,.catalog-edit,.scan-profiles)>summary{cursor:pointer;font-size:14px;font-weight:650;min-height:32px}
+.scan-advanced[open]>.panel{margin-top:14px}
+#dataSettings,#tradingDefaults,#legacyImports{padding:18px;margin-bottom:16px}
+#defaultCostFields,.set-costs,.catalog-edit form{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 0}
+#defaultCostFields .field,.catalog-edit .field{min-width:0}
+.catalog-edit input,.set-unknown-form input,.set-member-values input{width:100%;border:1px solid var(--line);border-radius:7px;padding:10px;background:var(--surface);color:var(--text);font:inherit}
+.catalog-edit form button,.catalog-edit form p,.set-costs h4,.set-costs p,.set-costs output,.set-costs>button{grid-column:1/-1}
+.set-trading{display:grid;gap:14px;border-top:1px solid var(--line);padding-top:18px;margin-top:18px}
+.set-unknown-form{display:grid;grid-template-columns:minmax(0,1fr) 80px auto;gap:8px}
+.set-member-values{display:grid;grid-template-columns:100px minmax(120px,1fr);gap:10px;margin-top:10px}
+.set-member-values label{font-size:13px;display:grid;gap:5px}
+.set-member-values button{grid-column:1/-1}
+.sets-member{align-items:start}
+.sets-member-copy{flex:1;min-width:0}
+.decision-history-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.drawer-backdrop{position:fixed;inset:0;background:rgba(17,35,27,.35);z-index:90}
+#offerDrawer.drawer{position:fixed;inset:0 0 0 auto;width:min(680px,80vw);z-index:100;padding:22px;max-height:100dvh;overscroll-behavior:contain}
+#offerDrawer[hidden],#drawerBackdrop[hidden]{display:none}
+#offerDrawer .drawer-close{position:sticky;top:0;background:var(--surface);min-height:44px;z-index:2}
+#offerDrawer .detail-actions{position:sticky;bottom:0;padding:12px 0;background:var(--surface)}
+#offerDrawer .offer-workspace{padding:15px;border:1px solid var(--line);border-radius:10px;background:var(--green-soft)}
+.offers-table-wrap{min-height:0;max-height:calc(100dvh - 340px);height:auto}
+.review-visible-comparison .comparison-candidate .book-spine{display:none}
+.review-lookup-advanced{font-size:13px}
+.view small,.inline-note,.detail-grid small,.review-item small,.catalog-book-copy small{font-size:13px;line-height:1.5}
+.button,.field input,.field textarea,.filterbar input,.filterbar select,.offer-title{font-size:14px}
+.button,.filterbar select,.filterbar input{min-height:40px}
+.simple-review .lean-review-body{gap:24px;padding:24px}
+.simple-review .lean-review-header{align-items:center;gap:16px}
+.simple-review .lean-review-header h3{margin:0;font-size:18px}
+.simple-review label{display:block;margin-bottom:8px;font-size:14px;font-weight:600}
+.simple-review .lean-review-isbn-tools input,.simple-review .detail-select{min-height:44px;font-size:14px}
+.simple-review .lean-review-result:empty{display:none}
+.simple-review .lean-review-result,.simple-review .lean-review-selected{font-size:13px;line-height:1.5}
+.simple-review .lean-review-footer{gap:12px;padding:20px 24px;position:static;box-shadow:none}
+.simple-review .lean-review-footer .button,.simple-review #reviewIsbnMatchButton{min-height:44px;padding:10px 16px;font-size:14px}
+.simple-review .lean-review-secondary-actions{gap:12px}
+.identification-dashboard{padding:18px 20px;margin-bottom:16px;border:1px solid #d8e6df;border-radius:16px;background:linear-gradient(120deg,#f5faf7,#fff);box-shadow:0 3px 14px #163f2810}
+.identification-dashboard-heading,.identification-progress-caption{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.identification-dashboard h3{margin:0 0 4px;font-size:17px}
+.identification-dashboard #identificationRunState{font-size:13px;color:var(--muted)}
+.identification-dashboard .identification-controls{display:flex;gap:8px;margin:0;flex-shrink:0}
+.identification-dashboard .button{min-height:40px}
+.identification-progress-caption{margin-top:16px;font-size:13px}
+.identification-progress-caption strong{font-variant-numeric:tabular-nums;color:#176747}
+.identification-dashboard progress{display:block;width:100%;height:10px;margin:9px 0;border:0;border-radius:20px;overflow:hidden;appearance:none;background:#e1ebe5;accent-color:#25865b}
+.identification-dashboard progress::-webkit-progress-bar{background:#e1ebe5;border-radius:20px}
+.identification-dashboard progress::-webkit-progress-value{background:linear-gradient(90deg,#176747,#42b883);border-radius:20px;transition:width .4s ease}
+.identification-dashboard progress::-moz-progress-bar{background:#25865b;border-radius:20px}
+.identification-dashboard #identificationProgressDetails{margin:0 0 14px;font-size:12px;color:var(--muted)}
+.identification-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.identification-metric{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid #e1e8e4;border-radius:10px;background:#fff}
+.identification-metric span{font-size:12px;color:#53645b}
+.identification-metric strong{font-size:26px;line-height:1;font-variant-numeric:tabular-nums;color:#253d30}
+.identification-metric.is-success{background:#eaf6ee;border-color:#c9e5d3}.identification-metric.is-success strong{color:#176747}
+.identification-metric.is-warning strong{color:#9b6a19}.identification-metric.is-error strong{color:#b44343}
+.identification-more{margin-top:12px;font-size:13px}.identification-more summary{cursor:pointer;color:#53645b}
+.identification-more[open]{max-height:210px;overflow:auto;padding-right:8px}
+.identification-more .settings-card{margin-top:12px}.identification-more .row{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:1100px){.identification-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.identification-dashboard{padding:16px}.identification-dashboard-heading{align-items:flex-start;flex-wrap:wrap}.identification-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.identification-metric strong{font-size:24px}}
+@media(prefers-reduced-motion:reduce){.identification-dashboard progress::-webkit-progress-value{transition:none}}
+.view-heading p,.field>span{font-size:14px;line-height:1.5}
+:is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #176747;outline-offset:3px}
+#moreDialog button{display:block;width:100%;margin:12px 0}
+@media(max-width:760px){
+  .mobile-bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .mobile-bottom-nav .mobile-secondary{display:none}
+  .mobile-nav-item{font-size:11px}
+  .mobile-nav-item[aria-current=page]{background:#e6f3e9;color:#176747}
+  #offerDrawer.drawer{width:100vw;padding:16px 14px calc(20px + env(safe-area-inset-bottom,0px))}
+  #defaultCostFields,.set-costs,.catalog-edit form,.set-unknown-form{grid-template-columns:minmax(0,1fr)}
+  .set-member-values{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .decision-history-row{flex-direction:column}
+  .view :is(input,textarea,select){font-size:16px}
+  .view :is(button,a.button,summary){min-height:44px}
+  .lean-review-navigation .button{min-height:44px}
+  .lean-review-result,.lean-review-guidance,.lean-review-heading small,.lean-review-edition-meta small{font-size:13px}
+  .catalog-row,.catalog-table-header{grid-template-columns:minmax(0,1fr) 40px 40px 90px}
+}

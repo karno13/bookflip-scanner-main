@@ -1,7 +1,8 @@
-import {statusLabel,markDirty,allowDiscard,watchForm} from '../core/ux.js';
+import {statusLabel,markDirty,hasUnsavedChanges,confirmDiscard,watchForm} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
 import { groszeToZloty, moneyFromZloty } from '../core/formatters.js';
 import { isWatchedOffer, mountOfferWorkspace, loadOfferWorkspace, allSavedOfferNotes, readOfferNotes } from './offer-workspace.js';
+import { confirmDialog, noticeDialog } from '../core/dialogs.js';
 // offers workspace, preserving existing behavior while isolating its implementation.
 export function createOffersView({ state, $, $$, json, money, date, escapeHtml, allOffers, bookFor, showView, priceStats, onFiltersChange }) {
 let drawerSerial=0;
@@ -23,7 +24,7 @@ function ensureWatchFilter() {
   importButton.className = 'button secondary compact';
   importButton.textContent = 'Importuj lokalne notatki';
   importButton.addEventListener('click', async () => {
-    if (!confirm('Przenieść lokalne notatki do SQLite? Istniejące wpisy w bazie zostaną pominięte.')) return;
+    if (!(await confirmDialog('Przenieść lokalne notatki do SQLite? Istniejące wpisy w bazie zostaną pominięte.', { title: 'Import notatek', confirmLabel: 'Importuj' }))) return;
     importButton.disabled = true;
     let imported = 0, skipped = 0, missing = 0, invalid = 0;
     try {
@@ -52,9 +53,9 @@ function ensureWatchFilter() {
       }
       await loadOfferWorkspace(json);
       renderOffers();
-      alert(`Import: ${imported} zapisanych, ${skipped} bez zmian, ${missing} nieistniejących ofert, ${invalid} błędnych wpisów. Dane przeglądarki zachowano.`);
+      await noticeDialog(`Import: ${imported} zapisanych, ${skipped} bez zmian, ${missing} nieistniejących ofert, ${invalid} błędnych wpisów. Dane przeglądarki zachowano.`, { title: 'Import notatek' });
     } catch (error) {
-      alert('Import nie został ukończony: ' + error.message + '. Dane przeglądarki zachowano.');
+      await noticeDialog('Import nie został ukończony: ' + error.message + '. Dane przeglądarki zachowano.', { title: 'Import nie powiódł się' });
     }
     finally {importButton.disabled=false;}
   });
@@ -166,8 +167,10 @@ function calculateScenario() {
   result.textContent = `Hipotetyczny pełny koszt: ${moneyFromZloty(cost)} · wynik: ${moneyFromZloty(profit)} · ROI: ${roi !== null && Number.isFinite(roi) ? roi.toFixed(1) + '%' : 'nieobliczalne przy koszcie 0'}. Przed podatkiem, bez gwarancji sprzedaży.`;
 }
 
-function closeOfferDrawer() {
-  if(!allowDiscard()) return false;
+// Returns true when closed immediately. With unsaved changes it asks first and, once the user
+// agrees, closes the drawer and runs `after`; returns false in the meantime.
+function closeOfferDrawer(after) {
+  if(hasUnsavedChanges()) { void confirmDiscard().then(ok=>{ if(ok&&closeOfferDrawer(after)&&after) after(); }); return false; }
   drawerSerial++;
   $('#offerDrawer').hidden=true;$('#drawerBackdrop').hidden=true;
   document.querySelector('.app-shell').inert=false;drawerTrigger?.focus();return true;
@@ -183,7 +186,7 @@ $('#offerDrawer')?.addEventListener('keydown',event=>{
   }
 });
 async function openOfferDrawer(id) {
-  if(!allowDiscard()) return;
+  if(!await confirmDiscard()) return;
   const serial=++drawerSerial;
   drawerTrigger=document.activeElement;
   $('#offerDrawer').hidden = false;
@@ -231,11 +234,11 @@ async function openOfferDrawer(id) {
     } catch(error){if(serial!==drawerSerial)return;$('#scenarioSaveStatus').textContent='Nie udało się odczytać scenariusza. Otwórz ofertę ponownie.';$('#saveScenario').disabled=true;}
     if(active) {
       const catalogLink=document.createElement('button');catalogLink.type='button';catalogLink.className='button secondary';catalogLink.textContent='Wydanie i historia w katalogu';
-      catalogLink.addEventListener('click',()=>{if(!closeOfferDrawer())return;document.dispatchEvent(new CustomEvent('bookflip-open-edition',{detail:{editionId:active.editionId}}));});
+      catalogLink.addEventListener('click',()=>{const go=()=>document.dispatchEvent(new CustomEvent('bookflip-open-edition',{detail:{editionId:active.editionId}}));if(closeOfferDrawer(go))go();});
       $('#offerDrawerContent .detail-actions').append(catalogLink);
       const comparison=document.createElement('button');comparison.type='button';comparison.className='button secondary';comparison.textContent='Porównaj ceny tego wydania';
       comparison.addEventListener('click',async()=>{
-        if(!allowDiscard())return;
+        if(!await confirmDiscard())return;
         let edition;
         try { edition=await json('/api/catalog/editions/'+encodeURIComponent(active.editionId)); }
         catch { toast('Nie udało się pobrać porównania cen. Spróbuj ponownie.'); return; }
@@ -251,8 +254,8 @@ async function openOfferDrawer(id) {
       $('#' + id)?.addEventListener('input', calculateScenario),
     );
     $('#drawerReview')?.addEventListener('click', () => {
-      if(!closeOfferDrawer())return;
-      document.dispatchEvent(new CustomEvent('bookflip-review-offer',{detail:{offerId:offer.id,jobId:offer.identificationJob.id}}));
+      const go=()=>document.dispatchEvent(new CustomEvent('bookflip-review-offer',{detail:{offerId:offer.id,jobId:offer.identificationJob.id}}));
+      if(closeOfferDrawer(go))go();
     });
   } catch (error) {
     if(serial!==drawerSerial)return;
@@ -265,4 +268,3 @@ async function openOfferDrawer(id) {
 
 return { filteredOffers, renderOffers, priceEvidenceMarkup, scenarioCalculatorMarkup, calculateScenario, openOfferDrawer, closeOfferDrawer };
 }
-

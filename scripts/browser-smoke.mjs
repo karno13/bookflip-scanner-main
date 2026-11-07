@@ -147,4 +147,3 @@ try {
   if (server) { server.kill(); await pause(250); }
   await rm(directory, { recursive: true, force: true });
 }
-

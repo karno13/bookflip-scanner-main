@@ -1,9 +1,10 @@
 import { openDetailView } from '../core/detail-navigation.js';
 import {money} from '../core/formatters.js';
-import {markDirty,allowDiscard,hasUnsavedChanges,watchForm} from '../core/ux.js';
+import {markDirty,confirmDiscard,hasUnsavedChanges,watchForm} from '../core/ux.js';
 import {mountSetTrading} from './set-trading.js';
+import { confirmDialog } from '../core/dialogs.js';
 // Workspace for marketplace offers containing multiple catalog editions.
-export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) {
+export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer, onSelect = () => {} }) {
   let sets = [];
   let activeId = null;
   let searchSerial = 0;
@@ -31,14 +32,15 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
   }
   function pluralSets(count) { return count === 1 ? '1 zestaw' : `${count} zestawów`; }
 
-  function selectSet(id) {
+  async function selectSet(id) {
     if(id===activeId){openDetailView('sets');return;}
-    if(!allowDiscard())return;
+    if(!await confirmDiscard())return;
     openDetailView('sets');
     activeId = id;
     $('#setCurrent').value = id || '';
     renderList();
     renderMembers();
+    onSelect();
   }
 
   async function refreshSets(preferred = null) {
@@ -51,6 +53,7 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
     $('#setCurrent').value = activeId || '';
     renderList();
     renderMembers();
+    onSelect();
   }
 
   function renderMembers() {
@@ -91,7 +94,7 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
     });
     mountSetTrading({active,target,json,refresh:refreshSets,toast,openOfferDrawer});
     target.querySelectorAll('[data-set-remove]').forEach(button => button.addEventListener('click', async () => {
-      if(!allowDiscard())return;
+      if(!await confirmDiscard())return;
       button.disabled = true;
       try {
         await request('DELETE', '/api/sets/' + encodeURIComponent(active.offerId) +
@@ -100,8 +103,8 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
       } catch (error) { button.disabled = false; toast(error.message); }
     }));
     $('#setUnmark').addEventListener('click', async () => {
-      if (!allowDiscard()) return;
-      if (!confirm('Usunąć oznaczenie zestawu? Oferta wróci do kolejki identyfikacji.')) return;
+      if(!await confirmDiscard())return;
+      if (!(await confirmDialog('Usunąć oznaczenie zestawu? Oferta wróci do kolejki identyfikacji.', { title: 'Oznaczenie zestawu', confirmLabel: 'Usuń oznaczenie', danger: true }))) return;
       try { await request('DELETE', '/api/sets/' + encodeURIComponent(active.offerId)); await refreshSets(); }
       catch (error) { toast(error.message); }
     });
@@ -138,7 +141,7 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
         </div>`).join('') : '<p class="sets-empty">Nie znaleziono wydań. Spróbuj innego tytułu lub ISBN.</p>';
       output.querySelectorAll('[data-add-edition]').forEach(button => button.addEventListener('click', async () => {
         if (!activeId) return toast('Najpierw wybierz zestaw.');
-        if (!allowDiscard()) return;
+        if(!await confirmDiscard())return;
         button.disabled = true;
         try {
           await request('POST', '/api/sets/' + encodeURIComponent(activeId) + '/editions', { editionId: button.dataset.addEdition });
@@ -161,7 +164,7 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
   wire('#setSearchOffers', searchOffers);
   wire('#setSearchEditions', searchEditions);
   wire('#setMarkOffer', async () => {
-    if (!allowDiscard()) return;
+    if(!await confirmDiscard())return;
     const offerId = $('#setOfferSelect').value;
     if (!offerId) return toast('Najpierw wyszukaj i wybierz ofertę.');
     await request('POST', '/api/sets', { offerId });
@@ -188,5 +191,5 @@ export function createSetsView({ $, json, escapeHtml, toast, openOfferDrawer }) 
   $('#setOfferQuery').addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); void searchOffers().catch(error => toast(error.message)); }
   });
-  return { refreshSets };
+  return { refreshSets, activeId: () => activeId };
 }

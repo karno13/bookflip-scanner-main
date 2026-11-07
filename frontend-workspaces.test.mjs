@@ -16,10 +16,10 @@ test('desktop shell exposes all six workspaces in order', () => {
   const views = [...html.matchAll(/class="nav-item(?: active)?"[^>]+data-view="([^"]+)"/g)].map(
     (match) => match[1],
   );
-  assert.deepEqual(views, ['catalog', 'review', 'scanner', 'offers', 'sets', 'settings']);
+  assert.deepEqual(views, ['scanner', 'offers', 'review', 'catalog', 'sets', 'settings']);
   assert.match(
     html,
-    /id="view-catalog"[^>]+class="view active"|class="view active"[^>]+id="view-catalog"/,
+    /id="view-scanner"[^>]+class="view active"|class="view active"[^>]+id="view-scanner"/,
   );
   assert.doesNotMatch(html, /data-view="history"/);
 });

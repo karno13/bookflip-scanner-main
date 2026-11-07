@@ -1,8 +1,9 @@
 import { mountEditionHistory } from './edition-history.js';
 import { openDetailView } from '../core/detail-navigation.js';
-import {markDirty,statusLabel,allowDiscard,watchForm} from '../core/ux.js';
+import {markDirty,statusLabel,confirmDiscard,watchForm} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
 import { mountSeriesEditor, readSeries, seriesSummary } from './series.js';
+import { confirmDialog } from '../core/dialogs.js';
 // catalog workspace, preserving existing behavior while isolating its implementation.
 export function createCatalogView({ state, $, $$, json, money, escapeHtml, visibleCatalogRows, openOfferDrawer, loadCatalogData }) {
 function catalogRows() {
@@ -26,6 +27,12 @@ function validCoverIsbn(value) {
       : null;
   return null;
 }
+function pluralForm(n) {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (n === 1) return 'one';
+  return mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'few' : 'many';
+}
+
 function coverPreviewMarkup(identifiers = []) {
   const isbn = identifiers.map((item) => validCoverIsbn(item.value)).find(Boolean);
   const cover = isbn
@@ -70,7 +77,7 @@ function renderEditionRail(work, selectedId = null) {
   const panel = $('#catalogEditionsPanel');
   if (!panel) return;
   panel.dataset.workId = work.id;
-  panel.innerHTML = '<div class="edition-rail-heading">Wydania ? ' + work.editions.length + '</div><div class="edition-rail-book">' + escapeHtml(work.title) + '</div>' + work.editions.map(edition => '<button type="button" class="edition-rail-row' + (edition.id === selectedId ? ' active' : '') + '" data-rail-edition="' + escapeHtml(edition.id) + '" aria-pressed="' + (edition.id === selectedId) + '"><strong>' + escapeHtml(edition.title) + '</strong><small>' + escapeHtml([edition.publisher, edition.publicationYear, edition.language, edition.binding].filter(Boolean).join(' ? ') || 'Brak danych bibliograficznych') + '</small><span class="rail-isbn">' + escapeHtml(edition.identifiers.find(item => item.scheme.startsWith('isbn'))?.value || 'Brak ISBN') + '</span></button>').join('');
+  panel.innerHTML = '<div class="edition-rail-heading">Wydania · ' + work.editions.length + '</div><div class="edition-rail-book">' + escapeHtml(work.title) + '</div>' + work.editions.map(edition => '<button type="button" class="edition-rail-row' + (edition.id === selectedId ? ' active' : '') + '" data-rail-edition="' + escapeHtml(edition.id) + '" aria-pressed="' + (edition.id === selectedId) + '"><strong>' + escapeHtml(edition.title) + '</strong><small>' + escapeHtml([edition.publisher, edition.publicationYear, edition.language, edition.binding].filter(Boolean).join(' · ') || 'Brak danych bibliograficznych') + '</small><span class="rail-isbn">' + escapeHtml(edition.identifiers.find(item => item.scheme.startsWith('isbn'))?.value || 'Brak ISBN') + '</span></button>').join('');
   panel.querySelectorAll('[data-rail-edition]').forEach(button => button.addEventListener('click', () => openEditionDetail(button.dataset.railEdition)));
 }
 
@@ -87,7 +94,7 @@ function renderCatalog() {
     ? visibleCatalogRows('works', rows)
         .map(
           (row) =>
-            `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title">${coverPreviewMarkup(row.editions.flatMap((edition) => edition.identifiers))}<span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap((e) => e.identifiers.filter((v) => v.scheme.startsWith('isbn')).map((v) => v.value))[0] || 'ISBN nieznany')}</small><small>${escapeHtml(row.editionCount === 1 ? [row.editions[0]?.publisher, row.editions[0]?.publicationYear, row.editions[0]?.language].filter(Boolean).join(' · ') || 'Brak danych wydania' : `${row.editionCount} wydań — otwórz szczegóły`)}</small></span></span><span>${row.editionCount}</span><span>${row.offerCount}</span><span><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(statusLabel(row.verificationStatus))}</span></span></button>`,
+            `<button class="catalog-row ${row.id === state.selectedCatalogId ? 'active' : ''}" type="button" data-catalog-id="${escapeHtml(row.id)}"><span class="catalog-book-title">${coverPreviewMarkup(row.editions.flatMap((edition) => edition.identifiers))}<span class="catalog-book-copy"><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.authors.join(', ') || 'Autor nieznany')}</small><small class="catalog-isbn">${escapeHtml(row.editions.flatMap((e) => e.identifiers.filter((v) => v.scheme.startsWith('isbn')).map((v) => v.value))[0] || 'ISBN nieznany')}</small><small>${escapeHtml(row.editionCount === 1 ? [row.editions[0]?.publisher, row.editions[0]?.publicationYear, row.editions[0]?.language].filter(Boolean).join(' · ') || 'Brak danych wydania' : `${row.editionCount} wydań — otwórz szczegóły`)}</small></span></span><span>${row.editionCount}</span><span data-plural="${pluralForm(row.offerCount)}">${row.offerCount}</span><span><span class="status-pill ${['manual', 'verified'].includes(row.verificationStatus) ? 'success' : 'warning'}">${escapeHtml(statusLabel(row.verificationStatus))}</span></span></button>`,
         )
         .join('')
     : queryEmptyMarkup();
@@ -128,7 +135,7 @@ function renderSeriesSummary() {
     const result = document.createElement('small');
     result.setAttribute('role', 'status');
     importButton.addEventListener('click', async () => {
-      if (!confirm('Importować ' + pending.length + ' lokalnych oznaczeń do SQLite? Istniejące wpisy zostaną pominięte.')) return;
+      if (!(await confirmDialog('Importować ' + pending.length + ' lokalnych oznaczeń do SQLite? Istniejące wpisy zostaną pominięte.', { title: 'Import oznaczeń', confirmLabel: 'Importuj' }))) return;
       importButton.disabled = true;
       let imported = 0, skipped = 0, errors = 0;
       for (const [workId, entry] of pending) {
@@ -148,7 +155,7 @@ function renderSeriesSummary() {
 }
 
 async function openCatalogDetail(id) {
-  if(!allowDiscard()) return;
+  if(!await confirmDiscard()) return;
   const request = ++detailRequest;
   state.selectedCatalogId = id;
   openDetailView('catalog');
@@ -200,7 +207,7 @@ function offerPriceSummaryMarkup(offers = []) {
 }
 
 async function openEditionDetail(id) {
-  if(!allowDiscard())return;
+  if(!await confirmDiscard())return;
   const request = ++detailRequest;
   openDetailView('catalog');
   const detail = $('#catalogDetail');
@@ -223,7 +230,7 @@ async function openEditionDetail(id) {
       rail.replaceChildren();
       void json('/api/catalog/works/' + encodeURIComponent(row.workId)).then(work => {
         if (request === detailRequest) renderEditionRail(work, id);
-      }).catch(() => { if (request === detailRequest) rail.textContent = 'Nie uda?o si? odczyta? listy wyda?.'; });
+      }).catch(() => { if (request === detailRequest) rail.textContent = 'Nie udało się odczytać listy wydań.'; });
     }
     detail.innerHTML = `<section class="detail-section"><button class="link-button" id="backToWork" type="button">← Wróć do dzieła</button><div class="edition-identity">${coverPreviewMarkup(row.identifiers)}<div><h3>${escapeHtml(row.title)}</h3><p class="inline-note">${escapeHtml(row.authors?.join(', ') || 'Autor nieznany')}</p></div></div><div class="detail-grid"><span><b>ISBN</b><small>${escapeHtml(
       row.identifiers
@@ -261,7 +268,7 @@ function mountWorkActions(row,detail) {
     try{const result=await json('/api/catalog/works?'+new URLSearchParams({query:query.value,limit:'30'}));choices.replaceChildren();
     for(const target of result.items.filter(item=>item.id!==row.id)){
       const button=document.createElement('button');button.type='button';button.className='button secondary';button.textContent='Połącz z: '+target.title+' · '+target.editionCount+' wydań';choices.append(button);
-      button.addEventListener('click',async()=>{button.disabled=true;try{const payload={sourceId:row.id,targetId:target.id};const preview=await json('/api/catalog/merge-works',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!confirm('Przenieść '+preview.editions+' wydań z „'+preview.sourceTitle+'” do „'+preview.targetTitle+'”? Dane docelowego dzieła pozostaną. Historyczne decyzje zostaną zachowane.')) return;
+      button.addEventListener('click',async()=>{button.disabled=true;try{const payload={sourceId:row.id,targetId:target.id};const preview=await json('/api/catalog/merge-works',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!(await confirmDialog('Przenieść '+preview.editions+' wydań z „'+preview.sourceTitle+'” do „'+preview.targetTitle+'”? Dane docelowego dzieła pozostaną. Historyczne decyzje zostaną zachowane.', { title: 'Łączenie dzieł', confirmLabel: 'Połącz', danger: true }))) return;
         await json('/api/catalog/merge-works',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,confirm:true})});await loadCatalogData();await openCatalogDetail(target.id);
       }catch(error){message.textContent='Nie połączono: konflikt serii, chronione identyfikatory lub rekord już połączony. Żadne częściowe zmiany nie zostały zapisane.';}finally{button.disabled=false;}});
     }

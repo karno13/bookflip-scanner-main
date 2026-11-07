@@ -1,6 +1,7 @@
 import { openDetailView } from '../core/detail-navigation.js';
-import {statusLabel,allowDiscard} from '../core/ux.js';
+import {statusLabel} from '../core/ux.js';
 import { safeOfferHref } from '../core/formatters.js';
+import { confirmDialog } from '../core/dialogs.js';
 // review workspace, preserving existing behavior while isolating its implementation.
 export function createReviewView({ state, $, $$, json, toast, money, date, escapeHtml, reviewOffers, loadCatalogData, renderCatalog, openCatalogForReview }) {
 function filteredReviewOffers() {
@@ -333,7 +334,7 @@ function renderReviewDetail() {
     if (reviewDecisionPending) return;
     const current = state.selectedReviewId;
     const offerId = job.offerId;
-    if (!current || !offerId || !confirm('Oznaczyć tę ofertę jako zestaw? Zniknie z weryfikacji pojedynczych książek.')) return;
+    if (!current || !offerId || !(await confirmDialog('Oznaczyć tę ofertę jako zestaw? Zniknie z weryfikacji pojedynczych książek.', { title: 'Oznaczanie jako zestaw', confirmLabel: 'Oznacz jako zestaw' }))) return;
     const button = $('#markAsSet');
     button.disabled = true;
     try {

@@ -1,5 +1,6 @@
 import { installDetailNavigation, openDetailView } from './core/detail-navigation.js';
-import { allowDiscard, statusLabel } from './core/ux.js';
+import { hasUnsavedChanges, confirmDiscard, statusLabel } from './core/ux.js';
+import { viewFromSearch, idFromSearch, urlForView, shouldPush } from './core/view-history.js';
 import { identificationProgress } from './core/identification-progress.js';
 import { installTradingControls } from './views/trading-controls.js';
 import { installDashboard } from './views/dashboard.js';
@@ -58,6 +59,11 @@ const state = {
   },
   visibleRows: { works: 100, jobs: 100 },
 };
+// Any code that changes the selected item (clicks, auto-advance after a decision, restore) updates the address.
+for (const key of ['selectedReviewId', 'selectedCatalogId']) {
+  let value = state[key];
+  Object.defineProperty(state, key, { enumerable: true, configurable: true, get: () => value, set: (next) => { value = next; queueMicrotask(syncItemUrl); } });
+}
 
 const savedSearch = readSavedSearch(localStorage);
 $('#queries').value = savedSearch?.queries?.join('\n') || '';
@@ -151,9 +157,41 @@ function renderScannerOffers() {
     );
 }
 
-function showView(name) {
+// Keeps ?id= in the address equal to the item selected in the active list/detail view.
+// Disabled until the startup restore has finished so a deep link is not wiped by early renders.
+let itemUrlReady = false;
+function selectedItemId(view) {
+  if (view === 'catalog') return state.selectedCatalogId;
+  if (view === 'review') return state.selectedReviewId;
+  if (view === 'sets') return setsView.activeId();
+  return null;
+}
+function syncItemUrl() {
+  if (!itemUrlReady) return;
+  const view = state.activeView;
+  const target = urlForView(view, selectedItemId(view));
+  if (location.pathname + location.search !== target) history.replaceState(history.state, '', target);
+}
+// Opens the item named in the URL once its data is available. Unknown ids are ignored.
+async function restoreItem(view, id) {
+  if (!id) return;
+  try {
+    if (view === 'catalog') await catalogView.openCatalogDetail(id);
+    else if (view === 'review') { state.selectedReviewId = id; renderReview(); openDetailView('review'); }
+    else if (view === 'sets') { await setsView.refreshSets(id); openDetailView('sets'); }
+  } catch (error) { toast(error.message); }
+}
+
+let firstViewRender = true;
+// Returns true when the view was switched, false when the user kept unsaved changes.
+// options.fromHistory: called by popstate, the URL is already correct and must not be touched.
+function showView(name, options = {}) {
   if (!['scanner', 'review', 'catalog', 'sets', 'offers', 'settings'].includes(name)) name = 'scanner';
-  if (!allowDiscard()) return;
+  if (hasUnsavedChanges()) {
+    // Ask without blocking the page; the switch continues only after the user agrees.
+    void confirmDiscard().then((ok) => { if (ok) showView(name, options); });
+    return false;
+  }
   state.activeView = name;
   $$('.view').forEach((view) => {
     view.hidden = view.id !== `view-${name}`;
@@ -166,7 +204,15 @@ function showView(name) {
     else button.removeAttribute('aria-current');
   });
   $('#viewTitle').textContent = $(`#view-${name}`).dataset.title;
-  history.replaceState(null, '', name === 'scanner' ? '/' : `/?view=${name}`);
+  if (!options.fromHistory) {
+    const current = location.pathname + location.search;
+    // Reloading or re-entering the same view keeps the selected item in the address.
+    const sameView = viewFromSearch(location.search) === name;
+    const keepId = sameView ? idFromSearch(location.search) : null;
+    if (shouldPush(current, name, firstViewRender)) history.pushState({ view: name }, '', urlForView(name));
+    else history.replaceState({ view: name }, '', urlForView(name, keepId));
+  }
+  firstViewRender = false;
   if (name === 'scanner') refreshWorkflowDashboard?.();
   if(['sets','settings'].includes(name)) $('#mobileMore')?.setAttribute('aria-current','page');
   else $('#mobileMore')?.removeAttribute('aria-current');
@@ -176,7 +222,22 @@ function showView(name) {
   if (name === 'scanner') { renderScannerOffers(); void refreshScannerOffers(); }
   if (name === 'settings') { renderSettings(); void tradingControls?.refreshSettings(); }
   if (name === 'sets') void setsView.refreshSets().catch(error => toast(error.message));
+  return true;
 }
+
+// Browser back/forward between workspaces. Unsaved changes can veto the move; in that case the
+// URL is restored so the address bar keeps matching what is on screen.
+window.addEventListener('popstate', () => {
+  const target = viewFromSearch(location.search);
+  if (target === state.activeView) return;
+  if (hasUnsavedChanges()) {
+    history.pushState({ view: state.activeView }, '', urlForView(state.activeView));
+    void confirmDiscard().then((ok) => { if (ok) showView(target); });
+    return;
+  }
+  showView(target, { fromHistory: true });
+  void restoreItem(target, idFromSearch(location.search));
+});
 
 async function loadSources() {
   const data = await json('/api/sources');
@@ -518,9 +579,9 @@ const { startSearch, renderSourceRows } = createScannerView({
 const { renderSettings, runDiagnostics } = createSettingsView({ state, $, escapeHtml, loadCatalogStatus });
 
 function visibleCatalogRows(...args) { return reviewView.visibleCatalogRows(...args); }
-function renderReview(...args) { return reviewView.renderReview(...args); }
+function renderReview(...args) { const result = reviewView.renderReview(...args); syncItemUrl(); return result; }
 
-function renderCatalog(...args) { return catalogView.renderCatalog(...args); }
+function renderCatalog(...args) { const result = catalogView.renderCatalog(...args); syncItemUrl(); return result; }
 function priceStats(...args) { return catalogView.priceStats(...args); }
 
 function renderOffers(...args) { return offersView.renderOffers(...args); }
@@ -684,7 +745,7 @@ $('#retryIdentification').addEventListener('click', async () => {
   } finally { button.disabled = false; }
 });
 $('#refreshView').addEventListener('click', async () => {
-  if(!allowDiscard())return;
+  if(!await confirmDiscard())return;
   const button = $('#refreshView');
   button.disabled = true;
   try {
@@ -811,7 +872,7 @@ async function restoreLastScanStatus() {
 }
 
 const scanInsights = createScanInsights({ $, json, escapeHtml });
-const setsView = createSetsView({ $, json, escapeHtml, toast, openOfferDrawer });
+const setsView = createSetsView({ $, json, escapeHtml, toast, openOfferDrawer, onSelect: () => syncItemUrl() });
 // Review: one scrolling list, no separate page-level loading controls.
 let reviewScrollLoading = false;
 $('#reviewList').addEventListener('scroll', async (event) => {
@@ -850,13 +911,19 @@ async function changeOfferPage(page) {
 const tradingControls = installTradingControls({state,$,json,toast,showView,loadCatalogData,loadCatalogStatus,openOfferDrawer,
   onOfferFilters:()=>scheduleGlobalCatalogSearch('offers'),onCatalogFilters:()=>scheduleGlobalCatalogSearch('works')});
 const refreshWorkflowDashboard = installDashboard({ state, showView });
-showView(new URLSearchParams(location.search).get('view') || 'catalog');
+const startupView = viewFromSearch(location.search);
+const startupItem = idFromSearch(location.search);
+showView(startupView);
 Promise.all([loadSources().then(() => installScanProfiles({ queriesInput: $('#queries'), sourceGrid: $('#sourceGrid'), panel: $('.scanner-form-panel'), toast, json })), loadHistory(), loadCatalogStatus(), loadCatalogData(), restoreLastScanStatus(), tradingControls.refreshRuns()]).catch(
   (error) => {
     $('#connectionLabel').textContent = 'Błąd połączenia';
     toast(`Nie udało się wczytać aplikacji: ${error.message}`);
   },
-);
+).then(async () => {
+  await restoreItem(startupView, startupItem);
+  itemUrlReady = true;
+  syncItemUrl();
+});
 
 let identificationRefreshBusy = false;
 let lastCatalogDataRefresh = 0;
